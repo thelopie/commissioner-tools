@@ -14,6 +14,7 @@ import {
   type YahooLeagueMetadata,
   type YahooLeagueSummary,
   type YahooMatchup,
+  type YahooStandingsRow,
   type YahooTeam,
   type YahooTeamRoster,
   type YahooUserProfile,
@@ -207,6 +208,22 @@ export class YahooService {
     );
   }
 
+  async getStandings(
+    userId: InternalId,
+    leagueKey: YahooLeagueKey,
+    options: { refresh?: boolean } = {},
+  ): Promise<YahooStandingsRow[]> {
+    return this.cached(
+      `standings:${leagueKey}`,
+      'standings',
+      options.refresh ?? false,
+      async () => {
+        const { client } = await this.clientFor(userId);
+        return client.getStandings(leagueKey);
+      },
+    );
+  }
+
   async getScoreboard(
     userId: InternalId,
     leagueKey: YahooLeagueKey,
@@ -249,12 +266,23 @@ export class YahooService {
     return rosters;
   }
 
-  /** Clears cached league reads, backing the dashboard's manual refresh button. */
-  async invalidateLeague(leagueKey: YahooLeagueKey, userId: InternalId): Promise<void> {
+  /**
+   * Clears cached league reads, backing the dashboard's manual refresh button.
+   *
+   * Scoreboard keys are week-scoped, so the caller passes the weeks currently on
+   * screen rather than this guessing at them.
+   */
+  async invalidateLeague(
+    leagueKey: YahooLeagueKey,
+    userId: InternalId,
+    weeks: readonly number[] = [],
+  ): Promise<void> {
     await this.options.table.invalidateCache([
       `user_leagues:${userId}`,
       `league_metadata:${leagueKey}`,
       `league_teams:${leagueKey}`,
+      `standings:${leagueKey}`,
+      ...weeks.map((week) => `scoreboard:${leagueKey}:${week}`),
     ]);
   }
 

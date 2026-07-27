@@ -317,6 +317,7 @@ yahooRoutes.get('/api/league/overview', async (c) => {
       startWeek: metadata.startWeek ?? null,
       endWeek: metadata.endWeek ?? null,
       playoffStartWeek: metadata.playoffStartWeek ?? null,
+      numPlayoffTeams: metadata.numPlayoffTeams ?? null,
       scoringType: metadata.scoringType ?? null,
       teamCount: metadata.teamCount ?? null,
       draftStatus: metadata.draftStatus ?? null,

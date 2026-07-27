@@ -90,6 +90,11 @@ export function handleFantasyRequest(path: string): MockResponse {
     return leagueScopedResponse(leagueTeams[1]!, fixtures.mockLeagueTeamsResponse());
   }
 
+  const standings = /^league\/([^/]+)\/standings$/.exec(clean);
+  if (standings) {
+    return leagueScopedResponse(standings[1]!, fixtures.mockStandingsResponse());
+  }
+
   const scoreboard = /^league\/([^/]+)\/scoreboard;week=(\d+)$/.exec(clean);
   if (scoreboard) {
     return leagueScopedResponse(

@@ -10,6 +10,7 @@ import { defaultFetch, mockAwareFetch, YahooService } from './services/yahoo-ser
 import { assertCsrf, CSRF_HEADER, parseCookies, SESSION_COOKIE } from './lib/cookies.js';
 import { authRoutes } from './routes/auth.js';
 import { yahooRoutes } from './routes/yahoo.js';
+import { leagueViewRoutes } from './routes/league-view.js';
 import { leagueOpsRoutes } from './routes/league-ops.js';
 import { challengeRoutes } from './routes/challenges.js';
 import { draftRoutes } from './routes/draft.js';
@@ -210,6 +211,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   // ----------------------------------------------------------------- 7. routes
   app.route('/', authRoutes);
   app.route('/', yahooRoutes);
+  app.route('/', leagueViewRoutes);
   app.route('/', leagueOpsRoutes);
   app.route('/', challengeRoutes);
   app.route('/', draftRoutes);

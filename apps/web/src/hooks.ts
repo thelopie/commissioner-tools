@@ -7,7 +7,10 @@ import {
   type ConnectionResponse,
   type LeagueOption,
   type LeagueOverview,
+  type MatchupsResponse,
+  type MeResponse,
   type SessionResponse,
+  type StandingsResponse,
 } from './api/client.js';
 
 /** Query keys in one place, so invalidation cannot drift from fetching. */
@@ -20,6 +23,9 @@ export const queryKeys = {
   members: (seasonYear: number) => ['league', 'members', seasonYear] as const,
   challenges: (seasonYear: number) => ['challenges', seasonYear] as const,
   audit: ['audit'] as const,
+  me: ['league', 'me'] as const,
+  standings: ['league', 'standings'] as const,
+  matchups: (week: number) => ['league', 'matchups', week] as const,
 };
 
 export function useSession(): UseQueryResult<SessionResponse> {
@@ -100,6 +106,10 @@ export function useManualRefresh() {
       queryClient.setQueryData(queryKeys.overview, data);
       // Connection status carries last-success time, which just changed.
       void queryClient.invalidateQueries({ queryKey: queryKeys.connection });
+      // The home summary, standings, and matchups all read the same Yahoo data.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.me });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.standings });
+      void queryClient.invalidateQueries({ queryKey: ['league', 'matchups'] });
     },
   });
 }
@@ -191,5 +201,31 @@ export function useSignOut() {
       // show one user's league to whoever signs in next on a shared device.
       queryClient.clear();
     },
+  });
+}
+
+export function useLeagueMe(enabled: boolean): UseQueryResult<MeResponse> {
+  return useQuery({
+    queryKey: queryKeys.me,
+    queryFn: () => api.get<MeResponse>('/api/league/me'),
+    enabled,
+    // Live scores during games, so this should not go stale for long.
+    staleTime: 20_000,
+  });
+}
+
+export function useStandings(enabled: boolean): UseQueryResult<StandingsResponse> {
+  return useQuery({
+    queryKey: queryKeys.standings,
+    queryFn: () => api.get<StandingsResponse>('/api/league/standings'),
+    enabled,
+  });
+}
+
+export function useMatchups(week: number | null): UseQueryResult<MatchupsResponse> {
+  return useQuery({
+    queryKey: queryKeys.matchups(week ?? 0),
+    queryFn: () => api.get<MatchupsResponse>(`/api/league/matchups/${week}`),
+    enabled: week !== null,
   });
 }

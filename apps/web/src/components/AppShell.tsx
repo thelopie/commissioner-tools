@@ -19,10 +19,13 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import SpaceDashboardIcon from '@mui/icons-material/SpaceDashboardRounded';
+import HomeIcon from '@mui/icons-material/HomeRounded';
+import ScoreboardIcon from '@mui/icons-material/ScoreboardRounded';
+import LeaderboardIcon from '@mui/icons-material/LeaderboardRounded';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import CloudSyncIcon from '@mui/icons-material/CloudSyncRounded';
 import HistoryIcon from '@mui/icons-material/HistoryRounded';
+import SettingsIcon from '@mui/icons-material/SettingsRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
 import ContrastIcon from '@mui/icons-material/ContrastRounded';
@@ -51,11 +54,25 @@ export interface NavItem {
   commissionerOnly?: boolean;
 }
 
+/**
+ * Primary navigation: what a league MEMBER needs.
+ *
+ * Four items, which is the practical limit for bottom navigation. Administrative
+ * screens live in the account menu instead — a manager has no use for OAuth token
+ * rotation counts, and the first build put them front and centre.
+ */
 const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', to: '/', icon: <SpaceDashboardIcon /> },
+  { label: 'Home', to: '/', icon: <HomeIcon /> },
+  { label: 'Matchups', to: '/matchups', icon: <ScoreboardIcon /> },
+  { label: 'Standings', to: '/standings', icon: <LeaderboardIcon /> },
   { label: 'Challenges', to: '/challenges', icon: <EmojiEventsIcon /> },
-  { label: 'Yahoo', to: '/yahoo-capabilities', icon: <CloudSyncIcon /> },
-  { label: 'Audit', to: '/audit', icon: <HistoryIcon />, commissionerOnly: true },
+];
+
+/** Administrative screens, reached from the account menu. */
+const COMMISSIONER_ITEMS: Array<{ label: string; to: string; icon: React.ReactNode }> = [
+  { label: 'Commissioner tools', to: '/commissioner', icon: <SettingsIcon /> },
+  { label: 'Yahoo status', to: '/yahoo-capabilities', icon: <CloudSyncIcon /> },
+  { label: 'Audit history', to: '/audit', icon: <HistoryIcon /> },
 ];
 
 export interface AppShellProps {
@@ -94,7 +111,8 @@ export function AppShell({
   const showRail = useMediaQuery(theme.breakpoints.up('md'));
   const location = useLocation();
 
-  const items = NAV_ITEMS.filter((item) => !item.commissionerOnly || isCommissioner);
+  // Every primary item is member-facing, so nothing is filtered here.
+  const items = NAV_ITEMS;
 
   /**
    * Move focus to the page title on navigation.
@@ -169,6 +187,7 @@ export function AppShell({
               <AccountMenu
                 displayName={displayName ?? 'Manager'}
                 roleLabel={roleLabel}
+                isCommissioner={isCommissioner}
                 onSignOut={onSignOut}
                 signOutPending={signOutPending}
               />
@@ -445,11 +464,13 @@ function ThemeToggle(): JSX.Element {
 function AccountMenu({
   displayName,
   roleLabel,
+  isCommissioner,
   onSignOut,
   signOutPending,
 }: {
   displayName: string;
   roleLabel: string | undefined;
+  isCommissioner: boolean;
   onSignOut: () => void;
   signOutPending: boolean;
 }): JSX.Element {
@@ -486,6 +507,22 @@ function AccountMenu({
           )}
         </Box>
         <Divider />
+
+        {isCommissioner &&
+          COMMISSIONER_ITEMS.map((item) => (
+            <MenuItem
+              key={item.to}
+              component={RouterLink}
+              to={item.to}
+              onClick={() => setAnchor(null)}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText>{item.label}</ListItemText>
+            </MenuItem>
+          ))}
+
+        {isCommissioner && <Divider />}
+
         <MenuItem
           onClick={() => {
             setAnchor(null);

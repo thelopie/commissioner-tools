@@ -50,14 +50,16 @@ import {
 import { describeOAuthError } from './SignInPage.js';
 
 /**
- * Commissioner dashboard.
+ * Commissioner tools.
  *
- * Ordered by what needs a decision, not by what is easy to render: anything
- * asking for action comes first, then live league state. A commissioner opening
- * this on a phone during a game should see whether something is wrong before
- * seeing anything else.
+ * The administrative surface: connection health, league linking, team mapping.
+ * Deliberately NOT the home screen — a league member has no reason to look at
+ * OAuth token rotation counts, and leading with them was the reason the first
+ * build gave managers nothing to come back for.
+ *
+ * Ordered by what needs a decision, not by what is easy to render.
  */
-export function DashboardPage(): JSX.Element {
+export function CommissionerPage(): JSX.Element {
   const [params, setParams] = useSearchParams();
   const session = useSession();
   const connection = useConnection();
@@ -76,11 +78,11 @@ export function DashboardPage(): JSX.Element {
   return (
     <Stack spacing={3}>
       <PageHeader
-        title={overview.data?.league.name ? overview.data.league.name : 'Dashboard'}
+        title="Commissioner tools"
         description={
-          overview.data?.yahoo
-            ? `${overview.data.yahoo.season ?? overview.data.yahoo.seasonYear} season · week ${overview.data.yahoo.currentWeek ?? '—'}`
-            : 'League operations for a long-running fantasy football league.'
+          overview.data?.league.name
+            ? `${overview.data.league.name} · Yahoo connection, league linking, and team mapping.`
+            : 'Yahoo connection, league linking, and team mapping.'
         }
       />
 

@@ -1112,3 +1112,137 @@ describe('error responses', () => {
     expect(await response.json()).toMatchObject({ error: { code: 'not_found' } });
   });
 });
+
+describe('manager-facing league views', () => {
+  /** Signs in, bootstraps, and links the mock league. */
+  async function linkedCommissioner(): Promise<Record<string, string>> {
+    const jar = await signInAsCommissioner();
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeader(jar),
+        [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+      },
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+    return jar;
+  }
+
+  it('serves standings with records and points', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/standings', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    expect(body.standings).toHaveLength(12);
+    expect(body.standings[0].rank).toBe(1);
+    expect(body.standings[0].record).toMatch(/^\d+-\d+$/);
+    expect(body.standings[0].pointsFor).toBeTypeOf('number');
+  });
+
+  it('marks the signed-in user’s own row without any manual mapping', async () => {
+    // Yahoo's is_current_login is what makes this work, so a member sees "you"
+    // before a commissioner has mapped any teams.
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/standings', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+    const body = await response.json();
+
+    expect(body.standings.filter((row: { isYou: boolean }) => row.isYou)).toHaveLength(1);
+  });
+
+  it('serves a week of matchups with scores and a margin', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/matchups/3', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    expect(body.week).toBe(3);
+    expect(body.matchups).toHaveLength(6);
+    expect(body.matchups[0].teams).toHaveLength(2);
+    expect(body.matchups[0].teams[0].points).toBeTypeOf('number');
+    expect(body.matchups[0].margin).toBeTypeOf('number');
+    expect(body.matchups.filter((m: { involvesYou: boolean }) => m.involvesYou)).toHaveLength(1);
+  });
+
+  it('summarises the home screen in a single request', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/me', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    expect(body.linked).toBe(true);
+    expect(body.week).toBe(3);
+    // The three things a manager opens the app for.
+    expect(body.you.record).toMatch(/^\d+-\d+$/);
+    expect(body.matchup.you.points).toBeTypeOf('number');
+    expect(body.matchup.opponent.points).toBeTypeOf('number');
+    expect(body.leaders).toHaveLength(3);
+    expect(body.highestScore.points).toBeTypeOf('number');
+    expect(body.closestMatchup.margin).toBeTypeOf('number');
+  });
+
+  it('reports not linked rather than erroring before a league is chosen', async () => {
+    const jar = await signInAsCommissioner();
+
+    const response = await app.request('/api/league/me', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ linked: false });
+  });
+
+  it('explains itself when standings are requested with no league linked', async () => {
+    const jar = await signInAsCommissioner();
+
+    const response = await app.request('/api/league/standings', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: 'yahoo_league_not_linked' } });
+  });
+
+  it('is available to any member, not just commissioners', async () => {
+    // League information is not administration. A manager must be able to read
+    // standings and matchups.
+    await linkedCommissioner();
+    const user = table.ofEntity('PortalUser')[0]!;
+    await table.put({ ...user, role: 'manager', isPrimaryCommissioner: false });
+
+    const jar = await signIn();
+    for (const path of ['/api/league/standings', '/api/league/matchups/3', '/api/league/me']) {
+      const response = await app.request(path, { headers: { Cookie: cookieHeader(jar) } });
+      expect(response.status, path).toBe(200);
+    }
+  });
+
+  it('never persists Yahoo names from these reads', async () => {
+    const jar = await linkedCommissioner();
+    await app.request('/api/league/standings', { headers: { Cookie: cookieHeader(jar) } });
+    await app.request('/api/league/matchups/3', { headers: { Cookie: cookieHeader(jar) } });
+
+    const durable = table.all().filter((item) => item['entity'] !== 'YahooCacheEntry');
+    expect(JSON.stringify(durable)).not.toContain('Dovetail Dynasty');
+  });
+});

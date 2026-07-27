@@ -103,8 +103,17 @@ export interface YahooTeamRoster {
 
 export interface YahooMatchupTeam {
   teamKey: YahooTeamKey;
+  /** Ephemeral display text. Needed to render a matchup at all. */
+  name?: string;
   points?: number;
   projectedPoints?: number;
+  /**
+   * Managers, carrying Yahoo's `is_current_login` flag.
+   *
+   * That flag is how the portal identifies which team belongs to the signed-in
+   * user without requiring the commissioner to map anything first.
+   */
+  managers: YahooManager[];
 }
 
 export interface YahooMatchup {
@@ -113,6 +122,32 @@ export interface YahooMatchup {
   isTied?: boolean;
   winnerTeamKey?: YahooTeamKey;
   status?: string;
+}
+
+/**
+ * One row of the league standings.
+ *
+ * Ephemeral like everything else here. Displayed live and cached for minutes; a
+ * season's final order is recorded separately as Dinkel's own data so that
+ * draft-order tiebreakers survive past Yahoo's 24-hour retention window.
+ */
+export interface YahooStandingsRow {
+  teamKey: YahooTeamKey;
+  /** Ephemeral display text. */
+  name: string;
+  rank?: number;
+  wins?: number;
+  losses?: number;
+  ties?: number;
+  /** Yahoo's own formatted record string, e.g. "8-4-0". */
+  recordLabel?: string;
+  pointsFor?: number;
+  pointsAgainst?: number;
+  /** e.g. "W3" or "L1". Absent early in a season. */
+  streak?: string;
+  /** Games behind the division or league leader, when Yahoo reports it. */
+  gamesBack?: string;
+  managers: YahooManager[];
 }
 
 // --------------------------------------------------------------------------
@@ -216,11 +251,16 @@ export function parseLeagueTeams(body: unknown): YahooTeam[] {
   return teams.map((team) => parseTeam(team)).filter((team): team is YahooTeam => team !== null);
 }
 
-function parseTeam(team: Record<string, Json>): YahooTeam | null {
-  const teamKey = optionalString(team, 'team_key');
-  if (!teamKey) return null;
-
+/**
+ * Reads the managers attached to a team node.
+ *
+ * Shared by the teams, scoreboard, and standings parsers: Yahoo nests managers
+ * identically in all three, and duplicating this is how `is_current_login`
+ * quietly goes missing from one of them.
+ */
+function parseManagers(team: Record<string, Json>): YahooManager[] {
   const managers: YahooManager[] = [];
+
   for (const node of collect(team['managers'])) {
     const manager = mergeParts(pick(node, 'manager') ?? node);
     const nickname = optionalString(manager, 'nickname');
@@ -235,6 +275,15 @@ function parseTeam(team: Record<string, Json>): YahooTeam | null {
     if (isCurrentLogin !== undefined) parsed.isCurrentLogin = isCurrentLogin;
     managers.push(parsed);
   }
+
+  return managers;
+}
+
+function parseTeam(team: Record<string, Json>): YahooTeam | null {
+  const teamKey = optionalString(team, 'team_key');
+  if (!teamKey) return null;
+
+  const managers = parseManagers(team);
 
   const result: YahooTeam = {
     teamKey: teamKey as YahooTeamKey,
@@ -339,7 +388,11 @@ export function parseScoreboard(body: unknown, fallbackWeek: number): YahooMatch
       const teamKey = optionalString(teamNode, 'team_key');
       if (!teamKey) continue;
 
-      const entry: YahooMatchupTeam = { teamKey: teamKey as YahooTeamKey };
+      const entry: YahooMatchupTeam = {
+        teamKey: teamKey as YahooTeamKey,
+        managers: parseManagers(teamNode),
+      };
+      assign(entry, 'name', optionalString(teamNode, 'name'));
       const points = mergeParts(teamNode['team_points']);
       assign(entry, 'points', optionalNumber(points, 'total'));
       const projected = mergeParts(teamNode['team_projected_points']);
@@ -361,6 +414,75 @@ export function parseScoreboard(body: unknown, fallbackWeek: number): YahooMatch
   }
 
   return matchups;
+}
+
+/**
+ * Parses `/league/{league_key}/standings`.
+ *
+ * Yahoo nests the record under `team_standings.outcome_totals` and points under
+ * `team_points` / `team_standings.points_for`, and which of those is populated
+ * varies. Both are read, preferring the standings block, because a half-filled
+ * standings table is worse than none.
+ *
+ * Rank is taken from Yahoo when present and otherwise derived from array order,
+ * which is the order Yahoo returns standings in.
+ */
+export function parseStandings(body: unknown): YahooStandingsRow[] {
+  const content = fantasyContent(body);
+  const leagues = descend(content, ['league']);
+  const league = leagues[0] ?? mergeParts(content['league']);
+  const standings = mergeParts(league['standings']);
+
+  const teams = descend(standings, ['teams', 'team']);
+  const rows: YahooStandingsRow[] = [];
+
+  teams.forEach((team, index) => {
+    const teamKey = optionalString(team, 'team_key');
+    if (!teamKey) return;
+
+    const teamStandings = mergeParts(team['team_standings']);
+    const outcomes = mergeParts(teamStandings['outcome_totals']);
+
+    const row: YahooStandingsRow = {
+      teamKey: teamKey as YahooTeamKey,
+      name: optionalString(team, 'name') ?? '(unnamed team)',
+      managers: parseManagers(team),
+      // Yahoo returns standings already ordered, so position is a safe fallback.
+      rank: optionalNumber(teamStandings, 'rank') ?? index + 1,
+    };
+
+    assign(row, 'wins', optionalNumber(outcomes, 'wins'));
+    assign(row, 'losses', optionalNumber(outcomes, 'losses'));
+    assign(row, 'ties', optionalNumber(outcomes, 'ties'));
+    assign(row, 'streak', describeStreak(mergeParts(teamStandings['streak'])));
+    assign(row, 'gamesBack', optionalString(teamStandings, 'games_back'));
+
+    assign(
+      row,
+      'pointsFor',
+      optionalNumber(teamStandings, 'points_for') ??
+        optionalNumber(mergeParts(team['team_points']), 'total'),
+    );
+    assign(row, 'pointsAgainst', optionalNumber(teamStandings, 'points_against'));
+
+    if (row.wins !== undefined && row.losses !== undefined) {
+      row.recordLabel = `${row.wins}-${row.losses}${row.ties ? `-${row.ties}` : ''}`;
+    }
+
+    rows.push(row);
+  });
+
+  return rows;
+}
+
+/** Yahoo reports a streak as `{ type: 'win', value: '3' }`. */
+function describeStreak(streak: Record<string, Json>): string | undefined {
+  const type = optionalString(streak, 'type');
+  const value = optionalString(streak, 'value');
+  if (!type || !value) return undefined;
+
+  const letter = type.startsWith('win') ? 'W' : type.startsWith('loss') ? 'L' : 'T';
+  return `${letter}${value}`;
 }
 
 function toSummary(

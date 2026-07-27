@@ -192,6 +192,7 @@ export interface LeagueOverview {
     startWeek: number | null;
     endWeek: number | null;
     playoffStartWeek: number | null;
+    numPlayoffTeams: number | null;
     scoringType: string | null;
     teamCount: number | null;
     draftStatus: string | null;
@@ -253,4 +254,77 @@ export interface AuditEntry {
   summary: string;
   targetEntity?: string;
   targetId?: string;
+}
+
+export interface StandingsRow {
+  rank: number | null;
+  yahooTeamKey: string;
+  name: string;
+  record: string | null;
+  wins: number | null;
+  losses: number | null;
+  ties: number | null;
+  pointsFor: number | null;
+  pointsAgainst: number | null;
+  streak: string | null;
+  managers: string[];
+  isYou: boolean;
+}
+
+export interface StandingsResponse {
+  seasonYear: number;
+  standings: StandingsRow[];
+  fetchedAt: string;
+}
+
+export interface MatchupTeam {
+  yahooTeamKey: string;
+  name: string;
+  points: number | null;
+  managers: string[];
+  isYou: boolean;
+  isWinner: boolean;
+}
+
+export interface MatchupsResponse {
+  week: number;
+  seasonYear: number;
+  matchups: Array<{
+    teams: MatchupTeam[];
+    isTied: boolean;
+    status: string | null;
+    margin: number | null;
+    involvesYou: boolean;
+  }>;
+  fetchedAt: string;
+}
+
+/** The home-screen summary: one request rather than three loading states. */
+export interface MeResponse {
+  linked: boolean;
+  seasonYear?: number;
+  week?: number;
+  leagueName?: string;
+  teamCount?: number;
+  playoffStartWeek?: number | null;
+  you?: {
+    yahooTeamKey: string;
+    name: string;
+    rank: number | null;
+    record: string | null;
+    pointsFor: number | null;
+    pointsAgainst: number | null;
+    streak: string | null;
+  } | null;
+  matchup?: {
+    status: string | null;
+    isTied: boolean;
+    you: { name: string; points: number | null };
+    opponent: { name: string; points: number | null; managers: string[] } | null;
+    margin: number | null;
+  } | null;
+  leaders?: Array<{ rank: number | null; name: string; record: string | null; isYou: boolean }>;
+  highestScore?: { name: string; points: number } | null;
+  closestMatchup?: { margin: number; teams: string[] } | null;
+  fetchedAt?: string;
 }

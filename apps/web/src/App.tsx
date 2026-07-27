@@ -5,12 +5,17 @@ import { useSession, useSignOut } from './hooks.js';
 import { ApiError } from './api/client.js';
 import { ErrorNotice } from './components/ErrorNotice.js';
 import { AppShell } from './components/AppShell.js';
-import { DashboardPage } from './pages/DashboardPage.js';
+import { HomePage } from './pages/HomePage.js';
+import { MatchupsPage } from './pages/MatchupsPage.js';
+import { StandingsPage } from './pages/StandingsPage.js';
 import { SignInPage } from './pages/SignInPage.js';
 import { SetupPage } from './pages/SetupPage.js';
 
 // Kept out of the initial bundle: reference pages a commissioner opens
 // occasionally should not slow the dashboard everyone loads first.
+const CommissionerPage = lazy(() =>
+  import('./pages/CommissionerPage.js').then((module) => ({ default: module.CommissionerPage })),
+);
 const CapabilitiesPage = lazy(() =>
   import('./pages/CapabilitiesPage.js').then((module) => ({ default: module.CapabilitiesPage })),
 );
@@ -94,13 +99,39 @@ export function App(): JSX.Element {
               ) : data?.needsBootstrap ? (
                 <Navigate to="/setup" replace />
               ) : (
-                <DashboardPage />
+                <HomePage />
               )
             }
           />
           <Route
+            path="/matchups"
+            element={authenticated ? <MatchupsPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/standings"
+            element={authenticated ? <StandingsPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
             path="/challenges"
             element={authenticated ? <ChallengesPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/commissioner"
+            element={
+              isCommissioner ? (
+                <CommissionerPage />
+              ) : (
+                <ErrorNotice
+                  error={
+                    new ApiError(
+                      403,
+                      'commissioner_required',
+                      'Commissioner tools are commissioner-only.',
+                    )
+                  }
+                />
+              )
+            }
           />
           <Route
             path="/yahoo-capabilities"

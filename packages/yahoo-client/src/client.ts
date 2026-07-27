@@ -4,12 +4,14 @@ import {
   parseLeagueMetadata,
   parseLeagueTeams,
   parseScoreboard,
+  parseStandings,
   parseTeamRoster,
   parseUserLeagues,
   parseUserProfile,
   type YahooLeagueMetadata,
   type YahooLeagueSummary,
   type YahooMatchup,
+  type YahooStandingsRow,
   type YahooTeam,
   type YahooTeamRoster,
   type YahooUserProfile,
@@ -164,6 +166,17 @@ export class YahooClient {
   async getLeagueTeams(leagueKey: YahooLeagueKey): Promise<YahooTeam[]> {
     const body = await this.get(`league/${encodeURIComponent(leagueKey)}/teams`);
     return parseLeagueTeams(body);
+  }
+
+  /**
+   * League standings.
+   *
+   * Displayed live only. A season's final order is recorded separately as
+   * Dinkel's own data, because Yahoo standings cannot be retained past 24 hours.
+   */
+  async getStandings(leagueKey: YahooLeagueKey): Promise<YahooStandingsRow[]> {
+    const body = await this.get(`league/${encodeURIComponent(leagueKey)}/standings`);
+    return parseStandings(body);
   }
 
   async getScoreboard(leagueKey: YahooLeagueKey, week: number): Promise<YahooMatchup[]> {

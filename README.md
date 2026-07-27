@@ -34,6 +34,23 @@ a bug. See [Yahoo capabilities](#yahoo-capabilities).
 
 ---
 
+## What it shows
+
+**For every league member** — read live from Yahoo, nothing stored:
+
+| Screen     | Content                                                                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Home       | Your matchup with a live score, your rank, record, streak, points for and against, the top of the table, the week's highest score and closest game |
+| Matchups   | Every matchup for a week, your own pulled to the front, with a week selector                                                                       |
+| Standings  | Full table with record, streak, points for and against, differential, and the playoff cut                                                          |
+| Challenges | All thirteen weekly challenges and, for each blocked one, the exact Yahoo field it is waiting on                                                   |
+
+**For commissioners**, from the account menu: Yahoo connection health and league linking, the Yahoo capability matrix, and the append-only audit history.
+
+Your own team is identified from Yahoo's `is_current_login` flag, so "you" appears everywhere without anyone having to map teams first.
+
+**What cannot be shown from Yahoo:** all-time league records. Yahoo's terms require purging its data within 24 hours, so a permanent history cannot be built from it — those come from importing your legacy spreadsheet as CSV.
+
 ## Architecture
 
 ```
@@ -105,8 +122,9 @@ Two structural choices worth naming:
    https://your-domain/auth/yahoo/callback        ← deployed
    ```
 
-   There is no `http://localhost` option. That is why local development needs a
-   certificate (see below).
+   There is no `http://localhost` option for real Yahoo credentials, which is why
+   `YAHOO_MODE=live` needs a local certificate (see below). **Mock mode does not** —
+   there is no Yahoo to satisfy, so plain HTTP works and no certificate is required.
 
 3. **Put the credentials in `.env`** (local) or Secrets Manager (deployed). Never in
    the repository — this one is public.
@@ -134,7 +152,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # 
 node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"   # TOKEN_ENCRYPTION_KEY
 ```
 
-Generate a local HTTPS certificate, because Yahoo will not accept `http://localhost`:
+Generate a local HTTPS certificate — needed **only** for `YAHOO_MODE=live`, since
+Yahoo will not accept `http://localhost`. Mock mode runs happily over HTTP:
 
 ```bash
 npm run certs

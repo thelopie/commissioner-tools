@@ -4,6 +4,7 @@ import {
   parseLeagueMetadata,
   parseLeagueTeams,
   parseScoreboard,
+  parseStandings,
   parseTeamRoster,
   parseUserLeagues,
   parseUserProfile,
@@ -333,5 +334,97 @@ describe('synthetic fixtures', () => {
     const first = JSON.stringify(fixtures.mockScoreboardResponse(3));
     const second = JSON.stringify(fixtures.mockScoreboardResponse(3));
     expect(first).toBe(second);
+  });
+});
+
+describe('parseStandings', () => {
+  it('reads a full standings table', () => {
+    const rows = parseStandings(fixtures.mockStandingsResponse());
+
+    expect(rows).toHaveLength(12);
+    const [leader] = rows;
+
+    expect(leader?.rank).toBe(1);
+    expect(leader?.name).toBeTruthy();
+    expect(leader?.wins).toBeTypeOf('number');
+    expect(leader?.losses).toBeTypeOf('number');
+    expect(leader?.pointsFor).toBeTypeOf('number');
+    expect(leader?.pointsAgainst).toBeTypeOf('number');
+  });
+
+  it('formats a record label', () => {
+    const [leader] = parseStandings(fixtures.mockStandingsResponse());
+    expect(leader?.recordLabel).toMatch(/^\d+-\d+$/);
+  });
+
+  it('returns rows already ranked, ascending', () => {
+    const ranks = parseStandings(fixtures.mockStandingsResponse()).map((row) => row.rank);
+    expect(ranks).toEqual([...ranks].sort((a, b) => (a ?? 0) - (b ?? 0)));
+  });
+
+  it('carries managers so the signed-in user can be identified', () => {
+    // is_current_login is what lets the portal show "your team" without the
+    // commissioner mapping anything first.
+    const rows = parseStandings(fixtures.mockStandingsResponse());
+    const mine = rows.find((row) => row.managers.some((manager) => manager.isCurrentLogin));
+
+    expect(mine).toBeDefined();
+    expect(mine?.managers[0]?.nickname).toBe('mock_commissioner');
+  });
+
+  it('reads a streak as a compact label', () => {
+    const [leader] = parseStandings(fixtures.mockStandingsResponse());
+    expect(leader?.streak).toMatch(/^[WLT]\d+$/);
+  });
+
+  it('derives rank from order when Yahoo omits it', () => {
+    const body = {
+      fantasy_content: {
+        league: [
+          { league_key: 'k' },
+          {
+            standings: [
+              {
+                teams: {
+                  '0': { team: [[{ team_key: 'k.t.1' }, { name: 'First' }]] },
+                  '1': { team: [[{ team_key: 'k.t.2' }, { name: 'Second' }]] },
+                  count: 2,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    expect(parseStandings(body).map((row) => row.rank)).toEqual([1, 2]);
+  });
+
+  it('returns empty rather than throwing before a season starts', () => {
+    const body = {
+      fantasy_content: {
+        league: [{ league_key: 'k' }, { standings: [{ teams: { count: 0 } }] }],
+      },
+    };
+    expect(parseStandings(body)).toEqual([]);
+  });
+});
+
+describe('parseScoreboard team identity', () => {
+  it('includes team names and managers, so a matchup can be rendered and owned', () => {
+    const [matchup] = parseScoreboard(fixtures.mockScoreboardResponse(3), 3);
+    const [home] = matchup?.teams ?? [];
+
+    expect(home?.name).toBeTruthy();
+    expect(home?.managers.length).toBeGreaterThan(0);
+  });
+
+  it('marks the signed-in user’s own team', () => {
+    const matchups = parseScoreboard(fixtures.mockScoreboardResponse(3), 3);
+    const mine = matchups
+      .flatMap((matchup) => matchup.teams)
+      .find((team) => team.managers.some((manager) => manager.isCurrentLogin));
+
+    expect(mine).toBeDefined();
   });
 });

@@ -71,6 +71,20 @@ function countedCollection(items: unknown[]): Record<string, unknown> {
   return collection;
 }
 
+/** Yahoo's manager nesting, shared by the teams, scoreboard, and standings fixtures. */
+function managerNodes(team: MockTeam): Record<string, unknown> {
+  return countedCollection(
+    team.managers.map((manager) => ({
+      manager: [
+        ...(manager.guid ? [{ guid: manager.guid }] : []),
+        { nickname: manager.nickname },
+        ...(manager.isCommissioner ? [{ is_commissioner: '1' }] : []),
+        ...(manager.isCurrentLogin ? [{ is_current_login: '1' }] : []),
+      ],
+    })),
+  );
+}
+
 export function mockUserProfileResponse(): unknown {
   return {
     fantasy_content: {
@@ -191,18 +205,7 @@ export function mockLeagueTeamsResponse(): unknown {
                   { team_key: teamKey(team.teamId) },
                   { team_id: String(team.teamId) },
                   { name: team.name },
-                  {
-                    managers: countedCollection(
-                      team.managers.map((manager) => ({
-                        manager: [
-                          ...(manager.guid ? [{ guid: manager.guid }] : []),
-                          { nickname: manager.nickname },
-                          ...(manager.isCommissioner ? [{ is_commissioner: '1' }] : []),
-                          ...(manager.isCurrentLogin ? [{ is_current_login: '1' }] : []),
-                        ],
-                      })),
-                    ),
-                  },
+                  { managers: managerNodes(team) },
                 ],
                 { waiver_priority: String(team.teamId), number_of_moves: '0' },
               ],
@@ -221,8 +224,23 @@ export function mockLeagueTeamsResponse(): unknown {
  * different winner on each run would be worthless.
  */
 function mockPoints(seed: number): number {
-  const value = ((seed * 37) % 61) + 60 + ((seed * 13) % 10) / 10;
-  return Math.round(value * 10) / 10;
+  /**
+   * Bit-mixed rather than modular.
+   *
+   * Plain `(seed * k) % m` leaves related seeds correlated: because paired teams
+   * have adjacent ids, every matchup came out with an identical margin, which read
+   * as obviously fabricated. Mixing the bits decorrelates neighbouring seeds while
+   * staying fully deterministic, which the challenge tests depend on.
+   */
+  let h = seed + 0x9e3779b9;
+  h = Math.imul(h ^ (h >>> 16), 0x21f0aaad);
+  h = Math.imul(h ^ (h >>> 15), 0x735a2d97);
+  h = (h ^ (h >>> 15)) >>> 0;
+
+  // A plausible fantasy range: roughly 62 to 148 points, to a tenth.
+  const whole = 62 + (h % 87);
+  const tenths = ((h >>> 8) % 10) / 10;
+  return Math.round((whole + tenths) * 10) / 10;
 }
 
 export function mockScoreboardResponse(week: number): unknown {
@@ -246,7 +264,11 @@ export function mockScoreboardResponse(week: number): unknown {
           teams: countedCollection([
             {
               team: [
-                [{ team_key: teamKey(home.teamId) }, { name: home.name }],
+                [
+                  { team_key: teamKey(home.teamId) },
+                  { name: home.name },
+                  { managers: managerNodes(home) },
+                ],
                 {
                   team_points: {
                     coverage_type: 'week',
@@ -258,7 +280,11 @@ export function mockScoreboardResponse(week: number): unknown {
             },
             {
               team: [
-                [{ team_key: teamKey(away.teamId) }, { name: away.name }],
+                [
+                  { team_key: teamKey(away.teamId) },
+                  { name: away.name },
+                  { managers: managerNodes(away) },
+                ],
                 {
                   team_points: {
                     coverage_type: 'week',
@@ -345,6 +371,87 @@ export function mockTeamRosterResponse(teamId: number, week: number): unknown {
           roster: [
             { coverage_type: 'week', week: String(week) },
             { players: countedCollection(players) },
+          ],
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Standings through the current week.
+ *
+ * Records and points are derived from the same deterministic `mockPoints` the
+ * scoreboard uses, so the standings agree with the matchups rather than being an
+ * unrelated set of numbers.
+ */
+export function mockStandingsResponse(): unknown {
+  const rows = MOCK_TEAMS.map((team) => {
+    let pointsFor = 0;
+    let pointsAgainst = 0;
+    let wins = 0;
+    let losses = 0;
+
+    for (let week = 1; week < MOCK_CURRENT_WEEK; week += 1) {
+      const own = mockPoints(team.teamId * week);
+      // Pair each team against the next one along, wrapping, so every team has an
+      // opponent every week.
+      const opponentId = (team.teamId % MOCK_TEAMS.length) + 1;
+      const against = mockPoints(opponentId * week + 7);
+
+      pointsFor += own;
+      pointsAgainst += against;
+      if (own >= against) wins += 1;
+      else losses += 1;
+    }
+
+    return {
+      team,
+      wins,
+      losses,
+      pointsFor: Math.round(pointsFor * 10) / 10,
+      pointsAgainst: Math.round(pointsAgainst * 10) / 10,
+    };
+  });
+
+  // Yahoo returns standings already ordered: wins first, then points for.
+  rows.sort((a, b) => b.wins - a.wins || b.pointsFor - a.pointsFor);
+
+  return {
+    fantasy_content: {
+      league: [
+        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Dinkel League' },
+        {
+          standings: [
+            {
+              teams: countedCollection(
+                rows.map((row, index) => ({
+                  team: [
+                    [
+                      { team_key: teamKey(row.team.teamId) },
+                      { team_id: String(row.team.teamId) },
+                      { name: row.team.name },
+                      { managers: managerNodes(row.team) },
+                    ],
+                    {
+                      team_standings: [
+                        { rank: String(index + 1) },
+                        {
+                          outcome_totals: {
+                            wins: String(row.wins),
+                            losses: String(row.losses),
+                            ties: '0',
+                          },
+                        },
+                        { streak: { type: row.wins >= row.losses ? 'win' : 'loss', value: '1' } },
+                        { points_for: String(row.pointsFor) },
+                        { points_against: String(row.pointsAgainst) },
+                      ],
+                    },
+                  ],
+                })),
+              ),
+            },
           ],
         },
       ],
