@@ -661,3 +661,35 @@ export interface Announcement {
 export interface AnnouncementsResponse {
   announcements: Announcement[];
 }
+
+// --------------------------------------------------------------------------
+// Prize rules — what the league has agreed each prize is worth
+// --------------------------------------------------------------------------
+
+export type PrizeRuleKind =
+  | 'champion'
+  | 'runner_up'
+  | 'third_place'
+  | 'regular_season_best_record'
+  | 'most_points'
+  | 'weekly_challenge'
+  | 'last_place_penalty'
+  | 'other';
+
+export interface PrizeRule {
+  prizeRuleId: string;
+  name: string;
+  description?: string;
+  kind: PrizeRuleKind;
+  /** Either a fixed amount or a share of the pool. Never both. */
+  amount?: Money;
+  poolPercentage?: number;
+  /** True for prizes awarded every week, such as the weekly challenges. */
+  perWeek: boolean;
+  sortOrder: number;
+}
+
+export interface PrizeRulesResponse {
+  rules: PrizeRule[];
+  note: string;
+}

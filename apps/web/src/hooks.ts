@@ -17,6 +17,7 @@ import {
   type CalculateResponse,
   type DuesResponse,
   type PayoutsResponse,
+  type PrizeRulesResponse,
   type TasksResponse,
   type ChallengeResultsResponse,
   type DraftStatusResponse,
@@ -41,6 +42,7 @@ export const queryKeys = {
   audit: ['audit'] as const,
   dues: (seasonYear: number) => ['dues', seasonYear] as const,
   payouts: (seasonYear: number) => ['payouts', seasonYear] as const,
+  prizeRules: (seasonYear: number) => ['prize-rules', seasonYear] as const,
   tasks: ['tasks'] as const,
   announcements: ['announcements'] as const,
   challengeResults: (seasonYear: number, week: number) =>
@@ -684,6 +686,8 @@ export function useSavePayout(seasonYear: number | null) {
       method?: string;
       week?: number;
       challengeResultId?: string;
+      /** Which prize rule this came from, when it was prefilled from one. */
+      prizeRuleId?: string;
       note?: string;
     }) =>
       api.post<{ payout: unknown }>(`/api/payouts/${seasonYear}`, {
@@ -697,6 +701,7 @@ export function useSavePayout(seasonYear: number | null) {
         ...(input.challengeResultId === undefined
           ? {}
           : { challengeResultId: input.challengeResultId }),
+        ...(input.prizeRuleId === undefined ? {} : { prizeRuleId: input.prizeRuleId }),
         ...(input.note === undefined ? {} : { note: input.note }),
       }),
     onSuccess: () => {
@@ -766,6 +771,47 @@ export function useCreateAnnouncement() {
       api.post<{ announcement: unknown }>('/api/announcements', input),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.announcements });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+export function usePrizeRules(seasonYear: number | null): UseQueryResult<PrizeRulesResponse> {
+  return useQuery({
+    queryKey: queryKeys.prizeRules(seasonYear ?? 0),
+    queryFn: () => api.get<PrizeRulesResponse>(`/api/prize-rules/${seasonYear}`),
+    enabled: seasonYear !== null,
+  });
+}
+
+export function useSavePrizeRule(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      prizeRuleId?: string;
+      name: string;
+      kind: string;
+      amountCents?: number;
+      poolPercentage?: number;
+      perWeek?: boolean;
+      description?: string;
+      sortOrder?: number;
+    }) =>
+      api.post<{ rule: unknown }>(`/api/prize-rules/${seasonYear}`, {
+        ...(input.prizeRuleId === undefined ? {} : { prizeRuleId: input.prizeRuleId }),
+        name: input.name,
+        kind: input.kind,
+        ...(input.amountCents === undefined
+          ? {}
+          : { amount: { amountCents: input.amountCents, currency: 'USD' } }),
+        ...(input.poolPercentage === undefined ? {} : { poolPercentage: input.poolPercentage }),
+        perWeek: input.perWeek ?? false,
+        ...(input.description === undefined ? {} : { description: input.description }),
+        ...(input.sortOrder === undefined ? {} : { sortOrder: input.sortOrder }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.prizeRules(seasonYear ?? 0) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
   });

@@ -75,7 +75,7 @@
     "confidence": "documented",
     "notes": [
       "Yahoo's API terms list 'gambling or gambling items' among prohibited uses, and require written permission for monetization. Dues and prizes here are the league's own administrative records: no Yahoo data appears on them, no payment processor is integrated, no funds are held or moved, and the portal takes no share.",
-      "A payout record is ALWAYS created deliberately by a commissioner. Nothing generates a money record from a finalized challenge or any other Yahoo-derived outcome — automating that would make the pipeline resemble an automated stakes engine, and it saves nobody any work.",
+      "A payout record is ALWAYS created by a deliberate commissioner action. A finalized result may OFFER a prefilled prize, taken from the league's own prize rule, and one click records it — but it is created `unpaid`, so handing the money over remains a second, separate act. Nothing is created without a person clicking, and nothing is ever marked settled automatically. The earlier position — that the portal should not prefill at all — confused prefilling a draft with automating a payout, and had the side effect of making the stat-correction protection depend on a commissioner remembering to link a prize to its result by hand.",
       "A challenge result is not payable until a commissioner finalizes it, so a person always stands between Yahoo's numbers and a prize.",
       "`paymentMethod` (cash, venmo, zelle, paypal, check, other) is descriptive of what happened elsewhere. It is never executable and triggers nothing.",
       "The interface avoids gambling vocabulary entirely — no odds, lines, bets, wagers, stakes, or 'winnings'. The language is dues, prize, payout, owed, settled.",

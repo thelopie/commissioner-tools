@@ -33,13 +33,15 @@ import EditIcon from '@mui/icons-material/EditRounded';
 import {
   useChallengeResults,
   useDues,
+  usePrizeRules,
+  useSavePrizeRule,
   useLeagueOverview,
   usePayouts,
   useSaveDues,
   useSavePayout,
   useSession,
 } from '../hooks.js';
-import type { DuesRecord, PayoutRecord } from '../api/client.js';
+import type { DuesRecord, PayoutRecord, PrizeRule } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { useNotify } from '../components/SnackbarProvider.js';
 import { EmptyState, Monogram, PageHeader, SectionHeader } from '../components/primitives.js';
@@ -64,7 +66,8 @@ export function MoneyPage(): JSX.Element {
   const isCommissioner = session.data?.user?.role === 'commissioner';
 
   const [params, setParams] = useSearchParams();
-  const tab = params.get('view') === 'prizes' ? 'prizes' : 'dues';
+  const requested = params.get('view');
+  const tab = requested === 'prizes' || requested === 'rules' ? requested : 'dues';
 
   if (seasonYear === null) {
     return (
@@ -90,17 +93,20 @@ export function MoneyPage(): JSX.Element {
 
       <Tabs
         value={tab}
-        onChange={(_, next) => setParams(next === 'prizes' ? { view: 'prizes' } : {})}
+        onChange={(_, next) => setParams(next === 'dues' ? {} : { view: next as string })}
         sx={{ borderBottom: 1, borderColor: 'divider' }}
       >
         <Tab value="dues" label="Dues" />
         <Tab value="prizes" label="Prizes" />
+        <Tab value="rules" label="Prize rules" />
       </Tabs>
 
-      {tab === 'dues' ? (
-        <DuesSection seasonYear={seasonYear} isCommissioner={isCommissioner} />
-      ) : (
+      {tab === 'dues' && <DuesSection seasonYear={seasonYear} isCommissioner={isCommissioner} />}
+      {tab === 'prizes' && (
         <PrizesSection seasonYear={seasonYear} isCommissioner={isCommissioner} />
+      )}
+      {tab === 'rules' && (
+        <PrizeRulesSection seasonYear={seasonYear} isCommissioner={isCommissioner} />
       )}
     </Stack>
   );
@@ -622,6 +628,264 @@ function PrizesSection({
         members={payouts.data?.members ?? []}
       />
     </Stack>
+  );
+}
+
+const RULE_KINDS = [
+  'weekly_challenge',
+  'champion',
+  'runner_up',
+  'third_place',
+  'regular_season_best_record',
+  'most_points',
+  'last_place_penalty',
+  'other',
+] as const;
+
+/**
+ * What the league has agreed each prize is worth.
+ *
+ * These exist so a weekly prize is not retyped every week. A `weekly_challenge`
+ * rule is the one the challenge results page reads: with it defined, finalizing a
+ * result offers to record the prize already linked back to that result — and the
+ * link is what makes a later Yahoo stat correction get flagged instead of quietly
+ * applied.
+ */
+function PrizeRulesSection({
+  seasonYear,
+  isCommissioner,
+}: {
+  seasonYear: number;
+  isCommissioner: boolean;
+}): JSX.Element {
+  const rules = usePrizeRules(seasonYear);
+  const [editing, setEditing] = useState<PrizeRule | 'new' | null>(null);
+
+  if (rules.isLoading) return <Skeleton height={280} sx={{ borderRadius: 4 }} />;
+  if (rules.isError) {
+    return <ErrorNotice error={rules.error} onRetry={() => void rules.refetch()} />;
+  }
+
+  const list = rules.data?.rules ?? [];
+  const hasWeekly = list.some((rule) => rule.kind === 'weekly_challenge');
+
+  return (
+    <Stack spacing={2}>
+      {isCommissioner && !hasWeekly && (
+        <Alert severity="info">
+          Add a <strong>weekly challenge</strong> rule and the challenge results page will offer to
+          record each week&rsquo;s prize for you, correctly linked, instead of six fields of
+          retyping.
+        </Alert>
+      )}
+
+      <SectionHeader
+        title="Prize rules"
+        count={list.length}
+        action={
+          isCommissioner ? (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={(event) => {
+                event.currentTarget.blur();
+                setEditing('new');
+              }}
+            >
+              Add a rule
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {list.length === 0 ? (
+        <EmptyState
+          icon={<PaymentsIcon />}
+          title="No prize rules yet"
+          description={
+            isCommissioner
+              ? 'Say what each prize is worth once, and the portal stops asking you to type it every week.'
+              : 'Your commissioner has not recorded what the prizes are worth yet.'
+          }
+        />
+      ) : (
+        <Card>
+          <CardContent sx={{ py: 1 }}>
+            <Stack divider={<Divider flexItem />}>
+              {list.map((rule) => (
+                <Stack
+                  key={rule.prizeRuleId}
+                  direction="row"
+                  spacing={1.5}
+                  alignItems="center"
+                  sx={{ py: 1.25 }}
+                >
+                  <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                    <Stack direction="row" spacing={0.75} alignItems="center" flexWrap="wrap">
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {rule.name}
+                      </Typography>
+                      <Chip size="small" variant="outlined" label={rule.kind.replace(/_/g, ' ')} />
+                      {rule.perWeek && <Chip size="small" color="primary" label="every week" />}
+                    </Stack>
+                    {rule.description && (
+                      <Typography variant="caption" color="text.secondary" display="block">
+                        {rule.description}
+                      </Typography>
+                    )}
+                  </Box>
+
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+                  >
+                    {rule.amount
+                      ? formatMoney(rule.amount.amountCents)
+                      : `${rule.poolPercentage}% of the pool`}
+                  </Typography>
+
+                  {isCommissioner && (
+                    <Tooltip title="Edit this rule">
+                      <Button
+                        size="small"
+                        aria-label="Edit this rule"
+                        onClick={(event) => {
+                          event.currentTarget.blur();
+                          setEditing(rule);
+                        }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </Button>
+                    </Tooltip>
+                  )}
+                </Stack>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      )}
+
+      <PrizeRuleDialog
+        key={editing === 'new' ? 'new' : (editing?.prizeRuleId ?? 'closed')}
+        open={editing !== null}
+        onClose={() => setEditing(null)}
+        seasonYear={seasonYear}
+        rule={editing === 'new' ? null : editing}
+      />
+    </Stack>
+  );
+}
+
+function PrizeRuleDialog({
+  open,
+  onClose,
+  seasonYear,
+  rule,
+}: {
+  open: boolean;
+  onClose: () => void;
+  seasonYear: number;
+  rule: PrizeRule | null;
+}): JSX.Element {
+  const save = useSavePrizeRule(seasonYear);
+  const notify = useNotify();
+
+  const [name, setName] = useState(rule?.name ?? '');
+  const [kind, setKind] = useState<string>(rule?.kind ?? 'weekly_challenge');
+  const [amount, setAmount] = useState(rule?.amount ? centsToDollars(rule.amount.amountCents) : '');
+  const [description, setDescription] = useState(rule?.description ?? '');
+
+  const amountCents = dollarsToCents(amount);
+  const canSubmit = name.trim().length > 0 && amountCents !== null;
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
+      <DialogTitle>{rule ? 'Edit prize rule' : 'Add a prize rule'}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ pt: 0.5 }}>
+          <TextField
+            size="small"
+            label="What it is called"
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Weekly challenge"
+          />
+
+          <FormControl size="small" fullWidth>
+            <InputLabel id="rule-kind">Kind</InputLabel>
+            <Select
+              labelId="rule-kind"
+              label="Kind"
+              value={kind}
+              onChange={(event) => setKind(event.target.value)}
+            >
+              {RULE_KINDS.map((option) => (
+                <MenuItem key={option} value={option}>
+                  {option.replace(/_/g, ' ')}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            size="small"
+            label="Amount"
+            value={amount}
+            onChange={(event) => setAmount(event.target.value)}
+            error={amount !== '' && amountCents === null}
+            InputProps={{ startAdornment: <Typography sx={{ mr: 0.5 }}>$</Typography> }}
+          />
+
+          {kind === 'weekly_challenge' && (
+            <Alert severity="info">
+              This is the rule the challenge results page reads. With it set, finalizing a result
+              offers to record the prize — already linked to the result, so a later stat correction
+              is flagged rather than applied.
+            </Alert>
+          )}
+
+          <TextField
+            label="Note"
+            multiline
+            minRows={2}
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          disabled={!canSubmit || save.isPending}
+          onClick={() => {
+            if (amountCents === null) return;
+            save.mutate(
+              {
+                ...(rule ? { prizeRuleId: rule.prizeRuleId } : {}),
+                name: name.trim(),
+                kind,
+                amountCents,
+                // Weekly challenges are per-week by definition; nothing else is.
+                perWeek: kind === 'weekly_challenge',
+                ...(description.trim() ? { description: description.trim() } : {}),
+              },
+              {
+                onSuccess: () => {
+                  notify('Prize rule saved.', 'success');
+                  onClose();
+                },
+                onError: (error) => notify(error.message, 'error'),
+              },
+            );
+          }}
+        >
+          {save.isPending ? 'Saving…' : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 

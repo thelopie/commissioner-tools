@@ -16,6 +16,7 @@ import {
   InputLabel,
   MenuItem,
   Select,
+  Link,
   Skeleton,
   Stack,
   TextField,
@@ -31,6 +32,7 @@ import CalculateIcon from '@mui/icons-material/CalculateRounded';
 import GavelIcon from '@mui/icons-material/GavelRounded';
 import LockIcon from '@mui/icons-material/LockRounded';
 import PaidIcon from '@mui/icons-material/PaidRounded';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   useCalculateChallenges,
   useCapabilities,
@@ -39,12 +41,20 @@ import {
   useFinalizeChallenge,
   useLeagueOverview,
   useOverrideChallenge,
+  usePayouts,
+  usePrizeRules,
+  useSavePayout,
   useSession,
 } from '../hooks.js';
-import type { ChallengeResult } from '../api/client.js';
+import type { ChallengeResult, PrizeRule } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { useNotify } from '../components/SnackbarProvider.js';
 import { EmptyState, Monogram, RelativeTime } from '../components/primitives.js';
+
+/** Cents to a readable amount. Money is stored as integers to avoid float drift. */
+function formatCents(cents: number): string {
+  return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
 
 /**
  * A week's challenge results.
@@ -74,6 +84,19 @@ export function ChallengeResultsPanel({ seasonYear }: { seasonYear: number }): J
   const results = useChallengeResults(seasonYear, activeWeek);
   const calculate = useCalculateChallenges(seasonYear, activeWeek);
   const notify = useNotify();
+
+  /**
+   * Prize rules and the prizes already recorded.
+   *
+   * Both are needed to decide whether a finalized result should offer to create a
+   * prize: one supplies the amount, the other stops it being offered twice.
+   */
+  const prizeRules = usePrizeRules(seasonYear);
+  const payouts = usePayouts(seasonYear);
+
+  const weeklyRule = (prizeRules.data?.rules ?? []).find(
+    (rule) => rule.kind === 'weekly_challenge' && rule.amount !== undefined,
+  );
 
   const isCommissioner = session.data?.user?.role === 'commissioner';
   const definitions = challenges.data?.definitions ?? [];
@@ -229,9 +252,25 @@ export function ChallengeResultsPanel({ seasonYear }: { seasonYear: number }): J
               week={activeWeek}
               isCommissioner={isCommissioner}
               members={results.data?.members ?? []}
+              weeklyRule={weeklyRule ?? null}
+              existingPrize={(payouts.data?.payouts ?? []).some(
+                (payout) => payout.challengeResultId === result.challengeResultId,
+              )}
             />
           ))}
         </Stack>
+      )}
+
+      {isCommissioner && rows.length > 0 && weeklyRule === undefined && (
+        <Alert severity="info">
+          <AlertTitle>Set what a weekly challenge pays</AlertTitle>
+          Add a weekly-challenge prize rule on the{' '}
+          <Link component={RouterLink} to="/money?view=rules">
+            prize rules
+          </Link>{' '}
+          page, and finalizing a result will offer to record the prize for you — correctly linked,
+          so a later Yahoo stat correction is flagged rather than applied quietly.
+        </Alert>
       )}
 
       {rows.length > 0 && (
@@ -282,6 +321,8 @@ function ResultCard({
   week,
   isCommissioner,
   members,
+  weeklyRule,
+  existingPrize,
 }: {
   result: ChallengeResult;
   name: string;
@@ -289,10 +330,43 @@ function ResultCard({
   week: number | null;
   isCommissioner: boolean;
   members: Array<{ leagueMemberId: string; displayName: string }>;
+  /** The league's weekly-challenge prize rule, when one is defined. */
+  weeklyRule: PrizeRule | null;
+  existingPrize: boolean;
 }): JSX.Element {
   const finalize = useFinalizeChallenge(seasonYear, week);
+  const savePayout = useSavePayout(seasonYear);
   const [overriding, setOverriding] = useState(false);
   const notify = useNotify();
+
+  /**
+   * Whether to offer recording the prize.
+   *
+   * Only for a settled result with a winner, a rule that says what it pays, and no
+   * prize already recorded against it. Anything else and the button would either
+   * guess an amount or create a duplicate.
+   */
+  const settledResult = result.status === 'finalized' || result.status === 'overridden';
+  const canRecordPrize =
+    isCommissioner &&
+    settledResult &&
+    !existingPrize &&
+    result.winners.length > 0 &&
+    weeklyRule?.amount !== undefined &&
+    week !== null;
+
+  /**
+   * Split evenly when a tie was settled by sharing the prize.
+   *
+   * Integer cents, with the remainder going to the first winner — money must not
+   * quietly vanish to rounding, and a cent has to land somewhere.
+   */
+  const shareCents = (index: number): number => {
+    const total = weeklyRule?.amount?.amountCents ?? 0;
+    const count = result.winners.length;
+    const base = Math.floor(total / count);
+    return index === 0 ? base + (total - base * count) : base;
+  };
 
   const meta = STATUS_META[result.status];
   const canFinalize = result.status === 'provisional' && result.winners.length > 0;
@@ -406,6 +480,64 @@ function ResultCard({
 
               {isCommissioner && (
                 <Stack direction="row" spacing={1}>
+                  {canRecordPrize && (
+                    <Tooltip
+                      title={`Creates an unpaid prize of ${formatCents(
+                        weeklyRule!.amount!.amountCents,
+                      )} for ${result.winners.map((winner) => winner.displayName).join(' and ')}, linked to this result`}
+                    >
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="secondary"
+                        startIcon={<PaidIcon />}
+                        disabled={savePayout.isPending}
+                        onClick={() => {
+                          /*
+                            One prize per winner, prefilled and linked.
+                            The link is what arms the stat-correction protection, so
+                            it must not depend on anyone remembering to set it. Created
+                            unpaid: handing the money over stays a separate act.
+                          */
+                          result.winners.forEach((winner, index) => {
+                            savePayout.mutate(
+                              {
+                                leagueMemberId: winner.leagueMemberId,
+                                reason: `Week ${week} ${name}`,
+                                amountCents: shareCents(index),
+                                status: 'unpaid',
+                                week,
+                                challengeResultId: result.challengeResultId,
+                                ...(weeklyRule ? { prizeRuleId: weeklyRule.prizeRuleId } : {}),
+                              },
+                              {
+                                onSuccess: () => {
+                                  if (index === result.winners.length - 1) {
+                                    notify(`Prize recorded for ${name}.`, 'success');
+                                  }
+                                },
+                                onError: (error) => notify(error.message, 'error'),
+                              },
+                            );
+                          });
+                        }}
+                      >
+                        {savePayout.isPending
+                          ? 'Recording…'
+                          : `Record ${formatCents(weeklyRule!.amount!.amountCents)} prize`}
+                      </Button>
+                    </Tooltip>
+                  )}
+
+                  {existingPrize && settledResult && (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      icon={<PaidIcon />}
+                      label="prize recorded"
+                    />
+                  )}
+
                   {canFinalize && (
                     <Button
                       size="small"

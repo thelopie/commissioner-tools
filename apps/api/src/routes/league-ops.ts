@@ -259,6 +259,118 @@ leagueOpsRoutes.post('/api/dues/:seasonYear', async (c) => {
   return c.json({ dues: record }, existing ? 200 : 201);
 });
 
+// -------------------------------------------------------------- prize rules
+
+/**
+ * What each prize is worth, for the season.
+ *
+ * These exist so a weekly prize is not retyped every week. A `weekly_challenge`
+ * rule with `perWeek` set says "every weekly challenge pays this", which is what
+ * lets a finalized result offer a prefilled prize record instead of six fields of
+ * retyping — and, more importantly, lets the link back to the result be set
+ * automatically rather than depending on somebody remembering it.
+ */
+leagueOpsRoutes.get('/api/prize-rules/:seasonYear', async (c) => {
+  const ctx = c.get('ctx');
+  requireAuthenticated(ctx.principal);
+  const leagueId = requireLeagueId(ctx);
+  const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
+
+  const rules = await ctx.repositories.leagues.listPrizeRules(leagueId, seasonYear);
+
+  return c.json({
+    rules: [...rules].sort((a, b) => a.sortOrder - b.sortOrder),
+    note: 'What the league has agreed each prize is worth. No money is held or moved.',
+  });
+});
+
+leagueOpsRoutes.post('/api/prize-rules/:seasonYear', async (c) => {
+  const ctx = c.get('ctx');
+  const principal = requireCommissioner(ctx.principal);
+  const leagueId = requireLeagueId(ctx);
+  const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
+
+  const body = await parseJson(
+    c,
+    z.object({
+      prizeRuleId: z.string().length(26).optional(),
+      name: z.string().min(1).max(120),
+      description: z.string().max(2000).optional(),
+      kind: z.enum([
+        'champion',
+        'runner_up',
+        'third_place',
+        'regular_season_best_record',
+        'most_points',
+        'weekly_challenge',
+        'last_place_penalty',
+        'other',
+      ]),
+      amount: moneySchema.optional(),
+      poolPercentage: z.number().min(0).max(100).optional(),
+      perWeek: z.boolean().default(false),
+      sortOrder: z.number().int().min(0).default(0),
+    }),
+  );
+
+  /**
+   * A fixed amount or a share of the pool, never both and never neither.
+   *
+   * A rule with both is ambiguous about what it pays; a rule with neither cannot
+   * prefill anything, which is the only reason it exists.
+   */
+  if ((body.amount === undefined) === (body.poolPercentage === undefined)) {
+    throw new AppError('validation_failed', {
+      publicMessage: 'Give either a fixed amount or a share of the pool, not both.',
+    });
+  }
+
+  const actorId = principal.userId as InternalId;
+  const existing = body.prizeRuleId
+    ? (await ctx.repositories.leagues.listPrizeRules(leagueId, seasonYear)).find(
+        (rule) => rule.prizeRuleId === body.prizeRuleId,
+      )
+    : undefined;
+
+  const rule = {
+    entity: 'PrizeRule' as const,
+    prizeRuleId: (body.prizeRuleId as InternalId | undefined) ?? generateId(),
+    leagueId,
+    seasonYear,
+    name: body.name,
+    kind: body.kind,
+    perWeek: body.perWeek,
+    sortOrder: body.sortOrder,
+    ...(body.description === undefined ? {} : { description: body.description }),
+    ...(body.amount === undefined ? {} : { amount: body.amount }),
+    ...(body.poolPercentage === undefined ? {} : { poolPercentage: body.poolPercentage }),
+    ...(existing
+      ? {
+          createdAt: existing.createdAt,
+          createdBy: existing.createdBy,
+          updatedAt: isoNow(),
+          updatedBy: actorId,
+          version: existing.version + 1,
+        }
+      : created(actorId)),
+  };
+
+  await ctx.repositories.leagues.savePrizeRule(rule, existing?.version);
+
+  await ctx.repositories.audit.record({
+    leagueId,
+    action: existing ? 'prize_rule.updated' : 'prize_rule.created',
+    actorUserId: actorId,
+    actorRole: principal.role,
+    summary: `${existing ? 'Updated' : 'Added'} prize rule "${body.name}".`,
+    correlationId: ctx.correlationId,
+    targetEntity: 'PrizeRule',
+    targetId: rule.prizeRuleId,
+  });
+
+  return c.json({ rule }, existing ? 200 : 201);
+});
+
 // ------------------------------------------------------------------ payouts
 
 leagueOpsRoutes.get('/api/payouts/:seasonYear', async (c) => {

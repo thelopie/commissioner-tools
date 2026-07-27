@@ -1973,6 +1973,213 @@ describe('dues, prizes, tasks and announcements', () => {
   }
 });
 
+describe('prize rules', () => {
+  async function league(): Promise<{
+    jar: Record<string, string>;
+    auth: Record<string, string>;
+    members: Array<{ leagueMemberId: string; displayName: string }>;
+  }> {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: name }),
+      });
+    }
+
+    const dues = await (
+      await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    return { jar, auth, members: dues.members };
+  }
+
+  it('stores what a prize is worth', async () => {
+    const { jar, auth } = await league();
+
+    const created = await app.request('/api/prize-rules/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'Weekly challenge',
+        kind: 'weekly_challenge',
+        amount: { amountCents: 2500, currency: 'USD' },
+        perWeek: true,
+      }),
+    });
+    expect(created.status).toBe(201);
+
+    const body = await (
+      await app.request('/api/prize-rules/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(body.rules).toHaveLength(1);
+    expect(body.rules[0].amount.amountCents).toBe(2500);
+    expect(body.rules[0].perWeek).toBe(true);
+    expect(body.note).toContain('No money is held or moved');
+  });
+
+  it('refuses a rule that is both a fixed amount and a share of the pool', async () => {
+    // Ambiguous about what it pays, which is the one thing a rule exists to answer.
+    const { auth } = await league();
+
+    const both = await app.request('/api/prize-rules/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'Champion',
+        kind: 'champion',
+        amount: { amountCents: 20_000, currency: 'USD' },
+        poolPercentage: 50,
+      }),
+    });
+    expect(both.status).toBeGreaterThanOrEqual(400);
+
+    const neither = await app.request('/api/prize-rules/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ name: 'Champion', kind: 'champion' }),
+    });
+    expect(neither.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('updates a rule in place rather than adding a second one', async () => {
+    const { jar, auth } = await league();
+
+    const created = await app.request('/api/prize-rules/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'Weekly challenge',
+        kind: 'weekly_challenge',
+        amount: { amountCents: 2500, currency: 'USD' },
+      }),
+    });
+    const prizeRuleId = (await created.json()).rule.prizeRuleId;
+
+    const updated = await app.request('/api/prize-rules/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        prizeRuleId,
+        name: 'Weekly challenge',
+        kind: 'weekly_challenge',
+        amount: { amountCents: 3000, currency: 'USD' },
+      }),
+    });
+    expect(updated.status).toBe(200);
+
+    const body = await (
+      await app.request('/api/prize-rules/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(body.rules).toHaveLength(1);
+    expect(body.rules[0].amount.amountCents).toBe(3000);
+  });
+
+  /**
+   * A prize recorded from a rule carries both links and is not yet settled.
+   *
+   * The result link is what arms the stat-correction protection; the rule link is
+   * how a future commissioner sees where the number came from. Creating it unpaid
+   * keeps handing the money over a separate, deliberate act — the portal records a
+   * decision, it does not make one.
+   */
+  it('records a prize against a result without settling it', async () => {
+    const { jar, auth, members } = await league();
+
+    const rule = await app.request('/api/prize-rules/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        name: 'Weekly challenge',
+        kind: 'weekly_challenge',
+        amount: { amountCents: 2500, currency: 'USD' },
+        perWeek: true,
+      }),
+    });
+    const prizeRuleId = (await rule.json()).rule.prizeRuleId;
+
+    const created = await app.request('/api/payouts/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: members[0]!.leagueMemberId,
+        reason: 'Week 3 Bench Mob',
+        amount: { amountCents: 2500, currency: 'USD' },
+        status: 'unpaid',
+        week: 3,
+        prizeRuleId,
+      }),
+    });
+    expect(created.status).toBe(201);
+
+    const body = await (
+      await app.request('/api/payouts/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(body.payouts[0].prizeRuleId).toBe(prizeRuleId);
+    expect(body.payouts[0].status).toBe('unpaid');
+    // Unpaid means nothing is locked yet, and nothing has been handed over.
+    expect(body.summary.pendingCount).toBe(1);
+  });
+
+  /**
+   * A shared prize must still add up to the rule.
+   *
+   * $25 across three winners is 8.33 each, which is 24.99 — a cent has to land
+   * somewhere, and money quietly disappearing to rounding is exactly the kind of
+   * thing a league notices a season later and cannot explain.
+   */
+  it('splits a shared prize without losing a cent', async () => {
+    const { jar, auth, members } = await league();
+
+    const total = 2500;
+    const count = members.length;
+    const base = Math.floor(total / count);
+    const shares = members.map((_, index) => (index === 0 ? base + (total - base * count) : base));
+
+    for (const [index, member] of members.entries()) {
+      await app.request('/api/payouts/2026', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          leagueMemberId: member.leagueMemberId,
+          reason: 'Week 3 Photo Finish (shared)',
+          amount: { amountCents: shares[index]!, currency: 'USD' },
+          status: 'unpaid',
+          week: 3,
+        }),
+      });
+    }
+
+    const body = await (
+      await app.request('/api/payouts/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(body.summary.totalCents).toBe(total);
+    // The odd cent goes to exactly one winner, not to all of them.
+    expect(shares.filter((share) => share !== base)).toHaveLength(1);
+  });
+});
+
 describe('CSV import', () => {
   it('previews without writing, and reports what would happen', async () => {
     const jar = await signInAsCommissioner();
