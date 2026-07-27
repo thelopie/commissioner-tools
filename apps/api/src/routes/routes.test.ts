@@ -1622,6 +1622,89 @@ describe('dues, prizes, tasks and announcements', () => {
     expect(body.summary.unpaidCount).toBe(2);
   });
 
+  /**
+   * The update path, which is how dues are actually maintained.
+   *
+   * Someone pays half at the draft and the rest a fortnight later. That is an edit
+   * to one row, not a second row — a ledger that grows a duplicate every time
+   * somebody pays is worse than no ledger.
+   */
+  it('updates a dues record in place when a member pays the rest', async () => {
+    const { jar, auth, members } = await league();
+
+    const created = await app.request('/api/dues/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: members[0]!.leagueMemberId,
+        amountOwed: { amountCents: 7500, currency: 'USD' },
+        amountPaid: { amountCents: 4000, currency: 'USD' },
+        method: 'venmo',
+      }),
+    });
+    expect(created.status).toBe(201);
+    const duesRecordId = (await created.json()).dues.duesRecordId;
+
+    const updated = await app.request('/api/dues/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        duesRecordId,
+        leagueMemberId: members[0]!.leagueMemberId,
+        amountOwed: { amountCents: 7500, currency: 'USD' },
+        amountPaid: { amountCents: 7500, currency: 'USD' },
+        method: 'venmo',
+      }),
+    });
+    // 200, not 201: this is the same row.
+    expect(updated.status).toBe(200);
+
+    const body = await (
+      await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(body.dues).toHaveLength(1);
+    expect(body.dues[0].duesRecordId).toBe(duesRecordId);
+    expect(body.dues[0].status).toBe('paid');
+    expect(body.summary.unpaidCount).toBe(0);
+  });
+
+  it('accepts a waiver, the one status the amounts cannot imply', async () => {
+    const { jar, auth, members } = await league();
+
+    const created = await app.request('/api/dues/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: members[0]!.leagueMemberId,
+        amountOwed: { amountCents: 7500, currency: 'USD' },
+      }),
+    });
+    const duesRecordId = (await created.json()).dues.duesRecordId;
+
+    await app.request('/api/dues/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        duesRecordId,
+        leagueMemberId: members[0]!.leagueMemberId,
+        amountOwed: { amountCents: 7500, currency: 'USD' },
+        status: 'waived',
+        note: 'Ran draft night.',
+      }),
+    });
+
+    const body = await (
+      await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    // Nothing was paid, and yet it is not outstanding. That is the whole point of
+    // letting a decision override the arithmetic here and nowhere else.
+    expect(body.dues[0].status).toBe('waived');
+    expect(body.dues[0].amountPaid.amountCents).toBe(0);
+    expect(body.summary.unpaidCount).toBe(0);
+  });
+
   it('resolves dues and prizes to names, not member IDs', async () => {
     const { jar, auth, members } = await league();
 

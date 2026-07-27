@@ -255,7 +255,15 @@ function DuesSection({
         </Card>
       )}
 
+      {/*
+        Keyed on the record being edited.
+        The form's initial values come from `useState` initializers, which run once
+        per mount. Keying the <Dialog> inside the component did nothing — the
+        component itself never remounted, so every edit opened a blank form under
+        the right person's name.
+      */}
       <DuesDialog
+        key={editing === 'new' ? 'new' : (editing?.duesRecordId ?? 'closed')}
         open={editing !== null}
         onClose={() => setEditing(null)}
         seasonYear={seasonYear}
@@ -358,14 +366,7 @@ function DuesDialog({
   const canSubmit = memberId !== '' && owedCents !== null;
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="xs"
-      // Remounts the form per record, so opening a second row does not show the first.
-      key={record?.duesRecordId ?? 'new'}
-    >
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>{record ? `Dues for ${record.displayName}` : 'Record dues'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
@@ -613,6 +614,7 @@ function PrizesSection({
       )}
 
       <PayoutDialog
+        key={editing === 'new' ? 'new' : (editing?.payoutRecordId ?? 'closed')}
         open={editing !== null}
         onClose={() => setEditing(null)}
         seasonYear={seasonYear}
@@ -666,13 +668,7 @@ function PayoutDialog({
   const canSubmit = memberId !== '' && reason.trim().length > 0 && amountCents !== null;
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      fullWidth
-      maxWidth="xs"
-      key={record?.payoutRecordId ?? 'new'}
-    >
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
       <DialogTitle>{record ? 'Edit prize' : 'Record a prize'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
@@ -739,6 +735,17 @@ function PayoutDialog({
                 <MenuItem value="">
                   <em>Not tied to a challenge</em>
                 </MenuItem>
+
+                {/*
+                  Holds the existing link while that week's results are still loading.
+                  Without it MUI sees a value with no matching option and warns on
+                  every edit of a linked prize — noise that hides real warnings.
+                */}
+                {resultId !== '' &&
+                  !(weekResults.data?.results ?? []).some(
+                    (result) => result.challengeResultId === resultId,
+                  ) && <MenuItem value={resultId}>Currently linked result</MenuItem>}
+
                 {(weekResults.data?.results ?? []).map((result) => (
                   <MenuItem key={result.challengeResultId} value={result.challengeResultId}>
                     {result.challengeSlug}
