@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+.vite/
+
+# Environment — never commit real credentials
+.env
+.env.*
+!.env.example
+
+# Local HTTPS certificates (required for the Yahoo OAuth redirect URI)
+certs/
+*.pem
+*.key
+*.crt
+
+# AWS CDK
+infrastructure/cdk.out/
+cdk.out/
+cdk.context.json
+
+# Test + coverage
+coverage/
+.vitest/
+
+# Local data
+.dynamodb/
+*.local.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Anything a commissioner exports or imports locally stays out of git:
+# real league data must never be committed to this public repository.
+scratch/
+local-data/
+*.private.csv

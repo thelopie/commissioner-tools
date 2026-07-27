@@ -1,0 +1,40 @@
+{
+  "$appComment": [
+    "Compiled rather than run through Node's type stripping: the project uses",
+    "NodeNext resolution with .js import specifiers, which strip-types does not",
+    "map back to .ts. Building first is also what `npm run typecheck` does, so",
+    "synth and typecheck cannot disagree."
+  ],
+  "app": "npx tsc --build && node dist/app.js",
+  "watch": {
+    "include": ["src/**"],
+    "exclude": ["**/node_modules/**", "dist/**"]
+  },
+  "context": {
+    "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
+    "@aws-cdk/core:checkSecretUsage": true,
+    "@aws-cdk/aws-iam:minimizePolicies": true,
+    "@aws-cdk/core:validateSnapshotRemovalPolicy": true,
+    "@aws-cdk/aws-s3:createDefaultLoggingPolicy": true,
+    "@aws-cdk/aws-apigateway:disableCloudWatchRole": true,
+    "@aws-cdk/core:enablePartitionLiterals": true,
+    "@aws-cdk/aws-ecs:disableExplicitDeploymentControllerForCircuitBreaker": true,
+    "@aws-cdk/core:target-partitions": ["aws"],
+
+    "$comment": [
+      "Deployment-time context, all optional. Nothing here is required to run",
+      "`cdk synth`, so CI validates the templates without an AWS account.",
+      "",
+      "  environment  dev | prod. Controls removal policies and log retention.",
+      "  domainName   Custom domain for the frontend. Omitted uses the",
+      "               CloudFront default domain, which is fine for a private tool.",
+      "  hostedZoneId Route53 zone, required only when domainName is set.",
+      "  certificateArn ACM certificate in us-east-1, required with domainName.",
+      "  alertEmail   Address for CloudWatch alarm notifications.",
+      "",
+      "Example:",
+      "  cdk deploy -c environment=dev -c alertEmail=you@example.com"
+    ],
+    "environment": "dev"
+  }
+}

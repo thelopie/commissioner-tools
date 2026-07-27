@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/yahoo-client" },
+    { "path": "./packages/challenge-engine" },
+    { "path": "./packages/draft-order" },
+    { "path": "./packages/csv-import" },
+    { "path": "./apps/api" },
+    { "path": "./apps/mock-yahoo" },
+    { "path": "./apps/web" },
+    { "path": "./infrastructure" }
+  ]
+}

@@ -1,0 +1,316 @@
+{
+  "$comment": [
+    "Yahoo Fantasy Sports API capability matrix for the Dinkel Portal.",
+    "",
+    "This file is not documentation — it is read at runtime by",
+    "@dinkel/challenge-engine and the API to decide what the portal is allowed to",
+    "do. A challenge whose required capability is not 'verified' here stays",
+    "BLOCKED and no math runs for it. That is the mechanism that prevents the",
+    "portal from inventing Yahoo data.",
+    "",
+    "confidence values:",
+    "  documented        - stated in current official Yahoo documentation",
+    "  documented-legacy - only in the archived/unofficial mirror of the old guide",
+    "  inferred          - widely used by third-party clients, not in current docs",
+    "  unknown           - no reliable source found",
+    "",
+    "testStatus values:",
+    "  untested          - never exercised against a real Yahoo league",
+    "  mock-only         - exercised against apps/mock-yahoo fixtures only",
+    "  verified          - exercised successfully against a real Yahoo league",
+    "  failed            - exercised and did not behave as documented",
+    "",
+    "Update testStatus ONLY from an actual observed request. Run",
+    "`npm run verify:yahoo` after Yahoo grants credentials; it prints the",
+    "capability keys it was able to confirm."
+  ],
+
+  "lastReviewedAt": "2026-07-26",
+  "reviewedBy": "initial build",
+
+  "access": {
+    "selfService": false,
+    "applicationUrl": "https://sports.yahoo.com/developer/access/",
+    "approvalRequired": true,
+    "defaultPermission": "read-only",
+    "notes": [
+      "Access is granted after Yahoo reviews an application: 'Our team reviews every submission and will reach out with next steps, including credentials and onboarding resources.'",
+      "'Access to the Yahoo Fantasy Sports API is read-only by default.' Read/write requires separate justification, which this portal does not request.",
+      "The former guide at developer.yahoo.com/fantasysports/guide/ now 308-redirects to a landing page. Current docs: https://sports.yahoo.com/developer/docs/",
+      "A Fantasy-Sports-specific Terms of Use is referenced at legal.yahoo.com/us/en/yahoo/terms/product-atos/fantasysportsapi/index.html but returned HTTP 404 on 2026-07-26. The binding 'API Access and Use Agreement' is presented inside the application flow, so its full text must be read at application time and this file updated accordingly."
+    ]
+  },
+
+  "oauth": {
+    "authorizationUrl": "https://api.login.yahoo.com/oauth2/request_auth",
+    "tokenUrl": "https://api.login.yahoo.com/oauth2/get_token",
+    "documentationUrl": "https://developer.yahoo.com/oauth2/guide/flows_authcode/",
+    "flow": "authorization_code",
+    "clientAuthentication": "http_basic",
+    "accessTokenLifetimeSeconds": 3600,
+    "refreshTokenRotation": "optional",
+    "redirectUriRequiresHttps": true,
+    "confidence": "documented",
+    "testStatus": "untested",
+    "notes": [
+      "Token responses return a new access_token and may return a new refresh_token. The client treats rotation as expected and persists whichever refresh token comes back.",
+      "redirect_uri must match a value registered on the Yahoo app exactly. Yahoo requires HTTPS, so local development uses a self-signed certificate rather than plain http://localhost.",
+      "'oob' (out of band) is documented for apps without browser access. Not used here."
+    ]
+  },
+
+  "retention": {
+    "termsUrl": "https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apiforydn/index.html",
+    "maxRetentionHours": 24,
+    "storableIndefinitely": ["yahoo_guid", "token_value"],
+    "confidence": "documented",
+    "notes": [
+      "'You may not retain or use, and must immediately remove from any Application and any data repository in your possession or under your control any Yahoo user data obtained through the Yahoo APIs that is not explicitly identified as being storable indefinitely in the API Documents within 24 hours after the time at which you obtained the data.'",
+      "The general terms defer the storable-indefinitely list to the API Documents. Public summaries identify GUID and authenticated token value. This portal treats that list as exhaustive and stores nothing else Yahoo-derived beyond the TTL'd cache.",
+      "Prohibited-use categories include 'gambling or gambling items'. Dues and prizes are tracked strictly as internal administrative records; the portal processes no payments and takes no share.",
+      "Monetization requires prior express written permission. This portal is noncommercial."
+    ]
+  },
+
+  "baseUrl": "https://fantasysports.yahooapis.com/fantasy/v2",
+  "documentationUrl": "https://sports.yahoo.com/developer/docs/",
+
+  "writeOperations": {
+    "supported": false,
+    "confidence": "documented",
+    "testStatus": "untested",
+    "notes": [
+      "The current documentation describes GET operations only. No POST, PUT, or DELETE operation is documented for any resource.",
+      "Consequently the portal performs NO Yahoo mutation of any kind. Setting draft order, editing rosters, processing transactions, and commissioner actions are all treated as unsupported.",
+      "Third-party wrapper libraries expose add/drop/trade helpers, which implies undocumented write endpoints exist. Those are deliberately not used: undocumented private endpoints are out of scope by policy."
+    ]
+  },
+
+  "commissionerActions": {
+    "supported": false,
+    "confidence": "documented",
+    "testStatus": "untested",
+    "notes": [
+      "No documented endpoint performs a commissioner action.",
+      "Read/write OAuth permission would not constitute evidence that commissioner actions are supported, and this portal requests read-only regardless.",
+      "The LLWS workflow therefore produces a printable draft order for manual entry in Yahoo's own interface."
+    ]
+  },
+
+  "resources": [
+    {
+      "key": "user_leagues",
+      "feature": "List the authenticated user's fantasy football leagues",
+      "resource": "/users;use_login=1/games;game_codes=nfl/leagues",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": true,
+      "commissionerBehavior": "none — returns the signed-in user's own leagues",
+      "confidence": "documented-legacy",
+      "testStatus": "mock-only",
+      "provides": [],
+      "limitations": [
+        "Current docs list `/users;use_login=1` as a resource but do not spell out the games/leagues sub-resource chain. The `;game_codes=nfl` filter and the `/leagues` sub-resource come from the archived guide and universal third-party usage.",
+        "Whether a league the user was removed from still appears is unverified.",
+        "Requires runtime confirmation of the exact nesting before being relied on."
+      ]
+    },
+    {
+      "key": "league_metadata",
+      "feature": "League name, season, scoring type, week structure",
+      "resource": "/league/{league_key}/settings",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none observed — settings are readable by any league member",
+      "confidence": "documented",
+      "testStatus": "mock-only",
+      "provides": [],
+      "limitations": [
+        "Field-level shape is unverified; the parser tolerates missing optional fields rather than assuming them.",
+        "Whether private-league settings differ for non-commissioner members is unverified."
+      ]
+    },
+    {
+      "key": "league_teams",
+      "feature": "Teams in the league and their managers",
+      "resource": "/league/{league_key}/teams",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "unverified whether manager email or GUID visibility differs for a commissioner",
+      "confidence": "documented",
+      "testStatus": "mock-only",
+      "provides": [],
+      "limitations": [
+        "Manager display names and team names returned here are Yahoo user data: cached under TTL and never persisted.",
+        "Whether manager GUIDs are exposed for all teams or only the authenticated user's is unverified. The portal does not depend on other managers' GUIDs."
+      ]
+    },
+    {
+      "key": "team_week_points",
+      "feature": "Per-team fantasy points for a week",
+      "resource": "/league/{league_key}/scoreboard;week={week}",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none",
+      "confidence": "documented-legacy",
+      "testStatus": "mock-only",
+      "provides": ["team_week_points", "matchup_result"],
+      "limitations": [
+        "Scoreboard is listed as a league sub-resource in current docs without field detail.",
+        "Live in-progress values differ from final values, and Yahoo issues stat corrections days later. Anything computed from this stays provisional until the correction window closes."
+      ]
+    },
+    {
+      "key": "roster_selected_position",
+      "feature": "Which roster slot each player occupied, including bench",
+      "resource": "/team/{team_key}/roster;week={week}",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "unverified whether a commissioner may read other teams' historical rosters that a member cannot",
+      "confidence": "documented-legacy",
+      "testStatus": "mock-only",
+      "provides": ["roster_selected_position", "player_position"],
+      "limitations": [
+        "The bench indicator is conventionally selected_position = 'BN', and IR is 'IR'. Unverified against a real league.",
+        "Whether a past week's roster is retrievable after the season ends is unverified — this matters for recalculating an old challenge.",
+        "Reading every team's roster is one request per team, which has rate-limit implications that are undocumented."
+      ]
+    },
+    {
+      "key": "player_week_points",
+      "feature": "A player's fantasy points for a week under league scoring",
+      "resource": "/league/{league_key}/players;player_keys={keys}/stats;type=week;week={week}",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none",
+      "confidence": "documented-legacy",
+      "testStatus": "mock-only",
+      "provides": ["player_week_points"],
+      "limitations": [
+        "League-context scoring is required: game-context stats would not reflect Dinkel's scoring settings.",
+        "Whether points come back as a computed total or must be derived from raw stats and league scoring settings is unverified. The latter would be materially more work.",
+        "Batch size limits for player_keys are undocumented; the client pages conservatively."
+      ]
+    },
+    {
+      "key": "player_stat_by_id",
+      "feature": "Individual raw stat values by Yahoo stat id",
+      "resource": "/league/{league_key}/players;player_keys={keys}/stats;type=week;week={week}",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none",
+      "confidence": "inferred",
+      "testStatus": "untested",
+      "provides": ["player_stat_by_id"],
+      "limitations": [
+        "Stat ids are numeric and league-specific in meaning. There is no current official published mapping of stat id to stat name; the /game/{game_key}/stat_categories resource is the conventional source and is itself only in the archived guide.",
+        "Receptions, passing yards, and touchdown counts all depend on this. Any challenge requiring them stays BLOCKED until a real league confirms both the endpoint and the id mapping."
+      ]
+    },
+    {
+      "key": "player_projected_points",
+      "feature": "Projected fantasy points for a player or team in a week",
+      "resource": "unknown",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none",
+      "confidence": "unknown",
+      "testStatus": "untested",
+      "provides": [],
+      "limitations": [
+        "No current or archived official documentation found for projected points as an API field. Yahoo's website displays projections, but that is not evidence of an API field.",
+        "Scraping the website to obtain projections is out of scope by policy.",
+        "Every projection-dependent challenge is therefore BLOCKED, not estimated."
+      ]
+    },
+    {
+      "key": "standings",
+      "feature": "League standings",
+      "resource": "/league/{league_key}/standings",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none",
+      "confidence": "documented",
+      "testStatus": "mock-only",
+      "provides": [],
+      "limitations": [
+        "Displayed live only. Not persisted — a Dinkel-owned final finish order is recorded at season close so draft-order tiebreakers survive without retained Yahoo data."
+      ]
+    },
+    {
+      "key": "transactions",
+      "feature": "Adds, drops, trades, and waiver activity",
+      "resource": "/league/{league_key}/transactions",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "unverified whether commissioner-executed transactions are distinguishable in the response",
+      "confidence": "documented",
+      "testStatus": "mock-only",
+      "provides": [],
+      "limitations": ["Read and displayed live only; never persisted."]
+    },
+    {
+      "key": "draft_results",
+      "feature": "Draft results for a season",
+      "resource": "/league/{league_key}/draftresults",
+      "method": "GET",
+      "access": "read",
+      "oauthPermission": "fantasy-read",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "none",
+      "confidence": "documented-legacy",
+      "testStatus": "mock-only",
+      "provides": [],
+      "limitations": [
+        "Read-only. There is no documented way to WRITE a draft order, which is why the LLWS workflow ends in manual entry.",
+        "Displayed live only; Dinkel's own draft history comes from the CSV import instead."
+      ]
+    },
+    {
+      "key": "rate_limits",
+      "feature": "Request rate limits",
+      "resource": "n/a",
+      "method": "n/a",
+      "access": "n/a",
+      "oauthPermission": "n/a",
+      "authenticatedUserOnly": false,
+      "commissionerBehavior": "n/a",
+      "confidence": "unknown",
+      "testStatus": "untested",
+      "provides": [],
+      "limitations": [
+        "No published rate limit was found in current official documentation.",
+        "The client therefore behaves conservatively regardless: retry with exponential backoff and jitter, honour Retry-After, cap concurrency, and cache aggressively within the 24-hour ceiling.",
+        "Because per-team roster reads are N requests for N teams, a full-league challenge calculation is the heaviest operation in the portal and is scheduled rather than run on page load."
+      ]
+    }
+  ],
+
+  "verifiedCapabilities": [],
+
+  "$verifiedCapabilitiesComment": [
+    "The list above is the authoritative gate. It is EMPTY until a real Yahoo",
+    "league confirms each capability, which is why every challenge currently",
+    "reports BLOCKED. Populate it from the output of `npm run verify:yahoo` —",
+    "do not hand-edit optimistically."
+  ]
+}

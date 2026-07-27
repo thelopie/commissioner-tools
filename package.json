@@ -1,0 +1,44 @@
+{
+  "name": "commissioner-tools",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dinkel Portal — a private, noncommercial companion app for a Yahoo Fantasy Football league",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "infrastructure"
+  ],
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --build --force",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "npm run build --workspaces --if-present",
+    "dev": "node scripts/dev.mjs",
+    "dev:api": "npm run dev --workspace @dinkel/api",
+    "dev:web": "npm run dev --workspace @dinkel/web",
+    "dev:mock-yahoo": "npm run dev --workspace @dinkel/mock-yahoo",
+    "synth": "npm run synth --workspace @dinkel/infrastructure",
+    "verify:yahoo": "node scripts/verify-yahoo.mjs",
+    "certs": "node scripts/make-local-cert.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.14.0",
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.1",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "@dinkel/mock-yahoo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/server.js",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "node --experimental-strip-types src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "@dinkel/shared": "*",
+    "@dinkel/yahoo-client": "*"
+  }
+}

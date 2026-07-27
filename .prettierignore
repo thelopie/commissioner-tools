@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+coverage/
+cdk.out/
+*.tsbuildinfo
+package-lock.json
+certs/

@@ -1,0 +1,30 @@
+{
+  "name": "@dinkel/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/lambda.js",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "node --experimental-strip-types --env-file-if-exists=../../.env src/local.ts",
+    "start": "node dist/local.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.716.0",
+    "@aws-sdk/client-s3": "^3.716.0",
+    "@aws-sdk/client-secrets-manager": "^3.716.0",
+    "@aws-sdk/lib-dynamodb": "^3.716.0",
+    "@aws-sdk/s3-request-presigner": "^3.716.0",
+    "@dinkel/challenge-engine": "*",
+    "@dinkel/csv-import": "*",
+    "@dinkel/draft-order": "*",
+    "@dinkel/shared": "*",
+    "@dinkel/yahoo-client": "*",
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.6.14",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147"
+  }
+}

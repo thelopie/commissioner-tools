@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Manual runs are useful after a dependency advisory lands.
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run for the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, typecheck, test, build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22.13+ satisfies every transitive engine requirement; 22.12 warns.
+          node-version: '22.13'
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # Validates the CloudFormation templates without AWS credentials: the stack
+      # is deliberately account- and region-agnostic so this can run on every push.
+      - name: Synthesize infrastructure
+        run: npm run synth
+
+      - name: Confirm no real credentials are committed
+        run: |
+          set -e
+          # .env.example must stay placeholder-only. This repository is public, and
+          # a real value slipping into it is the most likely way secrets leak.
+          # Positive match on the expected placeholder rather than a negative
+          # lookahead, which grep -E does not support.
+          for key in YAHOO_CLIENT_ID YAHOO_CLIENT_SECRET; do
+            if ! grep -qx "${key}=replace-me" .env.example; then
+              echo "::error::.env.example ${key} is not the expected placeholder"
+              exit 1
+            fi
+          done
+          for key in SESSION_SECRET TOKEN_ENCRYPTION_KEY; do
+            if ! grep -q "^${key}=replace-with-" .env.example; then
+              echo "::error::.env.example ${key} is not the expected placeholder"
+              exit 1
+            fi
+          done
+          if [ -f .env ]; then
+            echo "::error::.env is committed — it must never be"
+            exit 1
+          fi
+          if ls certs/*.pem >/dev/null 2>&1; then
+            echo "::error::a certificate is committed — certs/ must stay local"
+            exit 1
+          fi
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    # Advisories appear independently of code changes, so this does not gate a PR;
+    # it reports so the result is visible without blocking unrelated work.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.13'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
