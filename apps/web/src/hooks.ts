@@ -12,8 +12,12 @@ import {
   type MatchupsResponse,
   type MeResponse,
   type SessionResponse,
+  type AnnouncementsResponse,
   type AssignmentsResponse,
   type CalculateResponse,
+  type DuesResponse,
+  type PayoutsResponse,
+  type TasksResponse,
   type ChallengeResultsResponse,
   type DraftStatusResponse,
   type DrawResponse,
@@ -35,6 +39,10 @@ export const queryKeys = {
   members: (seasonYear: number) => ['league', 'members', seasonYear] as const,
   challenges: (seasonYear: number) => ['challenges', seasonYear] as const,
   audit: ['audit'] as const,
+  dues: (seasonYear: number) => ['dues', seasonYear] as const,
+  payouts: (seasonYear: number) => ['payouts', seasonYear] as const,
+  tasks: ['tasks'] as const,
+  announcements: ['announcements'] as const,
   challengeResults: (seasonYear: number, week: number) =>
     ['challenges', 'results', seasonYear, week] as const,
   me: ['league', 'me'] as const,
@@ -594,6 +602,170 @@ export function useActivateChallenges(seasonYear: number | null) {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.challenges(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+// --------------------------------------------------------------------------
+// Dues and prizes
+//
+// Records only. The portal notes that money moved somewhere else — it holds no
+// funds, moves none, and integrates no payment processor.
+// --------------------------------------------------------------------------
+
+export function useDues(seasonYear: number | null): UseQueryResult<DuesResponse> {
+  return useQuery({
+    queryKey: queryKeys.dues(seasonYear ?? 0),
+    queryFn: () => api.get<DuesResponse>(`/api/dues/${seasonYear}`),
+    enabled: seasonYear !== null,
+  });
+}
+
+export function usePayouts(seasonYear: number | null): UseQueryResult<PayoutsResponse> {
+  return useQuery({
+    queryKey: queryKeys.payouts(seasonYear ?? 0),
+    queryFn: () => api.get<PayoutsResponse>(`/api/payouts/${seasonYear}`),
+    enabled: seasonYear !== null,
+  });
+}
+
+export function useSaveDues(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      duesRecordId?: string;
+      leagueMemberId: string;
+      amountOwedCents: number;
+      amountPaidCents?: number;
+      dueDate?: string;
+      method?: string;
+      /** Only `waived` or `refunded`; the rest is derived from the amounts. */
+      status?: string;
+      note?: string;
+    }) =>
+      api.post<{ dues: unknown }>(`/api/dues/${seasonYear}`, {
+        ...(input.duesRecordId === undefined ? {} : { duesRecordId: input.duesRecordId }),
+        leagueMemberId: input.leagueMemberId,
+        amountOwed: { amountCents: input.amountOwedCents, currency: 'USD' },
+        ...(input.amountPaidCents === undefined
+          ? {}
+          : { amountPaid: { amountCents: input.amountPaidCents, currency: 'USD' } }),
+        ...(input.dueDate === undefined ? {} : { dueDate: input.dueDate }),
+        ...(input.method === undefined ? {} : { method: input.method }),
+        ...(input.status === undefined ? {} : { status: input.status }),
+        ...(input.note === undefined ? {} : { note: input.note }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.dues(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+/**
+ * Records a prize.
+ *
+ * Always created deliberately by a person, never generated from a finalized
+ * challenge. Auto-creating money records from Yahoo-derived outcomes would make the
+ * pipeline look like an automated stakes engine, and it saves nobody any work.
+ */
+export function useSavePayout(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      payoutRecordId?: string;
+      leagueMemberId: string;
+      reason: string;
+      amountCents: number;
+      status?: string;
+      method?: string;
+      week?: number;
+      challengeResultId?: string;
+      note?: string;
+    }) =>
+      api.post<{ payout: unknown }>(`/api/payouts/${seasonYear}`, {
+        ...(input.payoutRecordId === undefined ? {} : { payoutRecordId: input.payoutRecordId }),
+        leagueMemberId: input.leagueMemberId,
+        reason: input.reason,
+        amount: { amountCents: input.amountCents, currency: 'USD' },
+        ...(input.status === undefined ? {} : { status: input.status }),
+        ...(input.method === undefined ? {} : { method: input.method }),
+        ...(input.week === undefined ? {} : { week: input.week }),
+        ...(input.challengeResultId === undefined
+          ? {}
+          : { challengeResultId: input.challengeResultId }),
+        ...(input.note === undefined ? {} : { note: input.note }),
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.payouts(seasonYear ?? 0) });
+      // Settling a prize locks the challenge result behind it, so results change too.
+      void queryClient.invalidateQueries({ queryKey: ['challenges'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+// --------------------------------------------------------------------------
+// Commissioner tasks and announcements
+// --------------------------------------------------------------------------
+
+export function useTasks(): UseQueryResult<TasksResponse> {
+  return useQuery({
+    queryKey: queryKeys.tasks,
+    queryFn: () => api.get<TasksResponse>('/api/tasks'),
+  });
+}
+
+export function useCreateTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      title: string;
+      detail?: string;
+      category: string;
+      priority?: string;
+      dueDate?: string;
+    }) => api.post<{ task: unknown }>('/api/tasks', input),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks }),
+  });
+}
+
+export function useUpdateTaskStatus() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { taskId: string; status: string }) =>
+      api.put<{ ok: boolean }>(`/api/tasks/${input.taskId}`, { status: input.status }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: queryKeys.tasks }),
+  });
+}
+
+export function useAnnouncements(): UseQueryResult<AnnouncementsResponse> {
+  return useQuery({
+    queryKey: queryKeys.announcements,
+    queryFn: () => api.get<AnnouncementsResponse>('/api/announcements'),
+  });
+}
+
+/**
+ * Creates an announcement, published or as a draft.
+ *
+ * Publishing makes it visible in the portal. It sends nothing — no email, no SMS —
+ * and the UI says so, because a commissioner who believes a message went out will
+ * not tell anyone themselves.
+ */
+export function useCreateAnnouncement() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { title: string; body: string; publish: boolean; pinned: boolean }) =>
+      api.post<{ announcement: unknown }>('/api/announcements', input),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.announcements });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
   });

@@ -17,8 +17,10 @@ import WhatshotIcon from '@mui/icons-material/WhatshotRounded';
 import CompressIcon from '@mui/icons-material/CompressRounded';
 import LinkOffIcon from '@mui/icons-material/LinkOffRounded';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounded';
+import CampaignIcon from '@mui/icons-material/CampaignRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import {
+  useAnnouncements,
   useConnection,
   useDraftStatus,
   useLeagueMe,
@@ -131,6 +133,8 @@ export function HomePage(): JSX.Element {
       */}
       <DraftTurnBanner />
 
+      <PinnedAnnouncements />
+
       {data.matchup ? <MatchupHero matchup={data.matchup} you={data.you} /> : <NoTeamNotice />}
 
       <Grid container spacing={2}>
@@ -225,6 +229,45 @@ function DraftTurnBanner(): JSX.Element | null {
     >
       Draft slots are being chosen — {turn.displayName} is up.
     </Alert>
+  );
+}
+
+/**
+ * Pinned announcements, on the screen everyone actually opens.
+ *
+ * Only pinned ones: an announcements page nobody visits is the same as no
+ * announcement, but reprinting every notice on the home screen would bury the
+ * scoreboard people came for.
+ */
+function PinnedAnnouncements(): JSX.Element | null {
+  const announcements = useAnnouncements();
+
+  const pinned = (announcements.data?.announcements ?? []).filter(
+    (announcement) => announcement.pinned && announcement.status === 'published',
+  );
+
+  if (pinned.length === 0) return null;
+
+  return (
+    <Stack spacing={1}>
+      {pinned.map((announcement) => (
+        <Alert
+          key={announcement.announcementId}
+          severity="info"
+          icon={<CampaignIcon />}
+          action={
+            <Button component={RouterLink} to="/announcements" size="small">
+              All news
+            </Button>
+          }
+        >
+          <AlertTitle>{announcement.title}</AlertTitle>
+          <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+            {announcement.body}
+          </Typography>
+        </Alert>
+      ))}
+    </Stack>
   );
 }
 

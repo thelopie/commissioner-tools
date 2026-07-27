@@ -560,3 +560,104 @@ export interface CalculateResponse {
   blocked: Array<{ slug: string; reason: string }>;
   note: string;
 }
+
+// --------------------------------------------------------------------------
+// Money records — bookkeeping only. The portal never moves money.
+// --------------------------------------------------------------------------
+
+export type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'waived' | 'refunded';
+export type PaymentMethod = 'cash' | 'venmo' | 'zelle' | 'paypal' | 'check' | 'other';
+
+/** Integer cents. Floats would lose money a penny at a time. */
+export interface Money {
+  amountCents: number;
+  currency: string;
+}
+
+export interface DuesRecord {
+  duesRecordId: string;
+  leagueMemberId: string;
+  /** Resolved server-side from the portal member. */
+  displayName: string;
+  amountOwed: Money;
+  amountPaid: Money;
+  status: PaymentStatus;
+  dueDate?: string;
+  paidAt?: string;
+  method?: PaymentMethod;
+  note?: string;
+}
+
+export interface DuesResponse {
+  dues: DuesRecord[];
+  members: Array<{ leagueMemberId: string; displayName: string }>;
+  summary: { totalOwedCents: number; totalPaidCents: number; unpaidCount: number };
+  note: string;
+}
+
+export interface PayoutRecord {
+  payoutRecordId: string;
+  leagueMemberId: string;
+  displayName: string;
+  /** What the prize was for, in the league's own words. */
+  reason: string;
+  amount: Money;
+  status: PaymentStatus;
+  method?: PaymentMethod;
+  week?: number;
+  /** Set when the prize traces back to a finalized weekly challenge. */
+  challengeResultId?: string;
+  paidAt?: string;
+  note?: string;
+}
+
+export interface PayoutsResponse {
+  payouts: PayoutRecord[];
+  members: Array<{ leagueMemberId: string; displayName: string }>;
+  summary: { pendingCount: number; totalCents: number };
+  note: string;
+}
+
+// --------------------------------------------------------------------------
+// Commissioner tasks and announcements
+// --------------------------------------------------------------------------
+
+export type TaskCategory =
+  | 'dues'
+  | 'payouts'
+  | 'draft'
+  | 'challenges'
+  | 'yahoo_connection'
+  | 'import'
+  | 'announcement'
+  | 'other';
+
+export interface CommissionerTask {
+  taskId: string;
+  title: string;
+  detail?: string;
+  category: TaskCategory;
+  priority: 'low' | 'normal' | 'high' | 'urgent';
+  status: 'open' | 'in_progress' | 'done' | 'dismissed';
+  dueDate?: string;
+  completedAt?: string;
+}
+
+export interface TasksResponse {
+  tasks: CommissionerTask[];
+  openCount: number;
+}
+
+export interface Announcement {
+  announcementId: string;
+  title: string;
+  body: string;
+  status: 'draft' | 'published' | 'archived';
+  pinned: boolean;
+  publishedAt?: string;
+  createdAt: string;
+}
+
+export interface AnnouncementsResponse {
+  announcements: Announcement[];
+}

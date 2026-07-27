@@ -10,6 +10,9 @@ import { MatchupsPage } from './pages/MatchupsPage.js';
 import { MyTeamPage } from './pages/MyTeamPage.js';
 import { DraftPage } from './pages/DraftPage.js';
 import { LlwsPage } from './pages/LlwsPage.js';
+import { MoneyPage } from './pages/MoneyPage.js';
+import { AnnouncementsPage } from './pages/AnnouncementsPage.js';
+import { TasksPage } from './pages/TasksPage.js';
 import { TransactionsPage } from './pages/TransactionsPage.js';
 import { StandingsPage } from './pages/StandingsPage.js';
 import { SignInPage } from './pages/SignInPage.js';
@@ -120,6 +123,14 @@ export function App(): JSX.Element {
             element={authenticated ? <DraftPage /> : <Navigate to="/signin" replace />}
           />
           <Route
+            path="/money"
+            element={authenticated ? <MoneyPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/announcements"
+            element={authenticated ? <AnnouncementsPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
             path="/transactions"
             element={authenticated ? <TransactionsPage /> : <Navigate to="/signin" replace />}
           />
@@ -143,6 +154,24 @@ export function App(): JSX.Element {
                       403,
                       'commissioner_required',
                       'Commissioner tools are commissioner-only.',
+                    )
+                  }
+                />
+              )
+            }
+          />
+          <Route
+            path="/commissioner/tasks"
+            element={
+              isCommissioner ? (
+                <TasksPage />
+              ) : (
+                <ErrorNotice
+                  error={
+                    new ApiError(
+                      403,
+                      'commissioner_required',
+                      'The task list is commissioner-only.',
                     )
                   }
                 />

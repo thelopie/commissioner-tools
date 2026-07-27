@@ -11,7 +11,7 @@ import {
   type InternalId,
 } from '@dinkel/shared';
 import { z } from 'zod';
-import type { AppEnv } from '../context.js';
+import type { AppEnv, RequestContext } from '../context.js';
 import { requireLeagueId } from '../context.js';
 import { requireAuthenticated, requireCommissioner } from '../lib/authorization.js';
 import { created } from '../repositories.js';
@@ -104,6 +104,47 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
   return c.json({ season });
 });
 
+/**
+ * Resolves league members to Dinkel's own names.
+ *
+ * Money records store a portal member ID, which is what lets a 2019 dues row still
+ * name someone who left the league in 2021. An ID is useless to a reader, and
+ * resolving it in each client would put the same join in several places.
+ */
+async function memberNames(
+  ctx: RequestContext,
+  leagueId: InternalId,
+  seasonYear: number,
+): Promise<{
+  nameOf: (memberId: string) => string;
+  members: Array<{ leagueMemberId: string; displayName: string }>;
+}> {
+  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
+  const users = await ctx.repositories.users.listByLeague(leagueId);
+  const userById = new Map(users.map((user) => [user.userId, user]));
+
+  const nameOf = (memberId: string): string => {
+    const member = members.find((candidate) => candidate.leagueMemberId === memberId);
+    if (!member) return '(former member)';
+    return (
+      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
+      member.legacyManagerName ??
+      '(unnamed manager)'
+    );
+  };
+
+  return {
+    nameOf,
+    members: members
+      .filter((member) => member.isActive)
+      .map((member) => ({
+        leagueMemberId: member.leagueMemberId,
+        displayName: nameOf(member.leagueMemberId),
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  };
+}
+
 // --------------------------------------------------------------------- dues
 
 leagueOpsRoutes.get('/api/dues/:seasonYear', async (c) => {
@@ -113,9 +154,14 @@ leagueOpsRoutes.get('/api/dues/:seasonYear', async (c) => {
   const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
 
   const dues = await ctx.repositories.money.listDues(leagueId, seasonYear);
+  const { nameOf, members } = await memberNames(ctx, leagueId, seasonYear);
 
   return c.json({
-    dues,
+    dues: dues.map((record) => ({
+      ...record,
+      displayName: nameOf(record.leagueMemberId),
+    })),
+    members,
     summary: {
       totalOwedCents: dues.reduce((total, record) => total + record.amountOwed.amountCents, 0),
       totalPaidCents: dues.reduce((total, record) => total + record.amountPaid.amountCents, 0),
@@ -167,7 +213,19 @@ leagueOpsRoutes.post('/api/dues/:seasonYear', async (c) => {
     amountOwed: body.amountOwed,
     amountPaid,
     // Derived from the amounts when not stated, so status and money cannot drift.
-    status: body.status ?? derivePaymentStatus(body.amountOwed.amountCents, amountPaid.amountCents),
+    /**
+     * Arithmetic wins over a claimed status.
+     *
+     * `waived` and `refunded` are commissioner decisions that no amount implies, so
+     * those are taken as stated. `unpaid`, `partial` and `paid` are facts about the
+     * numbers, and a caller asserting "paid" beside $0 recorded is simply wrong —
+     * a ledger row that contradicts itself is what a league argues about for a
+     * season. Derived, not trusted.
+     */
+    status:
+      body.status === 'waived' || body.status === 'refunded'
+        ? body.status
+        : derivePaymentStatus(body.amountOwed.amountCents, amountPaid.amountCents),
     recordedByUserId: actorId,
     ...(body.dueDate === undefined ? {} : { dueDate: body.dueDate }),
     ...(body.method === undefined ? {} : { method: body.method }),
@@ -210,9 +268,14 @@ leagueOpsRoutes.get('/api/payouts/:seasonYear', async (c) => {
   const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
 
   const payouts = await ctx.repositories.money.listPayouts(leagueId, seasonYear);
+  const { nameOf, members } = await memberNames(ctx, leagueId, seasonYear);
 
   return c.json({
-    payouts,
+    payouts: payouts.map((record) => ({
+      ...record,
+      displayName: nameOf(record.leagueMemberId),
+    })),
+    members,
     summary: {
       pendingCount: payouts.filter((record) => !isSettled(record.status)).length,
       totalCents: payouts.reduce((total, record) => total + record.amount.amountCents, 0),

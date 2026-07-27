@@ -1543,6 +1543,353 @@ describe('challenge results', () => {
   });
 });
 
+describe('dues, prizes, tasks and announcements', () => {
+  async function league(): Promise<{
+    jar: Record<string, string>;
+    auth: Record<string, string>;
+    members: Array<{ leagueMemberId: string; displayName: string }>;
+  }> {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: name }),
+      });
+    }
+
+    const dues = await (
+      await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    return { jar, auth, members: dues.members };
+  }
+
+  it('derives dues status from the amounts rather than trusting a caller', async () => {
+    // Status and money must never disagree: a row saying "paid" next to $40 of $75
+    // is the kind of thing a league argues about for a season.
+    const { jar, auth, members } = await league();
+
+    const cases = [
+      { paid: 0, expected: 'unpaid' },
+      { paid: 4000, expected: 'partial' },
+      { paid: 7500, expected: 'paid' },
+    ];
+
+    for (const [index, testCase] of cases.entries()) {
+      await app.request('/api/dues/2026', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          leagueMemberId: members[index]!.leagueMemberId,
+          amountOwed: { amountCents: 7500, currency: 'USD' },
+          amountPaid: { amountCents: testCase.paid, currency: 'USD' },
+          // Deliberately claims the wrong status; the API must not take its word.
+          status: 'paid',
+        }),
+      });
+    }
+
+    const body = await (
+      await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    for (const [index, testCase] of cases.entries()) {
+      const record = body.dues.find(
+        (row: { leagueMemberId: string }) => row.leagueMemberId === members[index]!.leagueMemberId,
+      );
+      expect(record.status, `paid ${testCase.paid}`).toBe(testCase.expected);
+    }
+
+    expect(body.summary.totalOwedCents).toBe(22_500);
+    expect(body.summary.totalPaidCents).toBe(11_500);
+    expect(body.summary.unpaidCount).toBe(2);
+  });
+
+  it('resolves dues and prizes to names, not member IDs', async () => {
+    const { jar, auth, members } = await league();
+
+    await app.request('/api/dues/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: members[0]!.leagueMemberId,
+        amountOwed: { amountCents: 7500, currency: 'USD' },
+      }),
+    });
+
+    await app.request('/api/payouts/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: members[0]!.leagueMemberId,
+        reason: 'Week 1 Bench Mob',
+        amount: { amountCents: 2500, currency: 'USD' },
+      }),
+    });
+
+    const dues = await (
+      await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+    const payouts = await (
+      await app.request('/api/payouts/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(dues.dues[0].displayName).toBe('Alpha');
+    expect(payouts.payouts[0].displayName).toBe('Alpha');
+  });
+
+  it('records prizes without processing any payment', async () => {
+    const { jar, auth, members } = await league();
+
+    await app.request('/api/payouts/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: members[0]!.leagueMemberId,
+        reason: 'Season champion',
+        amount: { amountCents: 40_000, currency: 'USD' },
+        status: 'paid',
+        method: 'venmo',
+      }),
+    });
+
+    const body = await (
+      await app.request('/api/payouts/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    // `method` is a description of what happened elsewhere, never an instruction.
+    expect(body.payouts[0].method).toBe('venmo');
+    expect(body.note).toContain('does not transfer money');
+  });
+
+  /**
+   * The stat-correction chain, end to end.
+   *
+   * A prize is settled against a finalized result. Yahoo then corrects the stats so
+   * the arithmetic produces a different winner. The engine must refuse to rewrite
+   * the paid result, report the conflict, and put it in front of a person — because
+   * the alternative is the portal quietly claiming someone won money they never got.
+   */
+  it('refuses to rewrite a paid result after a stat correction, and raises a task', async () => {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    const overview = await (
+      await app.request('/api/league/overview', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    for (const [index, team] of overview.yahoo.teams.entries()) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          seasonYear: 2026,
+          yahooTeamKey: team.yahooTeamKey,
+          legacyManagerName: `Manager ${index + 1}`,
+        }),
+      });
+    }
+
+    setCapabilityMatrix({
+      ...MATRIX,
+      verifiedCapabilities: [
+        'roster_selected_position',
+        'player_week_points',
+        'player_position',
+        'team_week_points',
+        'matchup_result',
+      ],
+    });
+
+    await app.request('/api/challenges/2026/seed', { method: 'POST', headers: auth });
+    await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    const results = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    const result = results.results.find(
+      (row: { challengeSlug: string }) => row.challengeSlug === 'bench-mob',
+    );
+
+    await app.request('/api/challenges/2026/finalize/3/bench-mob', {
+      method: 'POST',
+      headers: auth,
+    });
+
+    // The prize is handed over, referencing the result. This is what arms the lock.
+    const payout = await app.request('/api/payouts/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: result.winningLeagueMemberIds[0],
+        reason: 'Week 3 Bench Mob',
+        amount: { amountCents: 2500, currency: 'USD' },
+        status: 'paid',
+        week: 3,
+        challengeResultId: result.challengeResultId,
+      }),
+    });
+    expect(payout.status).toBe(201);
+
+    const locked = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    expect(
+      locked.results.find((row: { challengeSlug: string }) => row.challengeSlug === 'bench-mob')
+        .payoutSettled,
+    ).toBe(true);
+
+    /**
+     * Simulates the correction by moving the stored winning value away from what the
+     * fixtures produce. The fixtures are deterministic on purpose, so recalculating
+     * them alone can never differ — the change has to come from the other side.
+     */
+    const stored = table
+      .all()
+      .find(
+        (item) =>
+          item['entity'] === 'WeeklyChallengeResult' && item['challengeSlug'] === 'bench-mob',
+      )!;
+    await table.put({ ...stored, winningValue: 999.9 });
+
+    const recalculated = await (
+      await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth })
+    ).json();
+
+    expect(recalculated.conflicts?.length).toBeGreaterThan(0);
+    expect(
+      recalculated.conflicts.some((entry: { slug: string }) => entry.slug === 'bench-mob'),
+    ).toBe(true);
+
+    // The paid result is untouched.
+    const after = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    expect(
+      after.results.find((row: { challengeSlug: string }) => row.challengeSlug === 'bench-mob')
+        .winningValue,
+    ).toBe(999.9);
+
+    // And a person is told, on the task list they actually read.
+    const tasks = await (
+      await app.request('/api/tasks', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const raised = tasks.tasks.find((task: { title: string }) =>
+      task.title.includes('Stat correction changed a paid result'),
+    );
+    expect(raised).toBeDefined();
+    expect(raised.priority).toBe('high');
+  });
+
+  it('creates and completes a commissioner task', async () => {
+    const { jar, auth } = await league();
+
+    const created = await app.request('/api/tasks', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ title: 'Chase unpaid dues', category: 'dues', priority: 'high' }),
+    });
+    expect(created.status).toBe(201);
+    const taskId = (await created.json()).task.taskId;
+
+    const done = await app.request(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'done' }),
+    });
+    expect(done.status).toBe(200);
+
+    const body = await (
+      await app.request('/api/tasks', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+    expect(body.openCount).toBe(0);
+    expect(body.tasks[0].status).toBe('done');
+  });
+
+  it('hides announcement drafts from members until published', async () => {
+    // An unpublished announcement is not league communication yet.
+    const { auth } = await league();
+
+    await app.request('/api/announcements', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ title: 'Draft idea', body: 'Not ready', publish: false }),
+    });
+    await app.request('/api/announcements', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ title: 'Dues are due', body: 'Seventy five dollars', publish: true }),
+    });
+
+    const asCommissioner = await (
+      await app.request('/api/announcements', {
+        headers: { Cookie: cookieHeader(await signInAsCommissionerAgain()) },
+      })
+    ).json();
+    expect(asCommissioner.announcements).toHaveLength(2);
+
+    // Demote to a manager and look again.
+    const user = table.ofEntity('PortalUser')[0]!;
+    await table.put({ ...user, role: 'manager', isPrimaryCommissioner: false });
+
+    const memberJar = await signIn();
+    const asMember = await (
+      await app.request('/api/announcements', { headers: { Cookie: cookieHeader(memberJar) } })
+    ).json();
+
+    expect(asMember.announcements).toHaveLength(1);
+    expect(asMember.announcements[0].title).toBe('Dues are due');
+  });
+
+  /** The commissioner session is already bootstrapped, so reuse rather than re-run. */
+  async function signInAsCommissionerAgain(): Promise<Record<string, string>> {
+    return signIn();
+  }
+});
+
 describe('CSV import', () => {
   it('previews without writing, and reports what would happen', async () => {
     const jar = await signInAsCommissioner();

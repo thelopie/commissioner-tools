@@ -67,6 +67,21 @@
       "Monetization requires prior express written permission. This portal is noncommercial."
     ]
   },
+  "moneyHandling": {
+    "paymentsProcessed": false,
+    "fundsHeld": false,
+    "moneyMoved": false,
+    "revenueTaken": false,
+    "confidence": "documented",
+    "notes": [
+      "Yahoo's API terms list 'gambling or gambling items' among prohibited uses, and require written permission for monetization. Dues and prizes here are the league's own administrative records: no Yahoo data appears on them, no payment processor is integrated, no funds are held or moved, and the portal takes no share.",
+      "A payout record is ALWAYS created deliberately by a commissioner. Nothing generates a money record from a finalized challenge or any other Yahoo-derived outcome — automating that would make the pipeline resemble an automated stakes engine, and it saves nobody any work.",
+      "A challenge result is not payable until a commissioner finalizes it, so a person always stands between Yahoo's numbers and a prize.",
+      "`paymentMethod` (cash, venmo, zelle, paypal, check, other) is descriptive of what happened elsewhere. It is never executable and triggers nothing.",
+      "The interface avoids gambling vocabulary entirely — no odds, lines, bets, wagers, stakes, or 'winnings'. The language is dues, prize, payout, owed, settled.",
+      "The fantasy-specific terms URL currently 404s and the binding agreement appears inside the approval flow, which has not been seen. This section records the position taken, not a confirmed reading of an unseen document."
+    ]
+  },
   "baseUrl": "https://fantasysports.yahooapis.com/fantasy/v2",
   "documentationUrl": "https://sports.yahoo.com/developer/docs/",
   "writeOperations": {
