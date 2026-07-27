@@ -8,7 +8,7 @@ build/
 *.tsbuildinfo
 .vite/
 
-# Environment â€” never commit real credentials
+# Environment — never commit real credentials
 .env
 .env.*
 !.env.example

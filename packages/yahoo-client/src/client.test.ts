@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AppError, YahooCapabilityKey } from '@dinkel/shared';
 import {
   createTokenProvider,

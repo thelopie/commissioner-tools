@@ -1,9 +1,9 @@
-﻿/**
+/**
  * API client.
  *
  * Same-origin `fetch` with `credentials: 'include'`, so the HttpOnly session
  * cookie travels without any script ever reading it. State-changing requests echo
- * the readable CSRF cookie in a header â€” the double-submit pattern.
+ * the readable CSRF cookie in a header — the double-submit pattern.
  *
  * There is no token handling here at all, deliberately: the Yahoo refresh token
  * never leaves the backend, so the browser has nothing to store, refresh, or leak.
@@ -20,8 +20,8 @@ export interface ApiErrorBody {
 /**
  * A failed request, carrying the backend's stable error code.
  *
- * The code is what the UI branches on â€” `yahoo_needs_reconnect` shows a reconnect
- * prompt, `commissioner_required` explains the permission â€” rather than matching
+ * The code is what the UI branches on — `yahoo_needs_reconnect` shows a reconnect
+ * prompt, `commissioner_required` explains the permission — rather than matching
  * on message text, which would break the moment wording changed.
  */
 export class ApiError extends Error {

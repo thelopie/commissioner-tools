@@ -1,4 +1,4 @@
-﻿import type { YahooGameKey, YahooGuid, YahooLeagueKey, YahooTeamKey } from '@dinkel/shared';
+import type { YahooGameKey, YahooGuid, YahooLeagueKey, YahooTeamKey } from '@dinkel/shared';
 import {
   collect,
   descend,
@@ -16,7 +16,7 @@ import {
  * Normalized Yahoo resources.
  *
  * Everything here is EPHEMERAL. These shapes exist to be rendered or fed into a
- * calculation and then discarded â€” the only durable trace is a Yahoo identifier
+ * calculation and then discarded — the only durable trace is a Yahoo identifier
  * plus, for a finalized challenge, a single derived number. Nothing in this file
  * is written to a permanent entity.
  */
@@ -263,7 +263,7 @@ function parseTeam(team: Record<string, Json>): YahooTeam | null {
  * Parses `/team/{team_key}/roster;week={n}`.
  *
  * `selectedPosition` is what makes the Bench Mob challenge possible, and it is
- * exactly the field whose bench code (`BN`) is unverified against a real league â€”
+ * exactly the field whose bench code (`BN`) is unverified against a real league —
  * see `yahoo-capabilities.json`. The parser reports whatever Yahoo sends rather
  * than normalizing it, so a surprise value is visible instead of swallowed.
  */
@@ -379,7 +379,7 @@ function toSummary(
   assign(summary, 'url', optionalString(league, 'url'));
 
   // Yahoo's own commissioner flag. Recorded as a hint for the league-selection
-  // UI only â€” it grants nothing in this portal, where roles are Dinkel-owned.
+  // UI only — it grants nothing in this portal, where roles are Dinkel-owned.
   const isCommissioner = optionalBoolean(league, 'is_commissioner');
   if (isCommissioner !== undefined) summary.isCommissioner = isCommissioner;
 

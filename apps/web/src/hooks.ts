@@ -159,6 +159,28 @@ export function useConfirmDisplayName(userId: string | undefined) {
   });
 }
 
+/**
+ * Creates the thirteen proposed challenge definitions for a season.
+ *
+ * Existing definitions are left untouched by the backend, so a commissioner's
+ * corrections survive a re-seed.
+ */
+export function useSeedChallenges(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: () =>
+      api.post<{ seeded: string[]; skipped: string[]; note: string }>(
+        `/api/challenges/${seasonYear}/seed`,
+        {},
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.challenges(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
 export function useSignOut() {
   const queryClient = useQueryClient();
 

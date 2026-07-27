@@ -43,14 +43,10 @@ export const serverEnvSchema = z
     // Yahoo
     YAHOO_CLIENT_ID: z.string().min(1, 'required — see .env.example'),
     YAHOO_CLIENT_SECRET: z.string().min(1, 'required — see .env.example'),
-    YAHOO_REDIRECT_URI: z
-      .string()
-      .url()
-      .refine((value) => value.startsWith('https://'), {
-        message: 'Yahoo requires an HTTPS redirect URI, even for localhost (run `npm run certs`)',
-      }),
+    // HTTPS is required in live mode and checked below, once YAHOO_MODE is known.
+    YAHOO_REDIRECT_URI: z.string().url(),
     YAHOO_MODE: yahooModeSchema.default('mock'),
-    YAHOO_MOCK_BASE_URL: z.string().url().default('http://localhost:4310'),
+    YAHOO_MOCK_BASE_URL: z.string().url().default('http://127.0.0.1:4310'),
 
     // Application
     APP_BASE_URL: z.string().url(),
@@ -73,9 +69,9 @@ export const serverEnvSchema = z
     LOG_LEVEL: logLevelSchema.default('info'),
   })
   .superRefine((env, ctx) => {
-    // In live mode the placeholder credentials from .env.example are a
-    // configuration error, not a usable value.
     if (env.YAHOO_MODE === 'live') {
+      // In live mode the placeholder credentials from .env.example are a
+      // configuration error, not a usable value.
       for (const key of ['YAHOO_CLIENT_ID', 'YAHOO_CLIENT_SECRET'] as const) {
         if (env[key] === 'replace-me') {
           ctx.addIssue({
@@ -85,6 +81,34 @@ export const serverEnvSchema = z
           });
         }
       }
+
+      /**
+       * Yahoo requires an HTTPS redirect URI and will not accept plain
+       * http://localhost, so this is enforced whenever a real Yahoo is involved.
+       *
+       * Deliberately NOT enforced in mock mode: there is no Yahoo to satisfy, and
+       * demanding HTTPS there would force every contributor through openssl and a
+       * browser certificate warning just to click through a fake consent screen.
+       */
+      if (!env.YAHOO_REDIRECT_URI.startsWith('https://')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['YAHOO_REDIRECT_URI'],
+          message:
+            'Yahoo requires HTTPS, even for localhost. Run `npm run certs`, or set YAHOO_MODE=mock to develop over plain HTTP.',
+        });
+      }
+    }
+
+    // Cookies are Secure-only over HTTPS, so an HTTPS app origin with an HTTP
+    // redirect URI would complete the OAuth flow and then drop the session.
+    if (env.APP_BASE_URL.startsWith('https://') && env.YAHOO_REDIRECT_URI.startsWith('http://')) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['YAHOO_REDIRECT_URI'],
+        message:
+          'is HTTP while APP_BASE_URL is HTTPS — the session cookie is Secure-only and would be dropped. Use the same scheme for both.',
+      });
     }
 
     if (env.NODE_ENV === 'production') {

@@ -1,0 +1,37 @@
+- generic [ref=f4e3]:
+    - banner [ref=f4e4]:
+        - generic [ref=f4e5]:
+            - link "Dinkel Portal" [ref=f4e6] [cursor=pointer]:
+                - /url: /
+            - generic [ref=f4e7]: Mock Yahoo data
+            - generic [ref=f4e9]:
+                - link "Dashboard" [ref=f4e10] [cursor=pointer]:
+                    - /url: /
+                - link "Challenges" [ref=f4e11] [cursor=pointer]:
+                    - /url: /challenges
+                - link "Yahoo status" [ref=f4e12] [cursor=pointer]:
+                    - /url: /yahoo-capabilities
+                - generic [ref=f4e13]: mock_commissioner · readonly
+                - button "Sign out" [ref=f4e15] [cursor=pointer]
+    - generic [ref=f4e20]:
+        - heading "Set up the portal" [level=1] [ref=f4e21]
+        - paragraph [ref=f4e22]: You are the first person to sign in, so you will become the primary commissioner. That is a portal role, held here and independent of who runs the league in Yahoo — you can grant, revoke, and transfer it later.
+        - generic [ref=f4e23]:
+            - generic [ref=f4e24]:
+                - text: League name
+                - generic [ref=f4e25]: '*'
+            - generic [ref=f4e26]:
+                - textbox "League name" [ref=f4e27]: Dinkel
+                - group:
+                    - generic: League name *
+            - paragraph [ref=f4e28]: Your own name for the league. Not read from Yahoo.
+        - generic [ref=f4e29]:
+            - generic [ref=f4e30]: Time zone
+            - generic [ref=f4e31]:
+                - textbox "Time zone" [ref=f4e32]: America/Los_Angeles
+                - group:
+                    - generic: Time zone
+            - paragraph [ref=f4e33]: Used for deadlines and weekly boundaries.
+        - button "Create the league and claim commissioner" [ref=f4e34] [cursor=pointer]
+        - generic [ref=f4e35]: Next you will connect a Yahoo league. Nothing about the league, season, or teams is hardcoded — you choose from the leagues your Yahoo account can see.
+    - contentinfo [ref=f4e36]: A private, noncommercial league tool. Not affiliated with or endorsed by Yahoo. Yahoo data is read live under read-only access and is not stored permanently.

@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { loadServerEnv } from '@dinkel/shared';
 import { setCapabilityMatrix, type CapabilityMatrix, type FetchLike } from '@dinkel/yahoo-client';
 import { createApp } from '../app.js';
@@ -12,7 +12,7 @@ import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from '../lib/cookies.js';
  * Route-level integration tests.
  *
  * These exercise the real Hono app, the real middleware chain, the real
- * repositories, and the real Yahoo client â€” against an in-memory table and the
+ * repositories, and the real Yahoo client — against an in-memory table and the
  * mock Yahoo handlers. That covers the parts unit tests cannot: middleware
  * ordering, cookie handling, the OAuth round trip, and backend authorization as
  * an actual HTTP response rather than a thrown error.
@@ -572,7 +572,7 @@ describe('league discovery and linking', () => {
     const body = await response.json();
     expect(body.leagues).toHaveLength(2);
     expect(body.leagues[0].yahooLeagueKey).toBe('999.l.100001');
-    // A hint for the picker only â€” it grants nothing in the portal.
+    // A hint for the picker only — it grants nothing in the portal.
     expect(body.leagues[0].isYahooCommissioner).toBe(true);
   });
 
@@ -976,7 +976,7 @@ describe('CSV import', () => {
     expect(body.summary.errorRows).toBe(0);
     expect(body.canCommit).toBe(true);
     expect(body.note).toContain('Nothing has been written');
-    // No Season entities yet â€” the preview really is read-only.
+    // No Season entities yet — the preview really is read-only.
     expect(table.ofEntity('Season')).toHaveLength(0);
   });
 

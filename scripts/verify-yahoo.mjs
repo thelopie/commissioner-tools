@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * Verifies Yahoo connectivity against a real league.
  *
@@ -11,7 +11,7 @@
  *   1. npm run dev
  *   2. Sign in through the portal with YAHOO_MODE=live
  *   3. Copy the access token from the API log line "Yahoo OAuth completed"
- *      (it is redacted there â€” instead use the /api/yahoo/leagues endpoint, or
+ *      (it is redacted there — instead use the /api/yahoo/leagues endpoint, or
  *      pass a token directly as shown below)
  *
  *   node scripts/verify-yahoo.mjs --token "<access token>"
@@ -120,13 +120,13 @@ function flatten(node, depth = 0) {
   return merged;
 }
 
-console.log('\nProbing the Yahoo Fantasy Sports APIâ€¦\n');
+console.log('\nProbing the Yahoo Fantasy Sports API…\n');
 
 // 1. Identity. The GUID is the one value the terms allow storing indefinitely.
 await probe('user profile', 'users;use_login=1', ['(identity)'], (body) => {
   const user = flatten(items(body?.fantasy_content?.users)[0]?.user);
   return user.guid
-    ? { ok: true, detail: `guid present (${String(user.guid).slice(0, 6)}â€¦)` }
+    ? { ok: true, detail: `guid present (${String(user.guid).slice(0, 6)}…)` }
     : { ok: false, detail: 'no guid in response' };
 });
 
@@ -142,7 +142,7 @@ const leaguesBody = await probe(
     const leagueNodes = items(merged.games).flatMap((game) => items(flatten(game.game).leagues));
     return leagueNodes.length > 0
       ? { ok: true, detail: `${leagueNodes.length} league(s) found` }
-      : { ok: false, detail: 'no leagues returned â€” is this the right Yahoo account?' };
+      : { ok: false, detail: 'no leagues returned — is this the right Yahoo account?' };
   },
 );
 
@@ -277,7 +277,7 @@ if (!leagueKey) {
       return projected !== undefined
         ? {
             ok: true,
-            detail: `projected points ARE available (${projected}) â€” unblock those challenges`,
+            detail: `projected points ARE available (${projected}) — unblock those challenges`,
           }
         : {
             ok: false,
@@ -297,7 +297,7 @@ if (!leagueKey) {
       return categories.length > 0
         ? {
             ok: true,
-            detail: `${categories.length} stat categories â€” verify the ids in the proposals`,
+            detail: `${categories.length} stat categories — verify the ids in the proposals`,
           }
         : { ok: false, detail: 'no stat categories returned; stat-id challenges stay blocked' };
     },
@@ -306,18 +306,14 @@ if (!leagueKey) {
 
 // -------------------------------------------------------------------- report
 
-console.log(
-  '\nâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€',
-);
+console.log('\n─────────────────────────────────────────────────────────────');
 console.log(' Results');
-console.log(
-  'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n',
-);
+console.log('─────────────────────────────────────────────────────────────\n');
 
 const verified = new Set();
 
 for (const result of results) {
-  const mark = result.status === 'verified' ? 'âœ“' : 'âœ—';
+  const mark = result.status === 'verified' ? '✓' : '✗';
   console.log(`${mark} ${result.name}`);
   console.log(`    ${result.path}`);
   console.log(`    ${result.detail}`);
@@ -331,9 +327,7 @@ for (const result of results) {
   }
 }
 
-console.log(
-  'â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€\n',
-);
+console.log('─────────────────────────────────────────────────────────────\n');
 
 if (verified.size === 0) {
   console.log('Nothing was verified. yahoo-capabilities.json should stay as it is.\n');
@@ -350,7 +344,7 @@ console.log(
 );
 console.log('  ]\n');
 console.log('Also set testStatus to "verified" on the matching resource entries,');
-console.log('and update lastReviewedAt. Do this by hand â€” an automatic edit would');
+console.log('and update lastReviewedAt. Do this by hand — an automatic edit would');
 console.log('remove the human review this file exists to record.\n');
 
 if (!verified.has('player_week_points') || !verified.has('roster_selected_position')) {

@@ -1,4 +1,4 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import {
   Alert,
   Box,
@@ -112,7 +112,14 @@ export function DashboardPage(): JSX.Element {
               <ErrorNotice error={overview.error} onRetry={() => void overview.refetch()} />
             )}
 
-            {refresh.isError && <ErrorNotice error={refresh.error} hideRetry />}
+            {/*
+              A failed refresh is usually transient — Yahoo briefly unavailable or
+              rate limiting — so the notice offers the retry directly rather than
+              telling the user to try again and leaving them to find the button.
+            */}
+            {refresh.isError && (
+              <ErrorNotice error={refresh.error} onRetry={() => refresh.mutate()} />
+            )}
 
             {overview.data?.linked && overview.data.yahoo && (
               <LeagueDetails overview={overview.data} />
@@ -149,10 +156,10 @@ function ConfirmNameCard({
       <CardContent>
         <Stack spacing={2}>
           <Typography variant="h3">
-            {isWelcome ? 'Welcome â€” confirm your name' : 'Confirm your display name'}
+            {isWelcome ? 'Welcome — confirm your name' : 'Confirm your display name'}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            We prefilled this from Yahoo. Confirm or change it, and it becomes your portal name â€”
+            We prefilled this from Yahoo. Confirm or change it, and it becomes your portal name —
             used on league records that outlive the Yahoo connection. This is the only name the
             portal stores; everything else about your Yahoo profile stays with Yahoo.
           </Typography>
@@ -171,7 +178,7 @@ function ConfirmNameCard({
               onClick={() => confirm.mutate(name.trim())}
               sx={{ whiteSpace: 'nowrap' }}
             >
-              {confirm.isPending ? 'Savingâ€¦' : 'Confirm'}
+              {confirm.isPending ? 'Saving…' : 'Confirm'}
             </Button>
           </Stack>
 
@@ -285,7 +292,7 @@ function ConnectionCard(): JSX.Element {
                   onClick={() => disconnect.mutate()}
                   disabled={disconnect.isPending}
                 >
-                  {disconnect.isPending ? 'Removingâ€¦' : 'Remove Yahoo connection'}
+                  {disconnect.isPending ? 'Removing…' : 'Remove Yahoo connection'}
                 </Button>
                 <Typography variant="caption" color="text.secondary">
                   Deletes the stored credentials and every cached Yahoo response for your account.
@@ -301,7 +308,7 @@ function ConnectionCard(): JSX.Element {
   );
 }
 
-/** League selection. Nothing is hardcoded â€” these come from the user's account. */
+/** League selection. Nothing is hardcoded — these come from the user's account. */
 function LeaguePickerCard(): JSX.Element {
   const leagues = useYahooLeagues(true);
   const select = useSelectLeague();
@@ -350,7 +357,7 @@ function LeaguePickerCard(): JSX.Element {
                           <Chip size="small" label={`${league.teamCount} teams`} />
                         )}
                         {league.isYahooCommissioner && (
-                          <Tooltip title="Yahoo says you are its commissioner. This grants nothing in the portal â€” portal roles are set here.">
+                          <Tooltip title="Yahoo says you are its commissioner. This grants nothing in the portal — portal roles are set here.">
                             <Chip size="small" color="info" label="Yahoo commissioner" />
                           </Tooltip>
                         )}
@@ -370,7 +377,7 @@ function LeaguePickerCard(): JSX.Element {
                         })
                       }
                     >
-                      {select.isPending ? 'Linkingâ€¦' : 'Use this league'}
+                      {select.isPending ? 'Linking…' : 'Use this league'}
                     </Button>
                   </Stack>
                 </CardContent>
@@ -412,7 +419,7 @@ function LeagueDetails({
       {unmapped > 0 && (
         <Alert severity="info">
           {unmapped} of {yahoo.teams.length} Yahoo teams are not yet mapped to portal members.
-          Mapping them is what lets league records survive after a manager leaves â€” challenge
+          Mapping them is what lets league records survive after a manager leaves — challenge
           results are keyed to portal members, not to Yahoo teams.
         </Alert>
       )}
@@ -468,7 +475,7 @@ function LeagueDetails({
       <Typography variant="caption" color="text.secondary">
         Read live from Yahoo
         {overview.fetchedAt ? ` at ${new Date(overview.fetchedAt).toLocaleTimeString()}` : ''}. Team
-        and manager names come from Yahoo on every load and are not stored â€” see{' '}
+        and manager names come from Yahoo on every load and are not stored — see{' '}
         <Link href="/yahoo-capabilities">Yahoo status</Link> for what the portal can and cannot
         read.
       </Typography>

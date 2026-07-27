@@ -1,4 +1,4 @@
-﻿import { AppError, type InternalId, type PortalRole } from '@dinkel/shared';
+import { AppError, type InternalId, type PortalRole } from '@dinkel/shared';
 import type { FetchLike } from '@dinkel/yahoo-client';
 import type { AppConfig } from './config.js';
 import type { Logger } from './lib/logger.js';

@@ -51,13 +51,40 @@ describe('loadServerEnv', () => {
     expect(caught?.message).not.toContain(secret);
   });
 
-  it('rejects an http redirect URI because Yahoo requires https', () => {
+  it('rejects an http redirect URI in live mode, because Yahoo requires https', () => {
     expect(() =>
       loadServerEnv({
         ...valid(),
+        YAHOO_MODE: 'live',
         YAHOO_REDIRECT_URI: 'http://localhost:5173/auth/yahoo/callback',
       }),
-    ).toThrow(/HTTPS redirect URI/);
+    ).toThrow(/Yahoo requires HTTPS/);
+  });
+
+  it('allows an http redirect URI in mock mode, so local dev needs no certificate', () => {
+    // There is no Yahoo to satisfy in mock mode, and demanding HTTPS there would
+    // force every contributor through openssl and a browser warning just to click
+    // through a fake consent screen.
+    expect(() =>
+      loadServerEnv({
+        ...valid(),
+        YAHOO_MODE: 'mock',
+        APP_BASE_URL: 'http://localhost:5173',
+        YAHOO_REDIRECT_URI: 'http://localhost:5173/auth/yahoo/callback',
+      }),
+    ).not.toThrow();
+  });
+
+  it('rejects an HTTPS app origin paired with an HTTP redirect URI', () => {
+    // The session cookie is Secure-only over HTTPS, so this combination would
+    // complete the OAuth flow and then silently drop the session.
+    expect(() =>
+      loadServerEnv({
+        ...valid(),
+        APP_BASE_URL: 'https://localhost:5173',
+        YAHOO_REDIRECT_URI: 'http://localhost:5173/auth/yahoo/callback',
+      }),
+    ).toThrow(/Secure-only and would be dropped/);
   });
 
   it('rejects a token key that does not decode to 32 bytes', () => {

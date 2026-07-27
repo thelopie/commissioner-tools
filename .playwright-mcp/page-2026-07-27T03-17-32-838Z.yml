@@ -1,0 +1,15 @@
+- generic [ref=f1e3]:
+    - banner [ref=f1e4]:
+        - generic [ref=f1e5]:
+            - link "Dinkel Portal" [ref=f1e6] [cursor=pointer]:
+                - /url: /
+            - generic [ref=f1e7]: Mock Yahoo data
+    - generic [ref=f1e13]:
+        - heading "Dinkel Portal" [level=1] [ref=f1e14]
+        - paragraph [ref=f1e15]: League operations for a long-running fantasy football league. Yahoo stays the source of truth for scores and rosters; the portal owns dues, prizes, weekly challenges, and the draft-order workflow.
+        - alert [ref=f1e16]:
+            - paragraph [ref=f1e21]: Yahoo did not respond. Try again shortly.
+        - link "Sign in with Yahoo" [ref=f1e22] [cursor=pointer]:
+            - /url: /auth/yahoo/start
+        - generic [ref=f1e23]: The portal requests read-only Fantasy access. It cannot change your lineup, make transactions, or act as commissioner in Yahoo — no Yahoo API endpoint for those is documented, and the portal does not request write access. You can remove the connection at any time, which deletes the stored credentials and any cached Yahoo data.
+    - contentinfo [ref=f1e24]: A private, noncommercial league tool. Not affiliated with or endorsed by Yahoo. Yahoo data is read live under read-only access and is not stored permanently.

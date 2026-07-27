@@ -1,4 +1,4 @@
-﻿import { Hono } from 'hono';
+import { Hono } from 'hono';
 import {
   AppError,
   generateId,
@@ -40,7 +40,7 @@ import { created, now } from '../repositories.js';
  * Authentication, the Yahoo OAuth flow, and role management.
  *
  * Portal identity is the Yahoo GUID, the one Yahoo value the terms allow storing
- * indefinitely. Portal ROLES are Dinkel's own and are set here â€” Yahoo commissioner
+ * indefinitely. Portal ROLES are Dinkel's own and are set here — Yahoo commissioner
  * status grants nothing.
  */
 
@@ -494,13 +494,13 @@ authRoutes.post('/api/invitations', async (c) => {
   });
 
   // Returned once, for the commissioner to pass along by whatever means they
-  // like. This version sends no email â€” a delivery integration is deferred, and
+  // like. This version sends no email — a delivery integration is deferred, and
   // handing over a link keeps the portal honest about what it does.
   return c.json(
     {
       invitationId,
       inviteUrl: `${ctx.config.env.APP_BASE_URL}/invite?token=${encodeURIComponent(token)}`,
-      note: 'Share this link yourself â€” the portal does not send email in this version.',
+      note: 'Share this link yourself — the portal does not send email in this version.',
     },
     201,
   );

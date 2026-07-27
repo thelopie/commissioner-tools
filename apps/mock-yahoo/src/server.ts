@@ -4,12 +4,18 @@ import { handleFantasyRequest, handleTokenRequest } from './handlers.js';
 /**
  * Local mock Yahoo server.
  *
- * Binds to loopback only. It serves synthetic fixtures and accepts any bearer
- * token, so exposing it on a network interface would be pointless at best.
+ * Binds to loopback only, on BOTH IPv4 and IPv6. It serves synthetic fixtures and
+ * accepts any bearer token, so exposing it on a real network interface would be
+ * pointless at best.
+ *
+ * Both families matter: Node resolves `localhost` to `::1` on many systems while
+ * `curl` quietly falls back to IPv4. A server bound only to 127.0.0.1 therefore
+ * answers curl and refuses `fetch`, which is a genuinely confusing way to lose an
+ * afternoon. Listening on both means any spelling of loopback works.
  */
 
 const PORT = Number(process.env['MOCK_YAHOO_PORT'] ?? 4310);
-const HOST = '127.0.0.1';
+const HOSTS = ['127.0.0.1', '::1'] as const;
 
 async function readBody(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -31,9 +37,9 @@ function send(response: ServerResponse, status: number, body: unknown): void {
   response.end(payload);
 }
 
-const server = createServer((request, response) => {
+const handleRequest = (request: IncomingMessage, response: ServerResponse): void => {
   void (async () => {
-    const url = new URL(request.url ?? '/', `http://${HOST}:${PORT}`);
+    const url = new URL(request.url ?? '/', `http://127.0.0.1:${PORT}`);
     const path = url.pathname;
 
     if (path === '/health') {
@@ -92,15 +98,42 @@ const server = createServer((request, response) => {
   })().catch((error: unknown) => {
     send(response, 500, { error: { description: String(error) } });
   });
-});
+};
 
-server.listen(PORT, HOST, () => {
-  console.log(
-    JSON.stringify({
-      level: 'info',
-      message: 'mock Yahoo server listening',
-      url: `http://${HOST}:${PORT}`,
-      note: 'synthetic fixtures only — no real Yahoo data',
-    }),
-  );
-});
+const listening: string[] = [];
+
+for (const host of HOSTS) {
+  const server = createServer(handleRequest);
+
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    // A machine with IPv6 disabled cannot bind ::1. That is fine — the IPv4
+    // listener still serves everything — so it is reported, not fatal.
+    if (error.code === 'EADDRNOTAVAIL' || error.code === 'EAFNOSUPPORT') {
+      console.log(
+        JSON.stringify({ level: 'warn', message: `could not bind ${host}`, reason: error.code }),
+      );
+      return;
+    }
+    console.error(
+      JSON.stringify({
+        level: 'error',
+        message: `mock server failed on ${host}`,
+        reason: error.code,
+      }),
+    );
+    process.exitCode = 1;
+  });
+
+  server.listen(PORT, host, () => {
+    listening.push(host === '::1' ? `http://[::1]:${PORT}` : `http://${host}:${PORT}`);
+
+    console.log(
+      JSON.stringify({
+        level: 'info',
+        message: 'mock Yahoo server listening',
+        urls: listening,
+        note: 'synthetic fixtures only — no real Yahoo data',
+      }),
+    );
+  });
+}

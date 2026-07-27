@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   push:
@@ -72,11 +72,11 @@ jobs:
             fi
           done
           if [ -f .env ]; then
-            echo "::error::.env is committed â€” it must never be"
+            echo "::error::.env is committed — it must never be"
             exit 1
           fi
           if ls certs/*.pem >/dev/null 2>&1; then
-            echo "::error::a certificate is committed â€” certs/ must stay local"
+            echo "::error::a certificate is committed — certs/ must stay local"
             exit 1
           fi
 
@@ -114,7 +114,7 @@ jobs:
           changes state goes through the API's own double-submit CSRF check.
 
           No fixed release exists in the 7.x line and 8.x is unpublished, so the
-          only "fix" npm offers is 7.11.0 â€” which sits inside a far broader
+          only "fix" npm offers is 7.11.0 — which sits inside a far broader
           advisory range (6.0.0 - 7.17.0) and would be a net regression.
 
           Revisit when react-router >8.2.0 ships.

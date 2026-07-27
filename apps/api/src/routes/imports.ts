@@ -1,4 +1,4 @@
-﻿import { Hono } from 'hono';
+import { Hono } from 'hono';
 import {
   AppError,
   generateId,
@@ -27,7 +27,7 @@ import { parseJson } from './auth.js';
  * CSV import.
  *
  * The only migration path into the portal. No Google Sheets, no Drive, no
- * spreadsheet synchronization, no write-back â€” a commissioner exports CSV from
+ * spreadsheet synchronization, no write-back — a commissioner exports CSV from
  * whatever they use and imports it here.
  *
  * The uploaded text is held only for the duration of the dry run and commit. The
@@ -288,7 +288,7 @@ importRoutes.post('/api/imports/:importBatchId/commit', async (c) => {
 
   return c.json({
     ...applied,
-    note: 'The original CSV file is no longer needed â€” nothing about it was stored.',
+    note: 'The original CSV file is no longer needed — nothing about it was stored.',
   });
 });
 
@@ -314,7 +314,7 @@ importRoutes.get('/api/imports/:importBatchId/rows', async (c) => {
 /**
  * Rolls back a committed import.
  *
- * Refused when a later record depends on the imported rows â€” deleting a challenge
+ * Refused when a later record depends on the imported rows — deleting a challenge
  * result out from under a payout leaves the ledger pointing at nothing.
  */
 importRoutes.post('/api/imports/:importBatchId/rollback', async (c) => {

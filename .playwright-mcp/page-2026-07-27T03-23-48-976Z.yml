@@ -1,0 +1,200 @@
+- generic [ref=f8e3]:
+    - banner [ref=f8e7]:
+        - generic [ref=f8e8]:
+            - link "Dinkel Portal" [ref=f8e9] [cursor=pointer]:
+                - /url: /
+            - generic [ref=f8e10]: Mock Yahoo data
+            - generic [ref=f8e12]:
+                - link "Dashboard" [ref=f8e13] [cursor=pointer]:
+                    - /url: /
+                - link "Challenges" [ref=f8e14] [cursor=pointer]:
+                    - /url: /challenges
+                - link "Yahoo status" [ref=f8e15] [cursor=pointer]:
+                    - /url: /yahoo-capabilities
+                - link "Audit" [ref=f8e16] [cursor=pointer]:
+                    - /url: /audit
+                - generic [ref=f8e17]: Josh (commissioner) · commissioner (primary)
+                - button "Sign out" [ref=f8e19] [cursor=pointer]
+    - generic [ref=f8e21]:
+        - generic [ref=f8e22]:
+            - heading "Weekly challenges" [level=1] [ref=f8e23]
+            - paragraph [ref=f8e24]: 2026 season Â· 0 calculable Â· 13 blocked
+        - alert [ref=f8e25]:
+            - paragraph [ref=f8e30]:
+                - text: 13 challenges cannot be calculated because the Yahoo data they need has not been verified against a real league. They are listed below with the specific gap. See
+                - link "Yahoo status" [ref=f8e31] [cursor=pointer]:
+                    - /url: /yahoo-capabilities
+                - text: .
+        - generic [ref=f8e32]:
+            - heading "Blocked" [level=2] [ref=f8e33]
+            - generic [ref=f8e34]:
+                - generic [ref=f8e37]:
+                    - generic [ref=f8e38]:
+                        - heading "Air Raid" [level=3] [ref=f8e39]
+                        - generic [ref=f8e40]: blocked
+                    - paragraph [ref=f8e42]: The most passing yards from a starting quarterback.
+                    - alert [ref=f8e43]:
+                        - generic [ref=f8e47]: 'Unverified Yahoo data: roster_selected_position, player_position, player_stat_by_id. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e48]:
+                        - generic [ref=f8e49]: starters only
+                        - generic [ref=f8e51]: whole points
+                        - generic [ref=f8e53]: negatives excluded
+                        - generic [ref=f8e55]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e57]: 'Needs from Yahoo: roster_selected_position, player_position, player_stat_by_id'
+                - generic [ref=f8e60]:
+                    - generic [ref=f8e61]:
+                        - heading "Bad Beat" [level=3] [ref=f8e62]
+                        - generic [ref=f8e63]: blocked
+                    - paragraph [ref=f8e65]: The highest score that still lost.
+                    - alert [ref=f8e66]:
+                        - generic [ref=f8e70]: 'Unverified Yahoo data: team_week_points, matchup_result. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e71]:
+                        - generic [ref=f8e72]: starters only
+                        - generic [ref=f8e74]: decimals count
+                        - generic [ref=f8e76]: negatives count
+                        - generic [ref=f8e78]: 'tiebreak: commissioner_decides'
+                    - generic [ref=f8e80]: 'Needs from Yahoo: team_week_points, matchup_result'
+                - generic [ref=f8e83]:
+                    - generic [ref=f8e84]:
+                        - heading "Bench Mob" [level=3] [ref=f8e85]
+                        - generic [ref=f8e86]: blocked
+                    - paragraph [ref=f8e88]: The most points left on the bench.
+                    - alert [ref=f8e89]:
+                        - generic [ref=f8e93]: 'Unverified Yahoo data: roster_selected_position, player_week_points. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e94]:
+                        - generic [ref=f8e95]: bench counts
+                        - generic [ref=f8e97]: decimals count
+                        - generic [ref=f8e99]: negatives excluded
+                        - generic [ref=f8e101]: 'tiebreak: lower_team_points â†’ commissioner_decides'
+                    - generic [ref=f8e103]: 'Needs from Yahoo: roster_selected_position, player_week_points'
+                - generic [ref=f8e106]:
+                    - generic [ref=f8e107]:
+                        - heading "Blackjack" [level=3] [ref=f8e108]
+                        - generic [ref=f8e109]: blocked
+                    - paragraph [ref=f8e111]: The starter whose score comes closest to 21 without going over. Going over busts.
+                    - alert [ref=f8e112]:
+                        - generic [ref=f8e116]: 'Unverified Yahoo data: roster_selected_position, player_week_points. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e117]:
+                        - generic [ref=f8e118]: starters only
+                        - generic [ref=f8e120]: decimals count
+                        - generic [ref=f8e122]: negatives excluded
+                        - generic [ref=f8e124]: 'tiebreak: worse_record â†’ split_prize'
+                    - generic [ref=f8e126]: 'Needs from Yahoo: roster_selected_position, player_week_points'
+                - generic [ref=f8e129]:
+                    - generic [ref=f8e130]:
+                        - heading "Bullseye" [level=3] [ref=f8e131]
+                        - generic [ref=f8e132]: blocked
+                    - paragraph [ref=f8e134]: The team that finished closest to its own projected total, in either direction.
+                    - alert [ref=f8e135]:
+                        - generic [ref=f8e139]: 'Unverified Yahoo data: team_week_points, team_projected_points. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e140]:
+                        - generic [ref=f8e141]: starters only
+                        - generic [ref=f8e143]: decimals count
+                        - generic [ref=f8e145]: negatives count
+                        - generic [ref=f8e147]: 'tiebreak: worse_record â†’ split_prize'
+                    - generic [ref=f8e149]: 'Needs from Yahoo: team_week_points, team_projected_points'
+                - generic [ref=f8e152]:
+                    - generic [ref=f8e153]:
+                        - heading "Catch Everything" [level=3] [ref=f8e154]
+                        - generic [ref=f8e155]: blocked
+                    - paragraph [ref=f8e157]: The most receptions across starters.
+                    - alert [ref=f8e158]:
+                        - generic [ref=f8e162]: 'Unverified Yahoo data: roster_selected_position, player_stat_by_id. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e163]:
+                        - generic [ref=f8e164]: starters only
+                        - generic [ref=f8e166]: whole points
+                        - generic [ref=f8e168]: negatives excluded
+                        - generic [ref=f8e170]: 'tiebreak: worse_record â†’ split_prize'
+                    - generic [ref=f8e172]: 'Needs from Yahoo: roster_selected_position, player_stat_by_id'
+                - generic [ref=f8e175]:
+                    - generic [ref=f8e176]:
+                        - heading "Defense Wins Championships" [level=3] [ref=f8e177]
+                        - generic [ref=f8e178]: blocked
+                    - paragraph [ref=f8e180]: The most points from the starting defense.
+                    - alert [ref=f8e181]:
+                        - generic [ref=f8e185]: 'Unverified Yahoo data: roster_selected_position, player_week_points, player_position. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e186]:
+                        - generic [ref=f8e187]: starters only
+                        - generic [ref=f8e189]: decimals count
+                        - generic [ref=f8e191]: negatives count
+                        - generic [ref=f8e193]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e195]: 'Needs from Yahoo: roster_selected_position, player_week_points, player_position'
+                - generic [ref=f8e198]:
+                    - generic [ref=f8e199]:
+                        - heading "Ground and Pound" [level=3] [ref=f8e200]
+                        - generic [ref=f8e201]: blocked
+                    - paragraph [ref=f8e203]: The most points from starting running backs.
+                    - alert [ref=f8e204]:
+                        - generic [ref=f8e208]: 'Unverified Yahoo data: roster_selected_position, player_week_points, player_position. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e209]:
+                        - generic [ref=f8e210]: starters only
+                        - generic [ref=f8e212]: decimals count
+                        - generic [ref=f8e214]: negatives excluded
+                        - generic [ref=f8e216]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e218]: 'Needs from Yahoo: roster_selected_position, player_week_points, player_position'
+                - generic [ref=f8e221]:
+                    - generic [ref=f8e222]:
+                        - heading "One Man Army" [level=3] [ref=f8e223]
+                        - generic [ref=f8e224]: blocked
+                    - paragraph [ref=f8e226]: The single highest-scoring starter in the league for the week.
+                    - alert [ref=f8e227]:
+                        - generic [ref=f8e231]: 'Unverified Yahoo data: roster_selected_position, player_week_points. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e232]:
+                        - generic [ref=f8e233]: starters only
+                        - generic [ref=f8e235]: decimals count
+                        - generic [ref=f8e237]: negatives excluded
+                        - generic [ref=f8e239]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e241]: 'Needs from Yahoo: roster_selected_position, player_week_points'
+                - generic [ref=f8e244]:
+                    - generic [ref=f8e245]:
+                        - heading "Overachiever" [level=3] [ref=f8e246]
+                        - generic [ref=f8e247]: blocked
+                    - paragraph [ref=f8e249]: The team that beat its projected total by the widest margin.
+                    - alert [ref=f8e250]:
+                        - generic [ref=f8e254]: 'Unverified Yahoo data: team_week_points, team_projected_points. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e255]:
+                        - generic [ref=f8e256]: starters only
+                        - generic [ref=f8e258]: decimals count
+                        - generic [ref=f8e260]: negatives count
+                        - generic [ref=f8e262]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e264]: 'Needs from Yahoo: team_week_points, team_projected_points'
+                - generic [ref=f8e267]:
+                    - generic [ref=f8e268]:
+                        - heading "Photo Finish" [level=3] [ref=f8e269]
+                        - generic [ref=f8e270]: blocked
+                    - paragraph [ref=f8e272]: The narrowest margin of victory in any of the week’s matchups.
+                    - alert [ref=f8e273]:
+                        - generic [ref=f8e277]: 'Unverified Yahoo data: team_week_points, matchup_result. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e278]:
+                        - generic [ref=f8e279]: starters only
+                        - generic [ref=f8e281]: decimals count
+                        - generic [ref=f8e283]: negatives count
+                        - generic [ref=f8e285]: 'tiebreak: higher_team_points â†’ commissioner_decides'
+                    - generic [ref=f8e287]: 'Needs from Yahoo: team_week_points, matchup_result'
+                - generic [ref=f8e290]:
+                    - generic [ref=f8e291]:
+                        - heading "Tight End Day" [level=3] [ref=f8e292]
+                        - generic [ref=f8e293]: blocked
+                    - paragraph [ref=f8e295]: The most points from starting tight ends.
+                    - alert [ref=f8e296]:
+                        - generic [ref=f8e300]: 'Unverified Yahoo data: roster_selected_position, player_week_points, player_position. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e301]:
+                        - generic [ref=f8e302]: starters only
+                        - generic [ref=f8e304]: decimals count
+                        - generic [ref=f8e306]: negatives excluded
+                        - generic [ref=f8e308]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e310]: 'Needs from Yahoo: roster_selected_position, player_week_points, player_position'
+                - generic [ref=f8e313]:
+                    - generic [ref=f8e314]:
+                        - heading "Touchdown Dependency" [level=3] [ref=f8e315]
+                        - generic [ref=f8e316]: blocked
+                    - paragraph [ref=f8e318]: The team whose largest share of points came from touchdowns.
+                    - alert [ref=f8e319]:
+                        - generic [ref=f8e323]: 'Unverified Yahoo data: roster_selected_position, player_stat_by_id, team_week_points. Run `npm run verify:yahoo` after Yahoo grants API access.'
+                    - generic [ref=f8e324]:
+                        - generic [ref=f8e325]: starters only
+                        - generic [ref=f8e327]: decimals count
+                        - generic [ref=f8e329]: negatives excluded
+                        - generic [ref=f8e331]: 'tiebreak: worse_record â†’ commissioner_decides'
+                    - generic [ref=f8e333]: 'Needs from Yahoo: roster_selected_position, player_stat_by_id, team_week_points'
+    - contentinfo [ref=f8e334]: A private, noncommercial league tool. Not affiliated with or endorsed by Yahoo. Yahoo data is read live under read-only access and is not stored permanently.

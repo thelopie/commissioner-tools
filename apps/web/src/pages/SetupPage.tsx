@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Alert, Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
+import { Navigate } from 'react-router-dom';
+import { Box, Button, Card, CardContent, Stack, TextField, Typography } from '@mui/material';
 import { useBootstrap, useSession } from '../hooks.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 
@@ -20,12 +21,11 @@ export function SetupPage(): JSX.Element {
     Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
   );
 
+  // Setup is a one-time step, so there is nothing to show once it is done. Both
+  // the just-succeeded case and someone revisiting the URL land on the dashboard
+  // rather than a dead end.
   if (session.data && !session.data.needsBootstrap) {
-    return (
-      <Alert severity="info" sx={{ mt: 2 }}>
-        This portal has already been set up.
-      </Alert>
-    );
+    return <Navigate to="/" replace />;
   }
 
   return (

@@ -1,4 +1,4 @@
-﻿import { Hono } from 'hono';
+import { Hono } from 'hono';
 import { AppError, isAppError, type InternalId } from '@dinkel/shared';
 import type { FetchLike } from '@dinkel/yahoo-client';
 import { loadConfig, type AppConfig } from './config.js';

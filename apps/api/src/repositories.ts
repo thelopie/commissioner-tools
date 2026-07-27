@@ -1,4 +1,4 @@
-﻿import {
+import {
   generateId,
   keys,
   skPrefix,
@@ -106,7 +106,7 @@ export class UserRepository {
    * Creates a user and claims their Yahoo GUID in one transaction.
    *
    * The uniqueness sentinel is what stops two simultaneous first-time sign-ins by
-   * the same Yahoo account from creating two users â€” a read-then-write check would
+   * the same Yahoo account from creating two users — a read-then-write check would
    * race.
    */
   async create(
@@ -313,7 +313,7 @@ export class LeagueRepository {
    * Claims the deployment for a league.
    *
    * Conditional on the pointer not existing, so two people running setup at the
-   * same time cannot both become the founding commissioner â€” the loser gets a
+   * same time cannot both become the founding commissioner — the loser gets a
    * conflict rather than a silently overwritten league.
    *
    * @throws {import('@dinkel/shared').AppError} `duplicate` when already claimed.

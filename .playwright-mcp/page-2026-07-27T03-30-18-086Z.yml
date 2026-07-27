@@ -1,0 +1,150 @@
+- generic [active] [ref=f19e1]:
+  - generic [ref=f19e3]:
+    - banner [ref=f19e7]:
+      - generic [ref=f19e8]:
+        - link "Dinkel Portal" [ref=f19e9] [cursor=pointer]:
+          - /url: /
+        - generic [ref=f19e10]: Mock Yahoo data
+        - generic [ref=f19e12]:
+          - link "Dashboard" [ref=f19e13] [cursor=pointer]:
+            - /url: /
+          - link "Challenges" [ref=f19e14] [cursor=pointer]:
+            - /url: /challenges
+          - link "Yahoo status" [ref=f19e15] [cursor=pointer]:
+            - /url: /yahoo-capabilities
+          - link "Audit" [ref=f19e16] [cursor=pointer]:
+            - /url: /audit
+          - generic [ref=f19e17]: Josh (commissioner) · commissioner (primary)
+          - button "Sign out" [ref=f19e19] [cursor=pointer]
+    - generic [ref=f19e21]:
+      - generic [ref=f19e24]:
+        - generic [ref=f19e25]:
+          - heading "Yahoo connection" [level=2] [ref=f19e26]
+          - generic [ref=f19e27]: Connected
+          - generic [ref=f19e29]: mock mode
+        - generic [ref=f19e31]:
+          - generic [ref=f19e33]:
+            - generic [ref=f19e34]: Last successful request
+            - paragraph [ref=f19e35]: 7/26/2026, 8:30:17 PM
+          - generic [ref=f19e37]:
+            - generic [ref=f19e38]: Last failure
+            - paragraph [ref=f19e39]: 7/26/2026, 8:29:05 PM (yahoo_unavailable)
+          - generic [ref=f19e41]:
+            - generic [ref=f19e42]: Last token refresh
+            - paragraph [ref=f19e43]: Never
+          - generic "Yahoo may issue a new refresh token on renewal; the portal handles either behavior." [ref=f19e45]:
+            - generic [ref=f19e46]: Refresh-token rotations
+            - paragraph [ref=f19e47]: "0"
+          - generic [ref=f19e49]:
+            - generic [ref=f19e50]: Granted scope
+            - paragraph [ref=f19e51]: not reported
+          - generic [ref=f19e53]:
+            - generic [ref=f19e54]: Capability list reviewed
+            - paragraph [ref=f19e55]: 2026-07-26
+        - separator [ref=f19e56]
+        - generic [ref=f19e57]:
+          - button "Remove Yahoo connection" [ref=f19e58] [cursor=pointer]
+          - generic [ref=f19e59]: Deletes the stored credentials and every cached Yahoo response for your account.
+      - generic [ref=f19e61]:
+        - generic [ref=f19e62]:
+          - heading "League" [level=2] [ref=f19e63]
+          - generic "Fetch fresh data from Yahoo now, bypassing the short-lived cache" [ref=f19e64]:
+            - button "Refresh league data from Yahoo" [ref=f19e65] [cursor=pointer]
+        - generic [ref=f19e68]:
+          - generic [ref=f19e69]:
+            - heading "Mock Dinkel League" [level=3] [ref=f19e70]
+            - generic [ref=f19e71]:
+              - generic [ref=f19e72]: 2026 season
+              - generic [ref=f19e74]: week 3
+              - generic [ref=f19e76]: 12 teams
+              - generic [ref=f19e78]: head
+              - generic [ref=f19e80]: playoffs week 15
+              - generic [ref=f19e82]: "draft: predraft"
+          - alert [ref=f19e84]:
+            - generic [ref=f19e88]: 12 of 12 Yahoo teams are not yet mapped to portal members. Mapping them is what lets league records survive after a manager leaves — challenge results are keyed to portal members, not to Yahoo teams.
+          - separator [ref=f19e89]
+          - generic [ref=f19e90]:
+            - heading "Teams and managers" [level=3] [ref=f19e91]
+            - generic [ref=f19e92]:
+              - generic [ref=f19e95]:
+                - heading "Dovetail Dynasty" [level=6] [ref=f19e96]
+                - list [ref=f19e97]:
+                  - listitem [ref=f19e98]:
+                    - generic [ref=f19e101]:
+                      - paragraph [ref=f19e102]: mock_commissioner
+                      - generic [ref=f19e103]: you
+                      - generic [ref=f19e105]: Yahoo comm.
+                - text: not mapped to a portal member
+              - generic [ref=f19e109]:
+                - heading "Mortise & Tenon" [level=6] [ref=f19e110]
+                - list [ref=f19e111]:
+                  - listitem [ref=f19e112]:
+                    - paragraph [ref=f19e116]: mock_manager_2
+                - text: not mapped to a portal member
+              - generic [ref=f19e119]:
+                - heading "Kerf Kings" [level=6] [ref=f19e120]
+                - list [ref=f19e121]:
+                  - listitem [ref=f19e122]:
+                    - paragraph [ref=f19e126]: mock_manager_3
+                - text: not mapped to a portal member
+              - generic [ref=f19e129]:
+                - heading "Sanders of Time" [level=6] [ref=f19e130]
+                - list [ref=f19e131]:
+                  - listitem [ref=f19e132]:
+                    - paragraph [ref=f19e136]: mock_manager_4
+                - text: not mapped to a portal member
+              - generic [ref=f19e139]:
+                - heading "Router Rage" [level=6] [ref=f19e140]
+                - list [ref=f19e141]:
+                  - listitem [ref=f19e142]:
+                    - paragraph [ref=f19e146]: mock_manager_5
+                - text: not mapped to a portal member
+              - generic [ref=f19e149]:
+                - heading "Chisel Chasers" [level=6] [ref=f19e150]
+                - list [ref=f19e151]:
+                  - listitem [ref=f19e152]:
+                    - paragraph [ref=f19e156]: mock_manager_6
+                - text: not mapped to a portal member
+              - generic [ref=f19e159]:
+                - heading "Planer Perfect" [level=6] [ref=f19e160]
+                - list [ref=f19e161]:
+                  - listitem [ref=f19e162]:
+                    - paragraph [ref=f19e166]: mock_manager_7
+                - text: not mapped to a portal member
+              - generic [ref=f19e169]:
+                - heading "Jigsaw Junkies" [level=6] [ref=f19e170]
+                - list [ref=f19e171]:
+                  - listitem [ref=f19e172]:
+                    - paragraph [ref=f19e176]: mock_manager_8
+                - text: not mapped to a portal member
+              - generic [ref=f19e179]:
+                - heading "Clamp Down" [level=6] [ref=f19e180]
+                - list [ref=f19e181]:
+                  - listitem [ref=f19e182]:
+                    - paragraph [ref=f19e186]: mock_manager_9
+                - text: not mapped to a portal member
+              - generic [ref=f19e189]:
+                - heading "Grain Matchers" [level=6] [ref=f19e190]
+                - list [ref=f19e191]:
+                  - listitem [ref=f19e192]:
+                    - paragraph [ref=f19e196]: mock_manager_10
+                - text: not mapped to a portal member
+              - generic [ref=f19e199]:
+                - heading "Bandsaw Bandits" [level=6] [ref=f19e200]
+                - list [ref=f19e201]:
+                  - listitem [ref=f19e202]:
+                    - paragraph [ref=f19e206]: mock_manager_11
+                - text: not mapped to a portal member
+              - generic [ref=f19e209]:
+                - heading "Lathe Expectations" [level=6] [ref=f19e210]
+                - list [ref=f19e211]:
+                  - listitem [ref=f19e212]:
+                    - paragraph [ref=f19e216]: mock_manager_12
+                - text: not mapped to a portal member
+          - generic [ref=f19e217]:
+            - text: Read live from Yahoo at 8:30:17 PM. Team and manager names come from Yahoo on every load and are not stored — see
+            - link "Yahoo status" [ref=f19e218] [cursor=pointer]:
+              - /url: /yahoo-capabilities
+            - text: for what the portal can and cannot read.
+    - contentinfo [ref=f19e219]: A private, noncommercial league tool. Not affiliated with or endorsed by Yahoo. Yahoo data is read live under read-only access and is not stored permanently.
+  - tooltip "Fetch fresh data from Yahoo now, bypassing the short-lived cache" [ref=f19e220]

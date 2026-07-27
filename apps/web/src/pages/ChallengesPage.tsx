@@ -1,6 +1,7 @@
 import {
   Alert,
   Box,
+  Button,
   Card,
   CardContent,
   Chip,
@@ -9,7 +10,13 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import { useChallenges, useLeagueOverview, useConnection } from '../hooks.js';
+import {
+  useChallenges,
+  useConnection,
+  useLeagueOverview,
+  useSeedChallenges,
+  useSession,
+} from '../hooks.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 
 /**
@@ -25,6 +32,9 @@ export function ChallengesPage(): JSX.Element {
   const seasonYear =
     overview.data?.yahoo?.seasonYear ?? overview.data?.league.currentSeasonYear ?? null;
   const challenges = useChallenges(seasonYear);
+  const session = useSession();
+  const seed = useSeedChallenges(seasonYear);
+  const isCommissioner = session.data?.user?.role === 'commissioner';
 
   if (!connection.data?.connected) {
     return <Alert severity="info">Connect Yahoo to see weekly challenges.</Alert>;
@@ -55,12 +65,31 @@ export function ChallengesPage(): JSX.Element {
       </Box>
 
       {definitions.length === 0 && (
-        <Alert severity="info">
+        <Alert
+          severity="info"
+          // The action belongs on the message that describes it. Telling a
+          // commissioner they "can add the rules" with no way to do it is a dead end.
+          action={
+            isCommissioner ? (
+              <Button
+                size="small"
+                variant="contained"
+                disabled={seed.isPending}
+                onClick={() => seed.mutate()}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
+                {seed.isPending ? 'Adding…' : 'Add the 13 rules'}
+              </Button>
+            ) : undefined
+          }
+        >
           No challenge definitions yet. A commissioner can seed the thirteen proposed rules, then
           edit any of them — every rule is stored as configuration, so corrections need no code
           change.
         </Alert>
       )}
+
+      {seed.isError && <ErrorNotice error={seed.error} hideRetry />}
 
       {blocked.length > 0 && (
         <Alert severity="warning">

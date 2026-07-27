@@ -1,4 +1,4 @@
-﻿import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { type AppError } from '@dinkel/shared';
 import {
   buildAuthorizeUrl,
@@ -43,7 +43,7 @@ function stubFetch(
 describe('generateOAuthState', () => {
   it('produces a long, URL-safe, unpredictable value', () => {
     const state = generateOAuthState();
-    // 32 bytes base64url â€” no padding, no characters needing escaping.
+    // 32 bytes base64url — no padding, no characters needing escaping.
     expect(state).toMatch(/^[A-Za-z0-9_-]{43}$/);
   });
 
