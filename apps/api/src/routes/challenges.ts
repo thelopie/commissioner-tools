@@ -212,7 +212,49 @@ challengeRoutes.get('/api/challenges/:seasonYear/results/:week', async (c) => {
   const week = weekNumberSchema.parse(Number(c.req.param('week')));
 
   const results = await ctx.repositories.challenges.listResults(leagueId, seasonYear, week);
-  return c.json({ results });
+
+  /**
+   * Winners are resolved to names here rather than in the browser.
+   *
+   * The stored result holds portal member IDs, which is what makes a 2021 result
+   * still readable today — but an ID is not something anyone can read, and having
+   * every client join it against a member list would put the same lookup in several
+   * places and get it wrong somewhere.
+   */
+  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
+  const users = await ctx.repositories.users.listByLeague(leagueId);
+  const userById = new Map(users.map((user) => [user.userId, user]));
+
+  const nameOf = (memberId: string): string => {
+    const member = members.find((candidate) => candidate.leagueMemberId === memberId);
+    if (!member) return '(former member)';
+    return (
+      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
+      member.legacyManagerName ??
+      '(unnamed manager)'
+    );
+  };
+
+  return c.json({
+    results: results.map((result) => ({
+      ...result,
+      winners: result.winningLeagueMemberIds.map((memberId) => ({
+        leagueMemberId: memberId,
+        displayName: nameOf(memberId),
+      })),
+    })),
+    /**
+     * Everyone eligible to win, so the override form can offer a choice without a
+     * second request. Ordered by name, since there is no meaningful rank here.
+     */
+    members: members
+      .filter((member) => member.isActive)
+      .map((member) => ({
+        leagueMemberId: member.leagueMemberId,
+        displayName: nameOf(member.leagueMemberId),
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName)),
+  });
 });
 
 /**
@@ -231,15 +273,40 @@ challengeRoutes.post('/api/challenges/:seasonYear/calculate/:week', async (c) =>
   const actorId = principal.userId as InternalId;
   const definitions = await ctx.repositories.challenges.listDefinitions(leagueId, seasonYear);
 
-  const calculable = definitions.filter((definition) => definition.status === 'active');
-  const blocked = definitions.filter((definition) => definition.status === 'blocked');
+  /**
+   * The capability gate is re-checked HERE, not trusted from the stored status.
+   *
+   * A definition's status is written once, when it is seeded or activated. If a
+   * capability is later withdrawn — Yahoo changes a response, a resource is marked
+   * `failed` in the matrix — an already-active definition would otherwise keep
+   * producing winners from data nobody has verified. The number would look exactly
+   * as authoritative as a real one, and someone would eventually be paid on it.
+   */
+  const unverified = (definition: WeeklyChallengeDefinition): string[] =>
+    definition.requiredYahooData.filter((capability) => !isCapabilityVerified(capability));
+
+  const calculable = definitions.filter(
+    (definition) => definition.status === 'active' && unverified(definition).length === 0,
+  );
+
+  const blocked = [
+    ...definitions.filter((definition) => definition.status === 'blocked'),
+    // Active on paper, but its Yahoo data is no longer verified.
+    ...definitions.filter(
+      (definition) => definition.status === 'active' && unverified(definition).length > 0,
+    ),
+  ];
 
   if (calculable.length === 0) {
     return c.json({
       calculated: [],
       blocked: blocked.map((definition) => ({
         slug: definition.slug,
-        reason: definition.blockedReason ?? 'Required Yahoo data is unverified.',
+        reason:
+          definition.blockedReason ??
+          (unverified(definition).length > 0
+            ? `Unverified Yahoo data: ${unverified(definition).join(', ')}.`
+            : 'Required Yahoo data is unverified.'),
       })),
       note:
         'No challenge is calculable yet. Every challenge requires Yahoo data verified against a ' +
@@ -401,7 +468,11 @@ challengeRoutes.post('/api/challenges/:seasonYear/calculate/:week', async (c) =>
     conflicts,
     blocked: blocked.map((definition) => ({
       slug: definition.slug,
-      reason: definition.blockedReason ?? 'Required Yahoo data is unverified.',
+      reason:
+        definition.blockedReason ??
+        (unverified(definition).length > 0
+          ? `Unverified Yahoo data: ${unverified(definition).join(', ')}.`
+          : 'Required Yahoo data is unverified.'),
     })),
     // Provisional until the stat-correction window closes and a commissioner
     // accepts the outcome.

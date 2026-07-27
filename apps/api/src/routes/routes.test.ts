@@ -1190,6 +1190,359 @@ describe('LLWS draft-order workflow', () => {
   });
 });
 
+describe('challenge results', () => {
+  /**
+   * The five capabilities the eight buildable challenges need.
+   *
+   * Deliberately excludes `team_projected_points` and `player_stat_by_id`, which
+   * have no documented Yahoo field — so the five genuinely-blocked challenges stay
+   * blocked here exactly as they do in production.
+   */
+  const VERIFIED = [
+    'roster_selected_position',
+    'player_week_points',
+    'player_position',
+    'team_week_points',
+    'matchup_result',
+  ] as const;
+
+  function verifyCapabilities(): void {
+    setCapabilityMatrix({ ...MATRIX, verifiedCapabilities: [...VERIFIED] });
+  }
+
+  /** Links a league, maps members to Yahoo teams, and seeds the definitions. */
+  async function seededLeague(): Promise<{
+    jar: Record<string, string>;
+    auth: Record<string, string>;
+  }> {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    // Challenges are keyed to portal members, so every Yahoo team needs one.
+    const overview = await (
+      await app.request('/api/league/overview', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    for (const [index, team] of overview.yahoo.teams.entries()) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          seasonYear: 2026,
+          yahooTeamKey: team.yahooTeamKey,
+          legacyManagerName: `Manager ${index + 1}`,
+        }),
+      });
+    }
+
+    await app.request('/api/challenges/2026/seed', { method: 'POST', headers: auth });
+    return { jar, auth };
+  }
+
+  it('refuses to calculate anything while no capability is verified', async () => {
+    // The shipped state. Thirteen rules, nothing computed, and a reason for each.
+    const { auth } = await seededLeague();
+
+    const response = await app.request('/api/challenges/2026/calculate/3', {
+      method: 'POST',
+      headers: auth,
+    });
+
+    const body = await response.json();
+    expect(body.calculated).toEqual([]);
+    expect(body.blocked).toHaveLength(13);
+  });
+
+  it('will not activate a challenge whose Yahoo data is unverified', async () => {
+    const { auth } = await seededLeague();
+
+    const response = await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error.code).toBe('yahoo_capability_unverified');
+  });
+
+  it('calculates the eight buildable challenges once their data is verified', async () => {
+    const { jar, auth } = await seededLeague();
+    verifyCapabilities();
+
+    // Seeded definitions keep the status they were given, so they must be activated
+    // before anything runs — the same step a commissioner takes after approval.
+    const definitions = await (
+      await app.request('/api/challenges/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    let activated = 0;
+    for (const definition of definitions.definitions) {
+      const response = await app.request(`/api/challenges/2026/${definition.slug}`, {
+        method: 'PUT',
+        headers: auth,
+        body: JSON.stringify({ status: 'active' }),
+      });
+      if (response.status === 200) activated += 1;
+    }
+
+    // Exactly the eight buildable on documented fields; five stay refused.
+    expect(activated).toBe(8);
+
+    const calculate = await app.request('/api/challenges/2026/calculate/3', {
+      method: 'POST',
+      headers: auth,
+    });
+    const body = await calculate.json();
+
+    expect(body.calculated).toHaveLength(8);
+    expect(body.note).toContain('provisional');
+    // Every result carries the arithmetic that produced it.
+    const results = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+
+    expect(results.results).toHaveLength(8);
+    for (const result of results.results) {
+      expect(result.explanation.length).toBeGreaterThan(0);
+      expect(result.status).toBe('provisional');
+    }
+  });
+
+  it('resolves winners to names, not member IDs', async () => {
+    const { jar, auth } = await seededLeague();
+    verifyCapabilities();
+
+    await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    const results = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+
+    const benchMob = results.results.find(
+      (result: { challengeSlug: string }) => result.challengeSlug === 'bench-mob',
+    );
+
+    expect(benchMob.winners).toHaveLength(1);
+    // A 26-character ULID would be no use to a reader.
+    expect(benchMob.winners[0].displayName).toMatch(/^Manager \d+$/);
+    expect(results.members.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The regression case: a capability is withdrawn AFTER a challenge was activated.
+   *
+   * The stored status still says active. If calculation trusted that, the portal
+   * would keep producing winners from data nobody has verified — and the number
+   * would look exactly as authoritative as a real one.
+   */
+  it('stops calculating an active challenge if its capability is withdrawn', async () => {
+    const { auth } = await seededLeague();
+    verifyCapabilities();
+
+    await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+
+    const before = await (
+      await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth })
+    ).json();
+    expect(before.calculated).toHaveLength(1);
+
+    // Yahoo changes, or a resource is marked failed in the matrix.
+    setCapabilityMatrix({ ...MATRIX, verifiedCapabilities: [] });
+
+    const after = await (
+      await app.request('/api/challenges/2026/calculate/4', { method: 'POST', headers: auth })
+    ).json();
+
+    expect(after.calculated).toEqual([]);
+    expect(after.blocked.some((entry: { slug: string }) => entry.slug === 'bench-mob')).toBe(true);
+  });
+
+  it('finalizes a provisional result and then refuses to finalize it twice', async () => {
+    const { auth } = await seededLeague();
+    verifyCapabilities();
+
+    await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    const first = await app.request('/api/challenges/2026/finalize/3/bench-mob', {
+      method: 'POST',
+      headers: auth,
+    });
+    expect(first.status).toBe(200);
+
+    // Finalizing an already-final result is not a no-op to hide; it is a mistake.
+    const second = await app.request('/api/challenges/2026/finalize/3/bench-mob', {
+      method: 'POST',
+      headers: auth,
+    });
+    expect(second.status).toBeGreaterThanOrEqual(400);
+  });
+
+  it('requires a reason to override, and keeps the computed outcome', async () => {
+    const { jar, auth } = await seededLeague();
+    verifyCapabilities();
+
+    await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    const before = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    const original = before.results.find(
+      (result: { challengeSlug: string }) => result.challengeSlug === 'bench-mob',
+    );
+    const originalExplanation: string = original.explanation;
+
+    const members = before.members as Array<{ leagueMemberId: string }>;
+    const someoneElse = members.find(
+      (member) => member.leagueMemberId !== original.winningLeagueMemberIds[0],
+    )!;
+
+    // No reason: refused.
+    const noReason = await app.request('/api/challenges/2026/override/3/bench-mob', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ winningLeagueMemberIds: [someoneElse.leagueMemberId], reason: '' }),
+    });
+    expect(noReason.status).toBeGreaterThanOrEqual(400);
+
+    const withReason = await app.request('/api/challenges/2026/override/3/bench-mob', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        winningLeagueMemberIds: [someoneElse.leagueMemberId],
+        reason: 'League voted to keep the announced winner after a stat correction.',
+      }),
+    });
+    expect(withReason.status).toBe(200);
+
+    const after = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    const overridden = after.results.find(
+      (result: { challengeSlug: string }) => result.challengeSlug === 'bench-mob',
+    );
+
+    expect(overridden.status).toBe('overridden');
+    expect(overridden.winningLeagueMemberIds).toEqual([someoneElse.leagueMemberId]);
+    // The arithmetic is appended to, never replaced.
+    expect(overridden.explanation).toContain(originalExplanation);
+    expect(overridden.explanation).toContain('League voted');
+  });
+
+  it('leaves an overridden result alone when the week is recalculated', async () => {
+    const { jar, auth } = await seededLeague();
+    verifyCapabilities();
+
+    await app.request('/api/challenges/2026/bench-mob', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({ status: 'active' }),
+    });
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    const before = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    const target = before.members[0].leagueMemberId;
+
+    await app.request('/api/challenges/2026/override/3/bench-mob', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        winningLeagueMemberIds: [target],
+        reason: 'Commissioner decision, recorded.',
+      }),
+    });
+
+    // Recalculating a week is routine after a stat correction. It must not quietly
+    // undo a decision somebody made and announced.
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    const after = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    const overridden = after.results.find(
+      (result: { challengeSlug: string }) => result.challengeSlug === 'bench-mob',
+    );
+
+    expect(overridden.status).toBe('overridden');
+    expect(overridden.winningLeagueMemberIds).toEqual([target]);
+  });
+
+  it('never persists a Yahoo player or team name when calculating', async () => {
+    const { auth } = await seededLeague();
+    verifyCapabilities();
+
+    for (const slug of ['bench-mob', 'one-man-army', 'tight-end-day']) {
+      await app.request(`/api/challenges/2026/${slug}`, {
+        method: 'PUT',
+        headers: auth,
+        body: JSON.stringify({ status: 'active' }),
+      });
+    }
+    await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
+
+    /**
+     * The explanation is the one place a player name legitimately reaches a durable
+     * record — it is a derived sentence of arithmetic, and the persistence firewall
+     * permits it by name. Everything else must be free of Yahoo strings.
+     */
+    const durable = table
+      .all()
+      .filter((item) => item['entity'] !== 'YahooCacheEntry')
+      .map((item) => ({ ...item, explanation: undefined }));
+
+    const serialized = JSON.stringify(durable);
+    expect(serialized).not.toContain('Dovetail Dynasty');
+    expect(serialized).not.toContain('mock_manager');
+  });
+});
+
 describe('CSV import', () => {
   it('previews without writing, and reports what would happen', async () => {
     const jar = await signInAsCommissioner();

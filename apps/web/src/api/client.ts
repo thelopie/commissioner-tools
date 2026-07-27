@@ -511,3 +511,52 @@ export interface PortalUserSummary {
 export interface PortalUsersResponse {
   users: PortalUserSummary[];
 }
+
+// --------------------------------------------------------------------------
+// Weekly challenge results
+// --------------------------------------------------------------------------
+
+export type ChallengeResultStatus =
+  'provisional' | 'finalized' | 'overridden' | 'not_calculable' | 'conflict';
+
+export interface ChallengeResult {
+  challengeResultId: string;
+  challengeSlug: string;
+  week: number;
+  status: ChallengeResultStatus;
+  /** Resolved server-side; the stored record holds member IDs, not names. */
+  winners: Array<{ leagueMemberId: string; displayName: string }>;
+  winningLeagueMemberIds: string[];
+  winningValue?: number;
+  /** The engine's sentence of arithmetic. This is what makes a result defensible. */
+  explanation: string;
+  competitorCount: number;
+  wasTied: boolean;
+  appliedTieBreaker?: string;
+  calculatedAt: string;
+  /** Bumped by a recalculation, e.g. after a Yahoo stat correction. */
+  calculationCount: number;
+  lastChangedAt?: string;
+  finalizedAt?: string;
+  notCalculableReason?: string;
+  /** A settled payout is never silently rewritten. */
+  payoutSettled: boolean;
+}
+
+export interface ChallengeResultsResponse {
+  results: ChallengeResult[];
+  members: Array<{ leagueMemberId: string; displayName: string }>;
+}
+
+export interface CalculateResponse {
+  calculated: Array<{
+    slug: string;
+    status: string;
+    winners: string[];
+    value?: number;
+  }>;
+  /** Recalculations the engine refused to apply on its own. */
+  conflicts?: Array<{ slug: string; reason: string }>;
+  blocked: Array<{ slug: string; reason: string }>;
+  note: string;
+}

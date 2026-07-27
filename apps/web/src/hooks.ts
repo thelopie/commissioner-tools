@@ -13,6 +13,8 @@ import {
   type MeResponse,
   type SessionResponse,
   type AssignmentsResponse,
+  type CalculateResponse,
+  type ChallengeResultsResponse,
   type DraftStatusResponse,
   type DrawResponse,
   type LLWSTeamsResponse,
@@ -33,6 +35,8 @@ export const queryKeys = {
   members: (seasonYear: number) => ['league', 'members', seasonYear] as const,
   challenges: (seasonYear: number) => ['challenges', seasonYear] as const,
   audit: ['audit'] as const,
+  challengeResults: (seasonYear: number, week: number) =>
+    ['challenges', 'results', seasonYear, week] as const,
   me: ['league', 'me'] as const,
   standings: ['league', 'standings'] as const,
   matchups: (week: number) => ['league', 'matchups', week] as const,
@@ -465,6 +469,131 @@ export function useMapLeagueMember(seasonYear: number | null) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.members(seasonYear ?? 0) });
       // The overview carries each Yahoo team's leagueMemberId, which just changed.
       void queryClient.invalidateQueries({ queryKey: queryKeys.overview });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+// --------------------------------------------------------------------------
+// Weekly challenge results
+// --------------------------------------------------------------------------
+
+export function useChallengeResults(
+  seasonYear: number | null,
+  week: number | null,
+): UseQueryResult<ChallengeResultsResponse> {
+  return useQuery({
+    queryKey: queryKeys.challengeResults(seasonYear ?? 0, week ?? 0),
+    queryFn: () =>
+      api.get<ChallengeResultsResponse>(`/api/challenges/${seasonYear}/results/${week}`),
+    enabled: seasonYear !== null && week !== null,
+  });
+}
+
+/** Invalidation shared by every result mutation. */
+function useResultInvalidation(seasonYear: number | null, week: number | null) {
+  const queryClient = useQueryClient();
+  return () => {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.challengeResults(seasonYear ?? 0, week ?? 0),
+    });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.challenges(seasonYear ?? 0) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+  };
+}
+
+/**
+ * Calculates a week's challenges.
+ *
+ * Everything it returns is provisional: Yahoo issues stat corrections for days
+ * after games, so nothing is payable until a commissioner finalizes it.
+ */
+export function useCalculateChallenges(seasonYear: number | null, week: number | null) {
+  const invalidate = useResultInvalidation(seasonYear, week);
+
+  return useMutation({
+    mutationFn: () =>
+      api.post<CalculateResponse>(`/api/challenges/${seasonYear}/calculate/${week}`, {}),
+    onSuccess: invalidate,
+  });
+}
+
+export function useFinalizeChallenge(seasonYear: number | null, week: number | null) {
+  const invalidate = useResultInvalidation(seasonYear, week);
+
+  return useMutation({
+    mutationFn: (slug: string) =>
+      api.post<{ ok: boolean }>(`/api/challenges/${seasonYear}/finalize/${week}/${slug}`, {}),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Overrides a computed result.
+ *
+ * A reason is required by the API, not merely encouraged: the computed outcome is
+ * kept alongside the override so the arithmetic is never just erased.
+ */
+export function useOverrideChallenge(seasonYear: number | null, week: number | null) {
+  const invalidate = useResultInvalidation(seasonYear, week);
+
+  return useMutation({
+    mutationFn: (input: {
+      slug: string;
+      winningLeagueMemberIds: string[];
+      winningValue?: number;
+      reason: string;
+    }) =>
+      api.post<{ ok: boolean; overrideId: string }>(
+        `/api/challenges/${seasonYear}/override/${week}/${input.slug}`,
+        {
+          winningLeagueMemberIds: input.winningLeagueMemberIds,
+          ...(input.winningValue === undefined ? {} : { winningValue: input.winningValue }),
+          reason: input.reason,
+        },
+      ),
+    onSuccess: invalidate,
+  });
+}
+
+/**
+ * Activates blocked challenges whose Yahoo data has since been verified.
+ *
+ * A definition's status is derived once, when it is seeded, and seeding deliberately
+ * never overwrites a commissioner's edits. So the day Yahoo access is approved and
+ * `verifiedCapabilities` fills in, thirteen already-stored definitions would sit
+ * blocked forever with no way to turn them on. This is that way.
+ *
+ * The API re-checks the capability matrix on every activation, so this cannot force
+ * on a challenge whose data is still unverified.
+ */
+export function useActivateChallenges(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (slugs: string[]) => {
+      const activated: string[] = [];
+      const refused: Array<{ slug: string; message: string }> = [];
+
+      // Sequential, so a mid-list refusal does not leave the rest in doubt.
+      for (const slug of slugs) {
+        try {
+          await api.put<{ definition: unknown }>(`/api/challenges/${seasonYear}/${slug}`, {
+            status: 'active',
+          });
+          activated.push(slug);
+        } catch (error) {
+          refused.push({
+            slug,
+            message: error instanceof Error ? error.message : 'Refused.',
+          });
+        }
+      }
+
+      return { activated, refused };
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.challenges(seasonYear ?? 0) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
   });

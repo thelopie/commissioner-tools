@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Alert,
   AlertTitle,
@@ -10,6 +11,8 @@ import {
   Link,
   Skeleton,
   Stack,
+  Tab,
+  Tabs,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -17,6 +20,8 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import LockIcon from '@mui/icons-material/LockRounded';
 import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
 import {
+  useActivateChallenges,
+  useCapabilities,
   useChallenges,
   useConnection,
   useLeagueOverview,
@@ -26,6 +31,7 @@ import {
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { useNotify } from '../components/SnackbarProvider.js';
 import { EmptyState, PageHeader, SectionHeader } from '../components/primitives.js';
+import { ChallengeResultsPanel } from './ChallengeResultsPanel.js';
 
 /**
  * Weekly challenges.
@@ -46,6 +52,17 @@ export function ChallengesPage(): JSX.Element {
   const notify = useNotify();
 
   const isCommissioner = session.data?.user?.role === 'commissioner';
+  const capabilities = useCapabilities();
+  const activate = useActivateChallenges(seasonYear);
+
+  /**
+   * The tab lives in the URL so a link can point at either view.
+   *
+   * Results are the default: someone opening "Challenges" during the season wants
+   * to know who won this week. The rulebook is read once a year.
+   */
+  const [params, setParams] = useSearchParams();
+  const tab = params.get('view') === 'rules' ? 'rules' : 'results';
 
   useEffect(() => {
     if (seed.isSuccess) notify(`Added ${seed.data.seeded.length} challenge definitions.`);
@@ -110,8 +127,34 @@ export function ChallengesPage(): JSX.Element {
   }
 
   const definitions = challenges.data?.definitions ?? [];
-  const active = definitions.filter((definition) => definition.status === 'active');
-  const blocked = definitions.filter((definition) => definition.status === 'blocked');
+  const verified = new Set(capabilities.data?.verifiedCapabilities ?? []);
+  const hasData = (definition: { requiredYahooData: string[] }): boolean =>
+    definition.requiredYahooData.every((capability) => verified.has(capability));
+
+  /**
+   * Counted against the live capability matrix, not the stored status.
+   *
+   * A definition's status is written once. If a capability is later withdrawn, the
+   * stored status still says active while the API refuses to calculate it — so
+   * trusting the status here would have the header claim eight calculable
+   * challenges that produce nothing. The API re-checks; so must the count.
+   */
+  const active = definitions.filter(
+    (definition) => definition.status === 'active' && hasData(definition),
+  );
+  const blocked = definitions.filter(
+    (definition) => definition.status === 'blocked' || !hasData(definition),
+  );
+
+  /**
+   * Blocked challenges whose Yahoo requirements are now all verified.
+   *
+   * Status was derived when the definition was seeded and is never re-derived, so
+   * this comparison is the only thing that notices the matrix has moved on.
+   */
+  const unblockable = blocked.filter(
+    (definition) => definition.status === 'blocked' && hasData(definition),
+  );
 
   return (
     <Stack spacing={3}>
@@ -136,7 +179,18 @@ export function ChallengesPage(): JSX.Element {
         }
       />
 
-      {definitions.length === 0 && (
+      <Tabs
+        value={tab}
+        onChange={(_, next) => setParams(next === 'rules' ? { view: 'rules' } : {})}
+        sx={{ borderBottom: 1, borderColor: 'divider' }}
+      >
+        <Tab value="results" label="Results" />
+        <Tab value="rules" label={`Rules (${definitions.length})`} />
+      </Tabs>
+
+      {tab === 'results' && <ChallengeResultsPanel seasonYear={seasonYear} />}
+
+      {tab === 'rules' && definitions.length === 0 && (
         <EmptyState
           icon={<EmojiEventsIcon />}
           title="No challenges yet"
@@ -160,9 +214,51 @@ export function ChallengesPage(): JSX.Element {
         />
       )}
 
-      {seed.isError && <ErrorNotice error={seed.error} hideRetry />}
+      {tab === 'rules' && seed.isError && <ErrorNotice error={seed.error} hideRetry />}
 
-      {blocked.length > 0 && (
+      {tab === 'rules' && isCommissioner && unblockable.length > 0 && (
+        <Alert
+          severity="success"
+          action={
+            <Button
+              size="small"
+              variant="contained"
+              disabled={activate.isPending}
+              onClick={() =>
+                activate.mutate(
+                  unblockable.map((definition) => definition.slug),
+                  {
+                    onSuccess: (data) =>
+                      notify(
+                        data.refused.length === 0
+                          ? `Activated ${data.activated.length} challenge${
+                              data.activated.length === 1 ? '' : 's'
+                            }.`
+                          : `Activated ${data.activated.length}, refused ${data.refused.length}.`,
+                        data.refused.length === 0 ? 'success' : 'warning',
+                      ),
+                    onError: (error) => notify(error.message, 'error'),
+                  },
+                )
+              }
+            >
+              {activate.isPending ? 'Activating…' : `Activate ${unblockable.length}`}
+            </Button>
+          }
+        >
+          <AlertTitle>
+            Yahoo now confirms the data{' '}
+            {unblockable.length === 1 ? 'a rule needs' : 'these rules need'}
+          </AlertTitle>
+          <Typography variant="body2">
+            {unblockable.length} blocked{' '}
+            {unblockable.length === 1 ? 'challenge is' : 'challenges are'} calculable now that their
+            Yahoo fields are verified. They stay blocked until you turn them on.
+          </Typography>
+        </Alert>
+      )}
+
+      {tab === 'rules' && blocked.length > 0 && (
         <Alert severity="warning">
           <AlertTitle>
             {blocked.length} {blocked.length === 1 ? 'challenge is' : 'challenges are'} waiting on
@@ -176,7 +272,7 @@ export function ChallengesPage(): JSX.Element {
         </Alert>
       )}
 
-      {active.length > 0 && (
+      {tab === 'rules' && active.length > 0 && (
         <Box>
           <SectionHeader title="Calculable" count={active.length} />
           <Stack spacing={1.5}>
@@ -187,7 +283,7 @@ export function ChallengesPage(): JSX.Element {
         </Box>
       )}
 
-      {blocked.length > 0 && (
+      {tab === 'rules' && blocked.length > 0 && (
         <Box>
           <SectionHeader title="Blocked" count={blocked.length} />
           <Stack spacing={1.5}>
