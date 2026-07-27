@@ -1,4 +1,4 @@
-import { Alert, AlertTitle, Box, Button, Link, Stack, Typography } from '@mui/material';
+import { Alert, AlertTitle, Box, Button, Stack, Typography } from '@mui/material';
 import { ApiError } from '../api/client.js';
 
 /**
@@ -19,37 +19,32 @@ export interface ErrorNoticeProps {
 export function ErrorNotice({ error, onRetry, hideRetry }: ErrorNoticeProps): JSX.Element {
   const details = describe(error);
 
+  const action =
+    details.action === 'reconnect' ? (
+      <Button size="small" variant="contained" href="/auth/yahoo/start">
+        Reconnect
+      </Button>
+    ) : details.action === 'signin' ? (
+      <Button size="small" variant="contained" href="/auth/yahoo/start">
+        Sign in
+      </Button>
+    ) : details.action === 'retry' && onRetry && !hideRetry ? (
+      <Button size="small" variant="tonal" onClick={onRetry}>
+        Try again
+      </Button>
+    ) : undefined;
+
   return (
-    <Alert severity={details.severity} sx={{ my: 2 }}>
+    <Alert severity={details.severity} {...(action ? { action } : {})}>
       <AlertTitle>{details.title}</AlertTitle>
       <Stack spacing={1}>
         <Typography variant="body2">{details.message}</Typography>
 
         {details.hint && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="caption" sx={{ opacity: 0.85 }}>
             {details.hint}
           </Typography>
         )}
-
-        <Box>
-          {details.action === 'reconnect' && (
-            <Button size="small" variant="contained" href="/auth/yahoo/start">
-              Reconnect Yahoo
-            </Button>
-          )}
-
-          {details.action === 'signin' && (
-            <Button size="small" variant="contained" href="/auth/yahoo/start">
-              Sign in with Yahoo
-            </Button>
-          )}
-
-          {details.action === 'retry' && onRetry && !hideRetry && (
-            <Button size="small" variant="outlined" onClick={onRetry}>
-              Try again
-            </Button>
-          )}
-        </Box>
 
         {details.fieldErrors.length > 0 && (
           <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
@@ -161,7 +156,7 @@ function describe(error: unknown): Described {
         message: error.message,
         hint:
           'The portal will not calculate a result from data it has not confirmed Yahoo provides. ' +
-          'See the Yahoo capability list for what is still unverified.',
+          'See Yahoo status for what is still unverified.',
         severity: 'info',
         action: 'none',
       };
@@ -212,21 +207,4 @@ function describe(error: unknown): Described {
         action: error.isTransient ? 'retry' : 'none',
       };
   }
-}
-
-/** Small inline reference to the project's data-retention behavior. */
-export function RetentionNote(): JSX.Element {
-  return (
-    <Typography variant="caption" color="text.secondary">
-      Yahoo data is read live and cached briefly, never stored permanently — see the{' '}
-      <Link
-        href="https://github.com/thelopie/commissioner-tools#data-retention"
-        target="_blank"
-        rel="noreferrer"
-      >
-        retention notes
-      </Link>
-      .
-    </Typography>
-  );
 }

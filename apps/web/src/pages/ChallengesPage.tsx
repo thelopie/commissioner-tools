@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   Card,
@@ -8,8 +10,12 @@ import {
   Link,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
+import LockIcon from '@mui/icons-material/LockRounded';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
 import {
   useChallenges,
   useConnection,
@@ -18,37 +24,89 @@ import {
   useSession,
 } from '../hooks.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
+import { useNotify } from '../components/SnackbarProvider.js';
+import { EmptyState, PageHeader, SectionHeader } from '../components/primitives.js';
 
 /**
  * Weekly challenges.
  *
- * A blocked challenge shows its specific missing Yahoo field rather than an error.
- * The portal will not produce a winner from data it has not confirmed exists — an
- * invented number here would eventually decide who gets paid.
+ * A blocked challenge shows the specific Yahoo field it is missing rather than an
+ * error. The portal will not produce a winner from data it has not confirmed
+ * exists — an invented number here would eventually decide who gets paid.
  */
 export function ChallengesPage(): JSX.Element {
   const connection = useConnection();
   const overview = useLeagueOverview(connection.data?.connected ?? false);
   const seasonYear =
     overview.data?.yahoo?.seasonYear ?? overview.data?.league.currentSeasonYear ?? null;
+
   const challenges = useChallenges(seasonYear);
   const session = useSession();
   const seed = useSeedChallenges(seasonYear);
+  const notify = useNotify();
+
   const isCommissioner = session.data?.user?.role === 'commissioner';
 
+  useEffect(() => {
+    if (seed.isSuccess) notify(`Added ${seed.data.seeded.length} challenge definitions.`);
+  }, [seed.isSuccess, seed.data, notify]);
+
   if (!connection.data?.connected) {
-    return <Alert severity="info">Connect Yahoo to see weekly challenges.</Alert>;
+    return (
+      <Stack spacing={3}>
+        <PageHeader title="Weekly challenges" />
+        <EmptyState
+          icon={<EmojiEventsIcon />}
+          title="Connect Yahoo first"
+          description="Challenges are calculated from live Yahoo data, so the portal needs a connection before it can show them."
+          action={
+            <Button variant="contained" href="/auth/yahoo/start">
+              Connect Yahoo
+            </Button>
+          }
+        />
+      </Stack>
+    );
   }
 
   if (seasonYear === null) {
     return (
-      <Alert severity="info">Link a Yahoo league to a season to set up weekly challenges.</Alert>
+      <Stack spacing={3}>
+        <PageHeader title="Weekly challenges" />
+        <EmptyState
+          icon={<EmojiEventsIcon />}
+          title="No season linked"
+          description="Link a Yahoo league to a season on the dashboard, and the weekly challenges for that season appear here."
+          action={
+            <Button variant="tonal" href="/">
+              Go to the dashboard
+            </Button>
+          }
+        />
+      </Stack>
     );
   }
 
-  if (challenges.isLoading) return <Skeleton variant="rectangular" height={320} />;
+  if (challenges.isLoading) {
+    return (
+      <Stack spacing={3}>
+        <PageHeader title="Weekly challenges" />
+        <Stack spacing={1.5}>
+          {Array.from({ length: 4 }, (_, index) => (
+            <Skeleton key={index} height={152} sx={{ borderRadius: 4 }} />
+          ))}
+        </Stack>
+      </Stack>
+    );
+  }
+
   if (challenges.isError) {
-    return <ErrorNotice error={challenges.error} onRetry={() => void challenges.refetch()} />;
+    return (
+      <Stack spacing={3}>
+        <PageHeader title="Weekly challenges" />
+        <ErrorNotice error={challenges.error} onRetry={() => void challenges.refetch()} />
+      </Stack>
+    );
   }
 
   const definitions = challenges.data?.definitions ?? [];
@@ -56,56 +114,71 @@ export function ChallengesPage(): JSX.Element {
   const blocked = definitions.filter((definition) => definition.status === 'blocked');
 
   return (
-    <Stack spacing={2.5}>
-      <Box>
-        <Typography variant="h1">Weekly challenges</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-          {seasonYear} season · {active.length} calculable · {blocked.length} blocked
-        </Typography>
-      </Box>
+    <Stack spacing={3}>
+      <PageHeader
+        title="Weekly challenges"
+        description={`${seasonYear} season`}
+        action={
+          definitions.length > 0 ? (
+            <Stack direction="row" spacing={1}>
+              <Chip
+                icon={<CheckCircleIcon />}
+                color={active.length > 0 ? 'success' : 'default'}
+                label={`${active.length} calculable`}
+              />
+              <Chip
+                icon={<LockIcon />}
+                color={blocked.length > 0 ? 'warning' : 'default'}
+                label={`${blocked.length} blocked`}
+              />
+            </Stack>
+          ) : undefined
+        }
+      />
 
       {definitions.length === 0 && (
-        <Alert
-          severity="info"
-          // The action belongs on the message that describes it. Telling a
-          // commissioner they "can add the rules" with no way to do it is a dead end.
+        <EmptyState
+          icon={<EmojiEventsIcon />}
+          title="No challenges yet"
+          description={
+            isCommissioner
+              ? 'Add the thirteen proposed rules to get started. Every rule is stored as configuration — bench counting, decimals, negatives, tiebreakers — so correcting one is an edit here, never a code change.'
+              : 'A commissioner needs to add the league’s weekly challenges.'
+          }
           action={
             isCommissioner ? (
               <Button
-                size="small"
                 variant="contained"
+                size="large"
                 disabled={seed.isPending}
                 onClick={() => seed.mutate()}
-                sx={{ whiteSpace: 'nowrap' }}
               >
                 {seed.isPending ? 'Adding…' : 'Add the 13 rules'}
               </Button>
             ) : undefined
           }
-        >
-          No challenge definitions yet. A commissioner can seed the thirteen proposed rules, then
-          edit any of them — every rule is stored as configuration, so corrections need no code
-          change.
-        </Alert>
+        />
       )}
 
       {seed.isError && <ErrorNotice error={seed.error} hideRetry />}
 
       {blocked.length > 0 && (
         <Alert severity="warning">
+          <AlertTitle>
+            {blocked.length} {blocked.length === 1 ? 'challenge is' : 'challenges are'} waiting on
+            Yahoo
+          </AlertTitle>
           <Typography variant="body2">
-            {blocked.length} challenge{blocked.length === 1 ? '' : 's'} cannot be calculated because
-            the Yahoo data they need has not been verified against a real league. They are listed
-            below with the specific gap. See <Link href="/yahoo-capabilities">Yahoo status</Link>.
+            The Yahoo data they need has not been verified against a real league yet, so nothing is
+            calculated for them. Each one below names the specific gap. See{' '}
+            <Link href="/yahoo-capabilities">Yahoo status</Link>.
           </Typography>
         </Alert>
       )}
 
       {active.length > 0 && (
         <Box>
-          <Typography variant="h2" sx={{ mb: 1 }}>
-            Calculable
-          </Typography>
+          <SectionHeader title="Calculable" count={active.length} />
           <Stack spacing={1.5}>
             {active.map((definition) => (
               <ChallengeCard key={definition.slug} definition={definition} />
@@ -116,9 +189,7 @@ export function ChallengesPage(): JSX.Element {
 
       {blocked.length > 0 && (
         <Box>
-          <Typography variant="h2" sx={{ mb: 1 }}>
-            Blocked
-          </Typography>
+          <SectionHeader title="Blocked" count={blocked.length} />
           <Stack spacing={1.5}>
             {blocked.map((definition) => (
               <ChallengeCard key={definition.slug} definition={definition} />
@@ -138,17 +209,25 @@ function ChallengeCard({
   const blocked = definition.status === 'blocked';
 
   return (
-    <Card sx={blocked ? { borderStyle: 'dashed' } : undefined}>
+    <Card
+      sx={{
+        // A muted left border marks "not running" without greying out the content,
+        // which would make the rules themselves harder to read.
+        borderLeft: 4,
+        borderLeftStyle: 'solid',
+        borderLeftColor: blocked ? 'warning.main' : 'success.main',
+      }}
+    >
       <CardContent>
-        <Stack spacing={1}>
+        <Stack spacing={1.5}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            <Typography variant="h3" sx={{ flexGrow: 1 }}>
+            <Typography variant="h3" sx={{ flexGrow: 1, minWidth: 0 }}>
               {definition.name}
             </Typography>
             <Chip
               size="small"
-              color={blocked ? 'warning' : definition.status === 'active' ? 'success' : 'default'}
-              label={definition.status}
+              color={blocked ? 'warning' : 'success'}
+              label={blocked ? 'blocked' : 'calculable'}
             />
           </Stack>
 
@@ -157,39 +236,48 @@ function ChallengeCard({
           </Typography>
 
           {blocked && definition.blockedReason && (
-            <Alert severity="warning" sx={{ py: 0.5 }}>
-              <Typography variant="caption">{definition.blockedReason}</Typography>
-            </Alert>
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                bgcolor: 'background.surfaceContainerHighest',
+                color: 'text.secondary',
+              }}
+            >
+              <Typography variant="caption" sx={{ display: 'block', lineHeight: 1.5 }}>
+                {definition.blockedReason}
+              </Typography>
+            </Box>
           )}
 
           <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-            <Chip
-              size="small"
-              variant="outlined"
+            <RuleChip
               label={definition.benchCounts ? 'bench counts' : 'starters only'}
+              hint="Whether players on the bench contribute to the value."
             />
-            <Chip
-              size="small"
-              variant="outlined"
-              label={definition.decimalsCount ? 'decimals count' : 'whole points'}
+            <RuleChip
+              label={definition.decimalsCount ? 'decimals' : 'whole points'}
+              hint="Whether fractional points count, or scores round first."
             />
-            <Chip
-              size="small"
-              variant="outlined"
+            <RuleChip
               label={definition.negativesCount ? 'negatives count' : 'negatives excluded'}
+              hint="Whether a negative score is eligible."
             />
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`tiebreak: ${definition.tieBreakers.join(' → ')}`}
+            <RuleChip
+              label={definition.tieBreakers.join(' → ')}
+              hint="Tiebreakers, applied in order until one separates the leaders."
             />
           </Stack>
-
-          <Typography variant="caption" color="text.secondary">
-            Needs from Yahoo: {definition.requiredYahooData.join(', ')}
-          </Typography>
         </Stack>
       </CardContent>
     </Card>
+  );
+}
+
+function RuleChip({ label, hint }: { label: string; hint: string }): JSX.Element {
+  return (
+    <Tooltip title={hint}>
+      <Chip size="small" variant="outlined" label={label} />
+    </Tooltip>
   );
 }

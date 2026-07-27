@@ -1,49 +1,138 @@
-import { Alert, Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import LockIcon from '@mui/icons-material/LockRounded';
+import VisibilityIcon from '@mui/icons-material/VisibilityRounded';
+import BlockIcon from '@mui/icons-material/BlockRounded';
 import { useSearchParams } from 'react-router-dom';
 
 /**
  * Sign-in.
  *
- * The only way in is Yahoo OAuth: the Yahoo GUID is the one Yahoo value the terms
- * permit storing indefinitely, which makes it a natural identity anchor and means
- * this application never stores a password.
+ * The only way in is Yahoo OAuth: the Yahoo GUID is one of the few values Yahoo's
+ * terms permit storing indefinitely, which makes it a natural identity anchor and
+ * means this application stores no password.
  *
- * Portal roles are separate and Dinkel-owned — signing in with Yahoo does not
- * grant commissioner access, even to Yahoo's own league commissioner.
+ * The three guarantees below are stated up front rather than buried in a privacy
+ * page. Someone about to hand over account access should be able to see what the
+ * portal can and cannot do before they click.
  */
 export function SignInPage(): JSX.Element {
   const [params] = useSearchParams();
   const yahooError = params.get('yahooError');
 
   return (
-    <Box sx={{ maxWidth: 520, mx: 'auto', mt: { xs: 2, sm: 6 } }}>
-      <Card>
-        <CardContent>
-          <Stack spacing={2}>
-            <Typography variant="h1">Dinkel Portal</Typography>
-            <Typography variant="body1" color="text.secondary">
-              League operations for a long-running fantasy football league. Yahoo stays the source
-              of truth for scores and rosters; the portal owns dues, prizes, weekly challenges, and
-              the draft-order workflow.
-            </Typography>
+    <Box sx={{ maxWidth: 560, mx: 'auto', mt: { xs: 1, sm: 5 } }}>
+      <Stack spacing={3}>
+        <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center' }}>
+          <Box
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: 4,
+              display: 'grid',
+              placeItems: 'center',
+              bgcolor: 'primary.main',
+              color: 'primary.contrastText',
+              fontWeight: 800,
+              fontSize: '1.75rem',
+            }}
+          >
+            D
+          </Box>
+          <Typography variant="h1" id="page-title" tabIndex={-1} sx={{ outline: 'none' }}>
+            Dinkel Portal
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ maxWidth: '46ch' }}>
+            League operations for a long-running fantasy football league. Yahoo stays the source of
+            truth for scores and rosters; the portal owns dues, prizes, weekly challenges, and the
+            draft-order workflow.
+          </Typography>
+        </Stack>
 
-            {yahooError && <YahooErrorAlert code={yahooError} />}
+        {yahooError && <YahooErrorAlert code={yahooError} />}
 
-            <Button variant="contained" size="large" href="/auth/yahoo/start" fullWidth>
-              Sign in with Yahoo
-            </Button>
+        <Card variant="filled">
+          <CardContent>
+            <Stack spacing={2.5}>
+              <Button variant="contained" size="large" href="/auth/yahoo/start" fullWidth>
+                Sign in with Yahoo
+              </Button>
 
-            <Typography variant="caption" color="text.secondary">
-              The portal requests read-only Fantasy access. It cannot change your lineup, make
-              transactions, or act as commissioner in Yahoo — no Yahoo API endpoint for those is
-              documented, and the portal does not request write access. You can remove the
-              connection at any time, which deletes the stored credentials and any cached Yahoo
-              data.
-            </Typography>
-          </Stack>
-        </CardContent>
-      </Card>
+              <Stack spacing={1.5}>
+                <Guarantee
+                  icon={<VisibilityIcon />}
+                  title="Read-only access"
+                  body="The portal requests read-only Fantasy permission. It cannot change your lineup, make transactions, or act as commissioner in Yahoo."
+                />
+                <Guarantee
+                  icon={<BlockIcon />}
+                  title="Nothing is warehoused"
+                  body="Scores, rosters, and names are read live and cached for minutes. Yahoo's terms allow keeping only your account ID and access tokens."
+                />
+                <Guarantee
+                  icon={<LockIcon />}
+                  title="Revocable at any time"
+                  body="Removing the connection deletes the stored credentials and every cached Yahoo response immediately."
+                />
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
+
+        <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap>
+          <Chip size="small" variant="outlined" label="No passwords stored" />
+          <Chip size="small" variant="outlined" label="No payments processed" />
+          <Chip size="small" variant="outlined" label="Not affiliated with Yahoo" />
+        </Stack>
+      </Stack>
     </Box>
+  );
+}
+
+function Guarantee({
+  icon,
+  title,
+  body,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  body: string;
+}): JSX.Element {
+  return (
+    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+      <Box
+        sx={{
+          mt: 0.25,
+          width: 36,
+          height: 36,
+          flexShrink: 0,
+          borderRadius: 999,
+          display: 'grid',
+          placeItems: 'center',
+          bgcolor: 'background.surfaceContainerLowest',
+          color: 'primary.main',
+          '& svg': { fontSize: 20 },
+        }}
+      >
+        {icon}
+      </Box>
+      <Box>
+        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+          {title}
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          {body}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
+function YahooErrorAlert({ code }: { code: string }): JSX.Element {
+  const { severity, message } = describeOAuthError(code);
+  return (
+    <Alert severity={severity}>
+      <Typography variant="body2">{message}</Typography>
+    </Alert>
   );
 }
 
@@ -54,16 +143,6 @@ export function SignInPage(): JSX.Element {
  * screen is not the same problem as an expired state or a rejected credential, and
  * one generic message would leave a user guessing which.
  */
-function YahooErrorAlert({ code }: { code: string }): JSX.Element {
-  const { severity, message } = describeOAuthError(code);
-
-  return (
-    <Alert severity={severity}>
-      <Typography variant="body2">{message}</Typography>
-    </Alert>
-  );
-}
-
 export function describeOAuthError(code: string): {
   severity: 'error' | 'warning' | 'info';
   message: string;
@@ -111,10 +190,7 @@ export function describeOAuthError(code: string): {
       };
 
     case 'yahoo_unavailable':
-      return {
-        severity: 'warning',
-        message: 'Yahoo did not respond. Try again shortly.',
-      };
+      return { severity: 'warning', message: 'Yahoo did not respond. Try again shortly.' };
 
     case 'yahoo_rate_limited':
       return {
@@ -123,9 +199,6 @@ export function describeOAuthError(code: string): {
       };
 
     default:
-      return {
-        severity: 'error',
-        message: 'The Yahoo sign-in did not complete. Try again.',
-      };
+      return { severity: 'error', message: 'The Yahoo sign-in did not complete. Try again.' };
   }
 }

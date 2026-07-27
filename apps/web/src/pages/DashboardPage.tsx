@@ -1,18 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   Card,
   CardContent,
   Chip,
   CircularProgress,
+  Collapse,
   Divider,
   IconButton,
   Link,
-  List,
-  ListItem,
-  ListItemText,
   Skeleton,
   Stack,
   TextField,
@@ -20,7 +19,13 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import RefreshIcon from '@mui/icons-material/RefreshRounded';
+import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
+import LinkOffIcon from '@mui/icons-material/LinkOffRounded';
+import GroupsIcon from '@mui/icons-material/GroupsRounded';
+import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
+import HowToRegIcon from '@mui/icons-material/HowToRegRounded';
+import SportsFootballIcon from '@mui/icons-material/SportsFootballRounded';
 import { useSearchParams } from 'react-router-dom';
 import {
   useConfirmDisplayName,
@@ -33,14 +38,24 @@ import {
   useYahooLeagues,
 } from '../hooks.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
+import { useNotify } from '../components/SnackbarProvider.js';
+import {
+  DataPoint,
+  EmptyState,
+  Monogram,
+  PageHeader,
+  RelativeTime,
+  SectionHeader,
+} from '../components/primitives.js';
 import { describeOAuthError } from './SignInPage.js';
 
 /**
- * The commissioner dashboard.
+ * Commissioner dashboard.
  *
- * This is the vertical slice: connection status, league selection, league
- * metadata, teams and managers, last API success or failure, and a manual refresh.
- * Everything Yahoo-derived here is read live on each load, not stored.
+ * Ordered by what needs a decision, not by what is easy to render: anything
+ * asking for action comes first, then live league state. A commissioner opening
+ * this on a phone during a game should see whether something is wrong before
+ * seeing anything else.
  */
 export function DashboardPage(): JSX.Element {
   const [params, setParams] = useSearchParams();
@@ -49,16 +64,26 @@ export function DashboardPage(): JSX.Element {
 
   const connected = connection.data?.connected ?? false;
   const overview = useLeagueOverview(connected);
-  const refresh = useManualRefresh();
 
   const yahooError = params.get('yahooError');
   const isWelcome = params.get('welcome') === '1';
 
   const user = session.data?.user ?? null;
   const isCommissioner = user?.role === 'commissioner';
+  const needsName = user !== null && !user.displayNameConfirmed;
+  const needsLeague = connected && overview.data?.linked === false;
 
   return (
-    <Stack spacing={2.5}>
+    <Stack spacing={3}>
+      <PageHeader
+        title={overview.data?.league.name ? overview.data.league.name : 'Dashboard'}
+        description={
+          overview.data?.yahoo
+            ? `${overview.data.yahoo.season ?? overview.data.yahoo.seasonYear} season · week ${overview.data.yahoo.currentWeek ?? '—'}`
+            : 'League operations for a long-running fantasy football league.'
+        }
+      />
+
       {yahooError && (
         <Alert
           severity={describeOAuthError(yahooError).severity}
@@ -71,62 +96,34 @@ export function DashboardPage(): JSX.Element {
         </Alert>
       )}
 
-      {user && !user.displayNameConfirmed && (
-        <ConfirmNameCard userId={user.userId} suggested={user.displayName} isWelcome={isWelcome} />
+      {/* Things asking for a decision, before anything informational. */}
+      {(needsName || needsLeague || !connected) && (
+        <Stack spacing={2}>
+          <SectionHeader title="Needs your attention" />
+
+          {needsName && user && (
+            <ConfirmNameCard
+              userId={user.userId}
+              suggested={user.displayName}
+              isWelcome={isWelcome}
+            />
+          )}
+
+          {!connected && <ConnectPrompt status={connection.data?.status} />}
+
+          {needsLeague && isCommissioner && <LeaguePicker />}
+
+          {needsLeague && !isCommissioner && (
+            <Alert severity="info">
+              No Yahoo league is linked yet. A commissioner needs to choose one.
+            </Alert>
+          )}
+        </Stack>
       )}
 
-      <ConnectionCard />
+      {connected && <ConnectionCard />}
 
-      {connected && overview.data?.linked === false && isCommissioner && <LeaguePickerCard />}
-
-      {connected && overview.data?.linked === false && !isCommissioner && (
-        <Alert severity="info">
-          No Yahoo league is linked yet. A commissioner needs to choose one.
-        </Alert>
-      )}
-
-      {connected && (
-        <Card>
-          <CardContent>
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1, flexWrap: 'wrap' }}>
-              <Typography variant="h2" sx={{ flexGrow: 1 }}>
-                League
-              </Typography>
-
-              <Tooltip title="Fetch fresh data from Yahoo now, bypassing the short-lived cache">
-                <span>
-                  <IconButton
-                    onClick={() => refresh.mutate()}
-                    disabled={refresh.isPending || !overview.data?.linked}
-                    aria-label="Refresh league data from Yahoo"
-                  >
-                    {refresh.isPending ? <CircularProgress size={20} /> : <RefreshIcon />}
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Stack>
-
-            {overview.isLoading && <Skeleton variant="rectangular" height={160} />}
-
-            {overview.isError && (
-              <ErrorNotice error={overview.error} onRetry={() => void overview.refetch()} />
-            )}
-
-            {/*
-              A failed refresh is usually transient — Yahoo briefly unavailable or
-              rate limiting — so the notice offers the retry directly rather than
-              telling the user to try again and leaving them to find the button.
-            */}
-            {refresh.isError && (
-              <ErrorNotice error={refresh.error} onRetry={() => refresh.mutate()} />
-            )}
-
-            {overview.data?.linked && overview.data.yahoo && (
-              <LeagueDetails overview={overview.data} />
-            )}
-          </CardContent>
-        </Card>
-      )}
+      {connected && <LeagueSection />}
     </Stack>
   );
 }
@@ -134,10 +131,9 @@ export function DashboardPage(): JSX.Element {
 /**
  * Display-name confirmation.
  *
- * Prefilled from the Yahoo nickname and confirmed here, at which point it becomes
- * portal data. This is the one durable name in the system: a finalized 2021
- * challenge result still needs a label after that manager has left the league or
- * the Yahoo connection has lapsed.
+ * Prefilled from Yahoo and confirmed here, at which point it becomes portal data.
+ * This is the only durable name in the system: a finalized 2021 challenge result
+ * still needs a label after that manager has left the league.
  */
 function ConfirmNameCard({
   userId,
@@ -150,33 +146,45 @@ function ConfirmNameCard({
 }): JSX.Element {
   const [name, setName] = useState(suggested);
   const confirm = useConfirmDisplayName(userId);
+  const notify = useNotify();
+
+  useEffect(() => {
+    if (confirm.isSuccess) notify('Display name saved.');
+  }, [confirm.isSuccess, notify]);
 
   return (
-    <Card sx={{ borderColor: 'primary.main' }}>
+    <Card variant="filled" sx={{ borderLeft: 4, borderColor: 'primary.main' }}>
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h3">
-            {isWelcome ? 'Welcome — confirm your name' : 'Confirm your display name'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            We prefilled this from Yahoo. Confirm or change it, and it becomes your portal name —
-            used on league records that outlive the Yahoo connection. This is the only name the
-            portal stores; everything else about your Yahoo profile stays with Yahoo.
-          </Typography>
+          <Box>
+            <Typography variant="h3">
+              {isWelcome ? 'Welcome — confirm your name' : 'Confirm your display name'}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, maxWidth: '62ch' }}>
+              Prefilled from Yahoo. Confirm or change it, and it becomes your portal name — used on
+              league records that outlive the Yahoo connection. It is the only name the portal
+              stores.
+            </Typography>
+          </Box>
 
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+          <Stack
+            direction={{ xs: 'column', sm: 'row' }}
+            spacing={1.5}
+            alignItems={{ sm: 'center' }}
+          >
             <TextField
               label="Display name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               size="small"
               fullWidth
+              sx={{ maxWidth: { sm: 320 } }}
             />
             <Button
               variant="contained"
               disabled={name.trim().length === 0 || confirm.isPending}
               onClick={() => confirm.mutate(name.trim())}
-              sx={{ whiteSpace: 'nowrap' }}
+              sx={{ flexShrink: 0 }}
             >
               {confirm.isPending ? 'Saving…' : 'Confirm'}
             </Button>
@@ -189,16 +197,44 @@ function ConfirmNameCard({
   );
 }
 
-/** Connection status, including last success and last failure. */
+function ConnectPrompt({ status }: { status?: string | undefined }): JSX.Element {
+  const needsReconnect = status === 'needs_reconnect';
+
+  return (
+    <EmptyState
+      icon={<LinkOffIcon />}
+      title={needsReconnect ? 'Yahoo access needs renewing' : 'Connect your Yahoo account'}
+      description={
+        needsReconnect
+          ? 'Reconnecting takes a moment and changes nothing in your league. The portal only ever reads.'
+          : 'The portal requests read-only Fantasy access so it can show live scores, rosters, and standings. It can never change anything in Yahoo.'
+      }
+      action={
+        <Button variant="contained" size="large" href="/auth/yahoo/start">
+          {needsReconnect ? 'Reconnect Yahoo' : 'Connect Yahoo'}
+        </Button>
+      }
+    />
+  );
+}
+
+/** Connection health: last success, last failure, token rotation. */
 function ConnectionCard(): JSX.Element {
   const connection = useConnection();
   const disconnect = useDisconnectYahoo();
+  const notify = useNotify();
+  const [confirming, setConfirming] = useState(false);
+
+  useEffect(() => {
+    if (disconnect.isSuccess) notify('Yahoo connection removed and cached data cleared.');
+  }, [disconnect.isSuccess, notify]);
 
   if (connection.isLoading) {
     return (
       <Card>
         <CardContent>
-          <Skeleton height={80} />
+          <Skeleton width={180} height={28} />
+          <Skeleton height={72} sx={{ mt: 1.5 }} />
         </CardContent>
       </Card>
     );
@@ -215,115 +251,134 @@ function ConnectionCard(): JSX.Element {
   }
 
   const data = connection.data;
-  const connected = data?.connected ?? false;
-  const needsReconnect = data?.status === 'needs_reconnect';
+  const hasFailure = Boolean(data?.lastFailureAt);
 
   return (
     <Card>
       <CardContent>
-        <Stack spacing={1.5}>
-          <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+        <Stack spacing={2}>
+          <Stack direction="row" alignItems="center" spacing={1.5} flexWrap="wrap" useFlexGap>
+            <CheckCircleIcon sx={{ color: 'success.main' }} />
             <Typography variant="h2" sx={{ flexGrow: 1 }}>
               Yahoo connection
             </Typography>
-
-            <Chip
-              size="small"
-              color={connected ? 'success' : needsReconnect ? 'warning' : 'default'}
-              label={connected ? 'Connected' : needsReconnect ? 'Needs reconnect' : 'Not connected'}
-            />
-
-            {data?.yahooMode === 'mock' && <Chip size="small" color="warning" label="mock mode" />}
+            <Chip size="small" color="success" label="Connected" />
+            <Chip size="small" variant="outlined" label="read-only" />
           </Stack>
 
-          {!connected && (
-            <Stack spacing={1} alignItems="flex-start">
-              <Typography variant="body2" color="text.secondary">
-                {needsReconnect
-                  ? 'Yahoo access needs renewing. Reconnecting takes a moment and changes nothing in your league.'
-                  : 'Connect a Yahoo account with read-only Fantasy access to load league data.'}
-              </Typography>
-              <Button variant="contained" href="/auth/yahoo/start">
-                {needsReconnect ? 'Reconnect Yahoo' : 'Connect Yahoo'}
-              </Button>
-            </Stack>
-          )}
+          <Grid container spacing={2}>
+            <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+              <DataPoint
+                label="Last success"
+                value={<RelativeTime value={data?.lastSuccessAt} />}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+              <DataPoint
+                label="Last failure"
+                value={hasFailure ? <RelativeTime value={data?.lastFailureAt} /> : 'None'}
+                tone={hasFailure ? 'warning' : 'muted'}
+                {...(hasFailure && data?.lastFailureReason
+                  ? { hint: `Reason: ${data.lastFailureReason}` }
+                  : {})}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+              <DataPoint
+                label="Token refreshed"
+                value={<RelativeTime value={data?.lastRefreshedAt} />}
+              />
+            </Grid>
+            <Grid size={{ xs: 6, sm: 4, md: 3 }}>
+              <DataPoint
+                label="Token rotations"
+                value={String(data?.refreshTokenRotations ?? 0)}
+                hint="Yahoo may issue a new refresh token on renewal. The portal handles either behavior."
+              />
+            </Grid>
+          </Grid>
 
-          {connected && (
-            <>
-              <Grid container spacing={1.5}>
-                <StatusField
-                  label="Last successful request"
-                  value={formatTimestamp(data?.lastSuccessAt)}
-                />
-                <StatusField
-                  label="Last failure"
-                  value={
-                    data?.lastFailureAt
-                      ? `${formatTimestamp(data.lastFailureAt)} (${data.lastFailureReason ?? 'unknown'})`
-                      : 'None'
-                  }
-                />
-                <StatusField
-                  label="Last token refresh"
-                  value={formatTimestamp(data?.lastRefreshedAt)}
-                />
-                <StatusField
-                  label="Refresh-token rotations"
-                  value={String(data?.refreshTokenRotations ?? 0)}
-                  // Worth surfacing: Yahoo documents rotation as optional, so this
-                  // is evidence of what actually happens in practice.
-                  hint="Yahoo may issue a new refresh token on renewal; the portal handles either behavior."
-                />
-                <StatusField label="Granted scope" value={data?.grantedScope ?? 'not reported'} />
-                <StatusField
-                  label="Capability list reviewed"
-                  value={data?.capabilityMatrixReviewedAt ?? 'unknown'}
-                />
-              </Grid>
+          <Divider />
 
-              <Divider />
-
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexWrap: 'wrap' }}>
+          <Stack spacing={1.5}>
+            {!confirming ? (
+              <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
                 <Button
                   size="small"
                   color="error"
                   variant="outlined"
-                  onClick={() => disconnect.mutate()}
-                  disabled={disconnect.isPending}
+                  onClick={() => setConfirming(true)}
                 >
-                  {disconnect.isPending ? 'Removing…' : 'Remove Yahoo connection'}
+                  Remove connection
                 </Button>
                 <Typography variant="caption" color="text.secondary">
                   Deletes the stored credentials and every cached Yahoo response for your account.
                 </Typography>
               </Stack>
+            ) : (
+              // Two-step rather than a browser confirm(): this deletes credentials,
+              // and a mis-click should not be enough to do it.
+              <Alert severity="warning">
+                <AlertTitle>Remove the Yahoo connection?</AlertTitle>
+                <Typography variant="body2" sx={{ mb: 1.5 }}>
+                  Stored credentials and all cached Yahoo data are deleted immediately. League
+                  records stay. You can reconnect at any time.
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    size="small"
+                    color="error"
+                    variant="contained"
+                    disabled={disconnect.isPending}
+                    onClick={() => {
+                      disconnect.mutate();
+                      setConfirming(false);
+                    }}
+                  >
+                    {disconnect.isPending ? 'Removing…' : 'Remove'}
+                  </Button>
+                  <Button size="small" variant="text" onClick={() => setConfirming(false)}>
+                    Keep it
+                  </Button>
+                </Stack>
+              </Alert>
+            )}
 
-              {disconnect.isError && <ErrorNotice error={disconnect.error} hideRetry />}
-            </>
-          )}
+            {disconnect.isError && <ErrorNotice error={disconnect.error} hideRetry />}
+          </Stack>
         </Stack>
       </CardContent>
     </Card>
   );
 }
 
-/** League selection. Nothing is hardcoded — these come from the user's account. */
-function LeaguePickerCard(): JSX.Element {
+/** League selection. Nothing hardcoded — these come from the user's own account. */
+function LeaguePicker(): JSX.Element {
   const leagues = useYahooLeagues(true);
   const select = useSelectLeague();
+  const notify = useNotify();
+
+  useEffect(() => {
+    if (select.isSuccess) notify('League linked.');
+  }, [select.isSuccess, notify]);
 
   return (
-    <Card sx={{ borderColor: 'primary.main' }}>
+    <Card variant="filled" sx={{ borderLeft: 4, borderColor: 'primary.main' }}>
       <CardContent>
         <Stack spacing={2}>
-          <Typography variant="h2">Choose the league</Typography>
-          <Typography variant="body2" color="text.secondary">
-            These are the football leagues your Yahoo account can see. Pick the one this portal
-            manages.
-          </Typography>
+          <Box>
+            <Typography variant="h3">Choose the league</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+              These are the football leagues your Yahoo account can see.
+            </Typography>
+          </Box>
 
-          {leagues.isLoading && <Skeleton height={120} />}
+          {leagues.isLoading && (
+            <Stack spacing={1.5}>
+              <Skeleton height={92} />
+              <Skeleton height={92} />
+            </Stack>
+          )}
 
           {leagues.isError && (
             <ErrorNotice error={leagues.error} onRetry={() => void leagues.refetch()} />
@@ -336,23 +391,32 @@ function LeaguePickerCard(): JSX.Element {
             </Alert>
           )}
 
-          <Stack spacing={1}>
+          <Stack spacing={1.5}>
             {leagues.data?.leagues.map((league) => (
-              <Card key={league.yahooLeagueKey} variant="outlined">
-                <CardContent sx={{ py: 1.5 }}>
+              <Card
+                key={league.yahooLeagueKey}
+                sx={{ bgcolor: 'background.surfaceContainerLowest' }}
+              >
+                <CardContent sx={{ py: 2 }}>
                   <Stack
                     direction={{ xs: 'column', sm: 'row' }}
-                    spacing={1.5}
+                    spacing={2}
                     alignItems={{ sm: 'center' }}
                   >
-                    <Box sx={{ flexGrow: 1 }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                    <Monogram name={league.name} size={44} />
+
+                    <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+                      <Typography variant="subtitle1" noWrap sx={{ fontWeight: 700 }}>
                         {league.name}
                       </Typography>
-                      <Stack direction="row" spacing={0.75} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                        {league.season !== null && (
-                          <Chip size="small" label={`${league.season} season`} />
-                        )}
+                      <Stack
+                        direction="row"
+                        spacing={0.75}
+                        sx={{ mt: 0.75 }}
+                        flexWrap="wrap"
+                        useFlexGap
+                      >
+                        {league.season !== null && <Chip size="small" label={`${league.season}`} />}
                         {league.teamCount !== null && (
                           <Chip size="small" label={`${league.teamCount} teams`} />
                         )}
@@ -361,13 +425,14 @@ function LeaguePickerCard(): JSX.Element {
                             <Chip size="small" color="info" label="Yahoo commissioner" />
                           </Tooltip>
                         )}
-                        {league.isFinished && <Chip size="small" label="finished" />}
+                        {league.isFinished && (
+                          <Chip size="small" variant="outlined" label="finished" />
+                        )}
                       </Stack>
                     </Box>
 
                     <Button
                       variant="contained"
-                      size="small"
                       disabled={select.isPending || league.season === null}
                       onClick={() =>
                         select.mutate({
@@ -376,6 +441,7 @@ function LeaguePickerCard(): JSX.Element {
                           seasonYear: league.season!,
                         })
                       }
+                      sx={{ flexShrink: 0 }}
                     >
                       {select.isPending ? 'Linking…' : 'Use this league'}
                     </Button>
@@ -392,126 +458,203 @@ function LeaguePickerCard(): JSX.Element {
   );
 }
 
-function LeagueDetails({
-  overview,
-}: {
-  overview: NonNullable<ReturnType<typeof useLeagueOverview>['data']>;
-}): JSX.Element {
-  const yahoo = overview.yahoo!;
+/** Live league state: metadata, teams, managers, and a manual refresh. */
+function LeagueSection(): JSX.Element {
+  const overview = useLeagueOverview(true);
+  const refresh = useManualRefresh();
+  const notify = useNotify();
+
+  useEffect(() => {
+    if (refresh.isSuccess) notify('Refreshed from Yahoo.');
+  }, [refresh.isSuccess, notify]);
+
+  if (overview.isLoading) {
+    return (
+      <Box>
+        <SectionHeader title="League" />
+        <Card>
+          <CardContent>
+            <Skeleton width={240} height={32} />
+            <Skeleton width={360} height={24} sx={{ mt: 1 }} />
+            <Grid container spacing={2} sx={{ mt: 2 }}>
+              {Array.from({ length: 6 }, (_, index) => (
+                <Grid size={{ xs: 12, sm: 6, md: 4 }} key={index}>
+                  <Skeleton height={96} />
+                </Grid>
+              ))}
+            </Grid>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
+
+  if (overview.isError) {
+    return (
+      <Box>
+        <SectionHeader title="League" />
+        <ErrorNotice error={overview.error} onRetry={() => void overview.refetch()} />
+      </Box>
+    );
+  }
+
+  if (!overview.data?.linked || !overview.data.yahoo) return <></>;
+
+  const yahoo = overview.data.yahoo;
   const unmapped = yahoo.teams.filter((team) => team.leagueMemberId === null).length;
 
   return (
-    <Stack spacing={2}>
-      <Box>
-        <Typography variant="h3">{yahoo.name}</Typography>
-        <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap' }}>
-          {yahoo.season !== null && <Chip size="small" label={`${yahoo.season} season`} />}
-          {yahoo.currentWeek !== null && <Chip size="small" label={`week ${yahoo.currentWeek}`} />}
-          {yahoo.teamCount !== null && <Chip size="small" label={`${yahoo.teamCount} teams`} />}
-          {yahoo.scoringType && <Chip size="small" label={yahoo.scoringType} />}
-          {yahoo.playoffStartWeek !== null && (
-            <Chip size="small" label={`playoffs week ${yahoo.playoffStartWeek}`} />
-          )}
-          {yahoo.draftStatus && <Chip size="small" label={`draft: ${yahoo.draftStatus}`} />}
-        </Stack>
-      </Box>
-
-      {unmapped > 0 && (
-        <Alert severity="info">
-          {unmapped} of {yahoo.teams.length} Yahoo teams are not yet mapped to portal members.
-          Mapping them is what lets league records survive after a manager leaves — challenge
-          results are keyed to portal members, not to Yahoo teams.
-        </Alert>
-      )}
-
-      <Divider />
-
-      <Box>
-        <Typography variant="h3" sx={{ mb: 1 }}>
-          Teams and managers
-        </Typography>
-        <Grid container spacing={1.5}>
-          {yahoo.teams.map((team) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={team.yahooTeamKey}>
-              <Card variant="outlined" sx={{ height: '100%' }}>
-                <CardContent sx={{ py: 1.5 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                    {team.name}
-                  </Typography>
-                  <List dense disablePadding>
-                    {team.managers.map((manager) => (
-                      <ListItem key={manager.nickname} disableGutters sx={{ py: 0.25 }}>
-                        <ListItemText
-                          primary={
-                            <Stack
-                              direction="row"
-                              spacing={0.5}
-                              alignItems="center"
-                              flexWrap="wrap"
-                            >
-                              <Typography variant="body2">{manager.nickname}</Typography>
-                              {manager.isYou && <Chip size="small" color="primary" label="you" />}
-                              {manager.isYahooCommissioner && (
-                                <Chip size="small" label="Yahoo comm." />
-                              )}
-                            </Stack>
-                          }
-                        />
-                      </ListItem>
-                    ))}
-                  </List>
-                  {team.leagueMemberId === null && (
-                    <Typography variant="caption" color="warning.main">
-                      not mapped to a portal member
-                    </Typography>
-                  )}
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      </Box>
-
-      <Typography variant="caption" color="text.secondary">
-        Read live from Yahoo
-        {overview.fetchedAt ? ` at ${new Date(overview.fetchedAt).toLocaleTimeString()}` : ''}. Team
-        and manager names come from Yahoo on every load and are not stored — see{' '}
-        <Link href="/yahoo-capabilities">Yahoo status</Link> for what the portal can and cannot
-        read.
-      </Typography>
-    </Stack>
-  );
-}
-
-function StatusField({
-  label,
-  value,
-  hint,
-}: {
-  label: string;
-  value: string;
-  hint?: string;
-}): JSX.Element {
-  const content = (
     <Box>
-      <Typography variant="caption" color="text.secondary" display="block">
-        {label}
-      </Typography>
-      <Typography variant="body2">{value}</Typography>
+      <SectionHeader
+        title="League"
+        action={
+          <Tooltip title="Fetch fresh data from Yahoo now, bypassing the short-lived cache">
+            <span>
+              <IconButton
+                onClick={() => refresh.mutate()}
+                disabled={refresh.isPending}
+                aria-label="Refresh league data from Yahoo"
+              >
+                {refresh.isPending ? <CircularProgress size={20} /> : <RefreshIcon />}
+              </IconButton>
+            </span>
+          </Tooltip>
+        }
+      />
+
+      <Stack spacing={2}>
+        <Collapse in={refresh.isError} unmountOnExit>
+          <Box>
+            {refresh.isError && (
+              // A failed refresh is usually transient, so the notice offers the
+              // retry directly rather than telling the user to find the button.
+              <ErrorNotice error={refresh.error} onRetry={() => refresh.mutate()} />
+            )}
+          </Box>
+        </Collapse>
+
+        <Grid container spacing={2}>
+          <StatTile icon={<SportsFootballIcon />} label="Week" value={yahoo.currentWeek ?? '—'} />
+          <StatTile
+            icon={<GroupsIcon />}
+            label="Teams"
+            value={yahoo.teamCount ?? yahoo.teams.length}
+          />
+          <StatTile
+            icon={<EmojiEventsIcon />}
+            label="Playoffs"
+            value={yahoo.playoffStartWeek === null ? '—' : `Week ${yahoo.playoffStartWeek}`}
+          />
+          <StatTile icon={<HowToRegIcon />} label="Draft" value={yahoo.draftStatus ?? '—'} />
+        </Grid>
+
+        {unmapped > 0 && (
+          <Alert severity="info">
+            <AlertTitle>
+              {unmapped} of {yahoo.teams.length} teams not yet mapped
+            </AlertTitle>
+            <Typography variant="body2">
+              Mapping Yahoo teams to portal members is what lets league records survive after a
+              manager leaves — challenge results are keyed to portal members, not to Yahoo teams.
+            </Typography>
+          </Alert>
+        )}
+
+        <Box>
+          <SectionHeader title="Teams and managers" count={yahoo.teams.length} />
+          <Grid container spacing={1.5}>
+            {yahoo.teams.map((team) => (
+              <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={team.yahooTeamKey}>
+                <Card sx={{ height: '100%' }}>
+                  <CardContent sx={{ py: 2 }}>
+                    <Stack direction="row" spacing={1.5} alignItems="flex-start">
+                      <Monogram name={team.name} />
+                      <Box sx={{ minWidth: 0, flexGrow: 1 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700 }} noWrap>
+                          {team.name}
+                        </Typography>
+                        {team.managers.map((manager) => (
+                          <Stack
+                            key={manager.nickname}
+                            direction="row"
+                            spacing={0.5}
+                            alignItems="center"
+                            flexWrap="wrap"
+                            useFlexGap
+                            sx={{ mt: 0.5 }}
+                          >
+                            <Typography variant="body2" color="text.secondary" noWrap>
+                              {manager.nickname}
+                            </Typography>
+                            {manager.isYou && <Chip size="small" color="primary" label="you" />}
+                            {manager.isYahooCommissioner && (
+                              <Chip size="small" variant="outlined" label="Yahoo comm." />
+                            )}
+                          </Stack>
+                        ))}
+                        {team.leagueMemberId === null && (
+                          <Typography
+                            variant="caption"
+                            sx={{ color: 'warning.main', mt: 0.5, display: 'block' }}
+                          >
+                            not mapped
+                          </Typography>
+                        )}
+                      </Box>
+                    </Stack>
+                  </CardContent>
+                </Card>
+              </Grid>
+            ))}
+          </Grid>
+        </Box>
+
+        <Typography variant="caption" color="text.secondary">
+          Read live from Yahoo{' '}
+          {overview.data.fetchedAt && (
+            <RelativeTime value={overview.data.fetchedAt} underline={false} />
+          )}
+          . Team and manager names come from Yahoo on every load and are not stored — see{' '}
+          <Link href="/yahoo-capabilities">Yahoo status</Link> for what the portal can and cannot
+          read.
+        </Typography>
+      </Stack>
     </Box>
   );
-
-  return (
-    <Grid size={{ xs: 12, sm: 6, md: 4 }}>
-      {hint ? <Tooltip title={hint}>{content}</Tooltip> : content}
-    </Grid>
-  );
 }
 
-function formatTimestamp(value: string | null | undefined): string {
-  if (!value) return 'Never';
-  // Timestamps are stored without a zone suffix; they are UTC.
-  const date = new Date(value.endsWith('Z') ? value : `${value}Z`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
+function StatTile({
+  icon,
+  label,
+  value,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}): JSX.Element {
+  return (
+    <Grid size={{ xs: 6, md: 3 }}>
+      <Card variant="filled" sx={{ height: '100%' }}>
+        <CardContent sx={{ py: 2 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            sx={{ color: 'text.secondary', mb: 0.5 }}
+          >
+            {icon}
+            <Typography
+              variant="caption"
+              sx={{ textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}
+            >
+              {label}
+            </Typography>
+          </Stack>
+          <Typography variant="h2" sx={{ fontWeight: 600, textTransform: 'capitalize' }}>
+            {value}
+          </Typography>
+        </CardContent>
+      </Card>
+    </Grid>
+  );
 }
