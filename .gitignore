@@ -24,6 +24,12 @@ infrastructure/cdk.out/
 cdk.out/
 cdk.context.json
 
+# Browser-automation artifacts: snapshots and screenshots from local verification
+# runs. Useful while debugging, never part of the source tree.
+.playwright-mcp/
+*.png
+!apps/web/public/**/*.png
+
 # Test + coverage
 coverage/
 .vitest/
