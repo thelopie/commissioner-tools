@@ -299,6 +299,57 @@ export interface MatchupsResponse {
   fetchedAt: string;
 }
 
+/** One player movement inside a transaction. */
+export interface TransactionPlayer {
+  name: string;
+  position: string | null;
+  nflTeam: string | null;
+  movement: string | null;
+  source: string | null;
+  destination: string | null;
+  sourceTeamName: string | null;
+  destinationTeamName: string | null;
+}
+
+export interface TransactionsResponse {
+  seasonYear: number;
+  transactions: Array<{
+    transactionKey: string;
+    type: string;
+    status: string | null;
+    occurredAt: string | null;
+    involvesYou: boolean;
+    players: TransactionPlayer[];
+  }>;
+  fetchedAt: string;
+}
+
+export interface RosterSlot {
+  playerName: string;
+  selectedPosition: string;
+  isStarter: boolean;
+  displayPosition: string | null;
+  nflTeam: string | null;
+  injuryStatus: string | null;
+  points: number | null;
+}
+
+export interface RosterResponse {
+  week: number;
+  seasonYear: number;
+  /** Null when Yahoo marks no team as the signed-in user's. */
+  team: {
+    yahooTeamKey: string;
+    name: string;
+    managers: string[];
+    isYou: boolean;
+  } | null;
+  slots: RosterSlot[];
+  startersPoints?: number | null;
+  benchPoints?: number | null;
+  fetchedAt?: string;
+}
+
 /** The home-screen summary: one request rather than three loading states. */
 export interface MeResponse {
   linked: boolean;

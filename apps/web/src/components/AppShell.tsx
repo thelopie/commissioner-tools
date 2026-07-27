@@ -25,6 +25,8 @@ import LeaderboardIcon from '@mui/icons-material/LeaderboardRounded';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import CloudSyncIcon from '@mui/icons-material/CloudSyncRounded';
 import HistoryIcon from '@mui/icons-material/HistoryRounded';
+import GroupsIcon from '@mui/icons-material/GroupsRounded';
+import SwapHorizIcon from '@mui/icons-material/SwapHorizRounded';
 import SettingsIcon from '@mui/icons-material/SettingsRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
@@ -57,15 +59,26 @@ export interface NavItem {
 /**
  * Primary navigation: what a league MEMBER needs.
  *
- * Four items, which is the practical limit for bottom navigation. Administrative
- * screens live in the account menu instead — a manager has no use for OAuth token
- * rotation counts, and the first build put them front and centre.
+ * Five items, the M3 ceiling for bottom navigation. Administrative screens live in
+ * the account menu instead — a manager has no use for OAuth token rotation counts,
+ * and the first build put them front and centre.
  */
 const NAV_ITEMS: NavItem[] = [
   { label: 'Home', to: '/', icon: <HomeIcon /> },
+  { label: 'My team', to: '/my-team', icon: <GroupsIcon /> },
   { label: 'Matchups', to: '/matchups', icon: <ScoreboardIcon /> },
   { label: 'Standings', to: '/standings', icon: <LeaderboardIcon /> },
   { label: 'Challenges', to: '/challenges', icon: <EmojiEventsIcon /> },
+];
+
+/**
+ * League screens that every member can reach, but which do not earn a nav slot.
+ *
+ * Transactions matter, but not as much as the five above — and a sixth bottom-bar
+ * item would shrink all of them below a comfortable tap target.
+ */
+const MEMBER_ITEMS: Array<{ label: string; to: string; icon: React.ReactNode }> = [
+  { label: 'Transactions', to: '/transactions', icon: <SwapHorizIcon /> },
 ];
 
 /** Administrative screens, reached from the account menu. */
@@ -235,7 +248,14 @@ export function AppShell({
 
       {authenticated && !showRail && (
         <BottomNavigation
-          value={activeIndex === -1 ? 0 : activeIndex}
+          /**
+           * `false`, not `0`, when the route is not in the bar.
+           *
+           * Falling back to 0 lit up Home while the user was on Transactions or a
+           * commissioner screen — an indicator pointing at the wrong page is worse
+           * than none.
+           */
+          value={activeIndex === -1 ? false : activeIndex}
           showLabels
           sx={{
             position: 'fixed',
@@ -267,9 +287,21 @@ export function AppShell({
               sx={{
                 minWidth: 0,
                 pt: 1.25,
+                // MUI's default 12px side padding leaves ~54px of label room across
+                // five items on a 390px phone, which wrapped "My team" onto two
+                // lines and clipped "Challenges". Reclaim the padding and forbid
+                // wrapping instead of shortening the labels.
+                px: 0.25,
                 color: 'text.secondary',
+                '& .MuiBottomNavigationAction-label': {
+                  whiteSpace: 'nowrap',
+                  fontSize: '0.6875rem',
+                },
                 '&.Mui-selected': { color: 'primary.main' },
-                '&.Mui-selected .MuiBottomNavigationAction-label': { fontWeight: 700 },
+                '&.Mui-selected .MuiBottomNavigationAction-label': {
+                  fontWeight: 700,
+                  fontSize: '0.6875rem',
+                },
                 '&.Mui-selected .nav-pill': {
                   bgcolor: 'primary.light',
                   color: 'primary.dark',
@@ -506,6 +538,20 @@ function AccountMenu({
             </Typography>
           )}
         </Box>
+        <Divider />
+
+        {MEMBER_ITEMS.map((item) => (
+          <MenuItem
+            key={item.to}
+            component={RouterLink}
+            to={item.to}
+            onClick={() => setAnchor(null)}
+          >
+            <ListItemIcon>{item.icon}</ListItemIcon>
+            <ListItemText>{item.label}</ListItemText>
+          </MenuItem>
+        ))}
+
         <Divider />
 
         {isCommissioner &&

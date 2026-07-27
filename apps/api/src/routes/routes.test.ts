@@ -1223,6 +1223,127 @@ describe('manager-facing league views', () => {
     expect(await response.json()).toMatchObject({ error: { code: 'yahoo_league_not_linked' } });
   });
 
+  it('serves the roster split into starters and bench', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/roster?week=3', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    expect(body.week).toBe(3);
+    expect(body.team.isYou).toBe(true);
+    expect(body.slots.length).toBeGreaterThan(0);
+
+    // Both groups must be non-empty, or the bench total below means nothing.
+    const starters = body.slots.filter((slot: { isStarter: boolean }) => slot.isStarter);
+    const bench = body.slots.filter((slot: { isStarter: boolean }) => !slot.isStarter);
+    expect(starters.length).toBeGreaterThan(0);
+    expect(bench.length).toBeGreaterThan(0);
+
+    // 'BN' must never count as a starter — that is the whole Bench Mob distinction.
+    expect(
+      starters.some((slot: { selectedPosition: string }) => slot.selectedPosition === 'BN'),
+    ).toBe(false);
+  });
+
+  it('totals starter and bench points separately', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/roster?week=3', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+    const body = await response.json();
+
+    expect(body.startersPoints).toBeTypeOf('number');
+    expect(body.benchPoints).toBeTypeOf('number');
+    // Rounded to a tenth, like every other score in the portal.
+    expect(body.benchPoints).toBe(Math.round(body.benchPoints * 10) / 10);
+  });
+
+  it('resolves the current week when none is given', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/roster', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).week).toBeTypeOf('number');
+  });
+
+  it('reads another team’s roster when one is named', async () => {
+    // A matchup preview needs the opponent's lineup, not only your own.
+    const jar = await linkedCommissioner();
+
+    const teams = await app.request('/api/league/standings', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+    const other = (await teams.json()).standings.find((row: { isYou: boolean }) => !row.isYou);
+
+    const response = await app.request(
+      `/api/league/roster?week=3&team=${encodeURIComponent(other.yahooTeamKey)}`,
+      { headers: { Cookie: cookieHeader(jar) } },
+    );
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body.team.yahooTeamKey).toBe(other.yahooTeamKey);
+    expect(body.team.isYou).toBe(false);
+  });
+
+  it('serves transactions with readable endpoints', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/transactions', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+
+    expect(body.transactions.length).toBeGreaterThan(0);
+    const [first] = body.transactions;
+    expect(first.type).toBeTruthy();
+    expect(first.occurredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(first.players[0].name).toBeTruthy();
+
+    // Team keys are resolved to names here; a bare key would be meaningless.
+    const named = body.transactions
+      .flatMap(
+        (transaction: { players: Array<{ destinationTeamName: string | null }> }) =>
+          transaction.players,
+      )
+      .filter((player: { destinationTeamName: string | null }) => player.destinationTeamName);
+    expect(named.length).toBeGreaterThan(0);
+  });
+
+  it('flags the transactions involving the signed-in user’s team', async () => {
+    const jar = await linkedCommissioner();
+
+    const response = await app.request('/api/league/transactions', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+    const body = await response.json();
+
+    expect(
+      body.transactions.some((transaction: { involvesYou: boolean }) => transaction.involvesYou),
+    ).toBe(true);
+  });
+
+  it('explains itself when transactions are requested with no league linked', async () => {
+    const jar = await signInAsCommissioner();
+
+    const response = await app.request('/api/league/transactions', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: 'yahoo_league_not_linked' } });
+  });
+
   it('is available to any member, not just commissioners', async () => {
     // League information is not administration. A manager must be able to read
     // standings and matchups.
@@ -1231,7 +1352,13 @@ describe('manager-facing league views', () => {
     await table.put({ ...user, role: 'manager', isPrimaryCommissioner: false });
 
     const jar = await signIn();
-    for (const path of ['/api/league/standings', '/api/league/matchups/3', '/api/league/me']) {
+    for (const path of [
+      '/api/league/standings',
+      '/api/league/matchups/3',
+      '/api/league/me',
+      '/api/league/roster',
+      '/api/league/transactions',
+    ]) {
       const response = await app.request(path, { headers: { Cookie: cookieHeader(jar) } });
       expect(response.status, path).toBe(200);
     }
@@ -1239,10 +1366,23 @@ describe('manager-facing league views', () => {
 
   it('never persists Yahoo names from these reads', async () => {
     const jar = await linkedCommissioner();
-    await app.request('/api/league/standings', { headers: { Cookie: cookieHeader(jar) } });
-    await app.request('/api/league/matchups/3', { headers: { Cookie: cookieHeader(jar) } });
+    for (const path of [
+      '/api/league/standings',
+      '/api/league/matchups/3',
+      '/api/league/me',
+      '/api/league/roster?week=3',
+      '/api/league/transactions',
+    ]) {
+      await app.request(path, { headers: { Cookie: cookieHeader(jar) } });
+    }
 
     const durable = table.all().filter((item) => item['entity'] !== 'YahooCacheEntry');
-    expect(JSON.stringify(durable)).not.toContain('Dovetail Dynasty');
+    const serialized = JSON.stringify(durable);
+
+    expect(serialized).not.toContain('Dovetail Dynasty');
+    // Player names arrive through the roster and transaction reads. They are
+    // Yahoo's data too, and must not survive outside the TTL'd cache.
+    expect(serialized).not.toContain('Mock Waiver Add');
+    expect(serialized).not.toContain('Mock Player');
   });
 });

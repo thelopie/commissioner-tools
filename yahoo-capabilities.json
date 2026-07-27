@@ -24,10 +24,8 @@
     "`npm run verify:yahoo` after Yahoo grants credentials; it prints the",
     "capability keys it was able to confirm."
   ],
-
-  "lastReviewedAt": "2026-07-26",
+  "lastReviewedAt": "2026-07-27",
   "reviewedBy": "initial build",
-
   "access": {
     "selfService": false,
     "applicationUrl": "https://sports.yahoo.com/developer/access/",
@@ -40,7 +38,6 @@
       "A Fantasy-Sports-specific Terms of Use is referenced at legal.yahoo.com/us/en/yahoo/terms/product-atos/fantasysportsapi/index.html but returned HTTP 404 on 2026-07-26. The binding 'API Access and Use Agreement' is presented inside the application flow, so its full text must be read at application time and this file updated accordingly."
     ]
   },
-
   "oauth": {
     "authorizationUrl": "https://api.login.yahoo.com/oauth2/request_auth",
     "tokenUrl": "https://api.login.yahoo.com/oauth2/get_token",
@@ -58,7 +55,6 @@
       "'oob' (out of band) is documented for apps without browser access. Not used here."
     ]
   },
-
   "retention": {
     "termsUrl": "https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apiforydn/index.html",
     "maxRetentionHours": 24,
@@ -71,10 +67,8 @@
       "Monetization requires prior express written permission. This portal is noncommercial."
     ]
   },
-
   "baseUrl": "https://fantasysports.yahooapis.com/fantasy/v2",
   "documentationUrl": "https://sports.yahoo.com/developer/docs/",
-
   "writeOperations": {
     "supported": false,
     "confidence": "documented",
@@ -85,7 +79,6 @@
       "Third-party wrapper libraries expose add/drop/trade helpers, which implies undocumented write endpoints exist. Those are deliberately not used: undocumented private endpoints are out of scope by policy."
     ]
   },
-
   "commissionerActions": {
     "supported": false,
     "confidence": "documented",
@@ -96,7 +89,6 @@
       "The LLWS workflow therefore produces a printable draft order for manual entry in Yahoo's own interface."
     ]
   },
-
   "resources": [
     {
       "key": "user_leagues",
@@ -182,7 +174,8 @@
       "limitations": [
         "The bench indicator is conventionally selected_position = 'BN', and IR is 'IR'. Unverified against a real league.",
         "Whether a past week's roster is retrievable after the season ends is unverified — this matters for recalculating an old challenge.",
-        "Reading every team's roster is one request per team, which has rate-limit implications that are undocumented."
+        "Reading every team's roster is one request per team, which has rate-limit implications that are undocumented.",
+        "Per-player points come from the roster read when Yahoo includes them; when absent the portal shows a dash rather than computing a substitute."
       ]
     },
     {
@@ -266,7 +259,12 @@
       "confidence": "documented",
       "testStatus": "mock-only",
       "provides": [],
-      "limitations": ["Read and displayed live only; never persisted."]
+      "limitations": [
+        "Read and displayed live only; never persisted.",
+        "`transaction_data` is returned as a bare object for a single move and as a numeric-keyed collection for an add/drop pair. The parser handles both; which shape a real league returns is unverified.",
+        "The `;count=` limit is applied but its documented maximum is unknown, so the portal asks for 25 rather than attempting to page the full season.",
+        "No write operation is documented for transactions, so the portal reads them and offers no way to create one."
+      ]
     },
     {
       "key": "draft_results",
@@ -304,9 +302,7 @@
       ]
     }
   ],
-
   "verifiedCapabilities": [],
-
   "$verifiedCapabilitiesComment": [
     "The list above is the authoritative gate. It is EMPTY until a real Yahoo",
     "league confirms each capability, which is why every challenge currently",

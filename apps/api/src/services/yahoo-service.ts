@@ -17,6 +17,7 @@ import {
   type YahooStandingsRow,
   type YahooTeam,
   type YahooTeamRoster,
+  type YahooTransaction,
   type YahooUserProfile,
 } from '@dinkel/yahoo-client';
 import type { AppConfig } from '../config.js';
@@ -264,6 +265,45 @@ export class YahooService {
     }
 
     return rosters;
+  }
+
+  /**
+   * Recent league transactions.
+   *
+   * Read-only: Yahoo documents no way to create a transaction through the API, so
+   * the portal shows the league's moves and never makes one.
+   */
+  async getTransactions(
+    userId: InternalId,
+    leagueKey: YahooLeagueKey,
+    options: { refresh?: boolean; count?: number } = {},
+  ): Promise<YahooTransaction[]> {
+    const count = options.count ?? 25;
+    return this.cached(
+      `transactions:${leagueKey}:${count}`,
+      'transactions',
+      options.refresh ?? false,
+      async () => {
+        const { client } = await this.clientFor(userId);
+        return client.getTransactions(leagueKey, count);
+      },
+    );
+  }
+
+  /** One team's roster. A thin wrapper over {@link getRosters} for the common case. */
+  async getRoster(
+    userId: InternalId,
+    teamKey: YahooTeamKey,
+    week: number,
+    options: { refresh?: boolean } = {},
+  ): Promise<YahooTeamRoster> {
+    const [roster] = await this.getRosters(userId, [teamKey], week, options);
+    if (!roster) {
+      throw new AppError('yahoo_unexpected_response', {
+        publicMessage: 'Yahoo returned no roster for that team.',
+      });
+    }
+    return roster;
   }
 
   /**

@@ -7,6 +7,8 @@ import { ErrorNotice } from './components/ErrorNotice.js';
 import { AppShell } from './components/AppShell.js';
 import { HomePage } from './pages/HomePage.js';
 import { MatchupsPage } from './pages/MatchupsPage.js';
+import { MyTeamPage } from './pages/MyTeamPage.js';
+import { TransactionsPage } from './pages/TransactionsPage.js';
 import { StandingsPage } from './pages/StandingsPage.js';
 import { SignInPage } from './pages/SignInPage.js';
 import { SetupPage } from './pages/SetupPage.js';
@@ -106,6 +108,14 @@ export function App(): JSX.Element {
           <Route
             path="/matchups"
             element={authenticated ? <MatchupsPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/my-team"
+            element={authenticated ? <MyTeamPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/transactions"
+            element={authenticated ? <TransactionsPage /> : <Navigate to="/signin" replace />}
           />
           <Route
             path="/standings"

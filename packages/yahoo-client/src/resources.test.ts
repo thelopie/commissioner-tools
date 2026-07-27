@@ -6,6 +6,7 @@ import {
   parseScoreboard,
   parseStandings,
   parseTeamRoster,
+  parseTransactions,
   parseUserLeagues,
   parseUserProfile,
 } from './resources.js';
@@ -426,5 +427,157 @@ describe('parseScoreboard team identity', () => {
       .find((team) => team.managers.some((manager) => manager.isCurrentLogin));
 
     expect(mine).toBeDefined();
+  });
+});
+
+describe('parseTransactions', () => {
+  it('reads every transaction in the collection', () => {
+    const transactions = parseTransactions(fixtures.mockTransactionsResponse());
+
+    expect(transactions).toHaveLength(4);
+    expect(transactions.map((transaction) => transaction.type)).toEqual([
+      'add/drop',
+      'add',
+      'drop',
+      'trade',
+    ]);
+  });
+
+  it('keeps both halves of an add/drop pair', () => {
+    const [addDrop] = parseTransactions(fixtures.mockTransactionsResponse());
+
+    expect(addDrop?.players).toHaveLength(2);
+    expect(addDrop?.players.map((player) => player.movement)).toEqual(['add', 'drop']);
+  });
+
+  it('reads the movement endpoints, which is what makes a move readable', () => {
+    const [addDrop] = parseTransactions(fixtures.mockTransactionsResponse());
+    const [added] = addDrop?.players ?? [];
+
+    expect(added?.source).toBe('waivers');
+    expect(added?.destination).toBe('team');
+    // Without the destination team key there is no way to say whose move it was.
+    expect(added?.destinationTeamKey).toBeTruthy();
+  });
+
+  it('reads the player name out of the nested name node', () => {
+    const [addDrop] = parseTransactions(fixtures.mockTransactionsResponse());
+    expect(addDrop?.players[0]?.name).toBe('Mock Waiver Add');
+    expect(addDrop?.players[0]?.position).toBe('WR');
+  });
+
+  it('reads a timestamp as a number, not the string Yahoo sends', () => {
+    const [addDrop] = parseTransactions(fixtures.mockTransactionsResponse());
+    expect(addDrop?.timestamp).toBeTypeOf('number');
+  });
+
+  it('reads both sides of a trade', () => {
+    const transactions = parseTransactions(fixtures.mockTransactionsResponse());
+    const trade = transactions.find((transaction) => transaction.type === 'trade');
+
+    expect(trade?.players).toHaveLength(2);
+    // A trade moves players in both directions between the same two teams.
+    const [outbound, inbound] = trade?.players ?? [];
+    expect(outbound?.sourceTeamKey).toBe(inbound?.destinationTeamKey);
+    expect(outbound?.destinationTeamKey).toBe(inbound?.sourceTeamKey);
+  });
+
+  it('returns empty rather than throwing for a league with no transactions', () => {
+    expect(
+      parseTransactions({
+        fantasy_content: { league: [{ league_key: 'x' }, { transactions: { count: 0 } }] },
+      }),
+    ).toEqual([]);
+  });
+
+  it('skips a transaction missing its key or type instead of inventing one', () => {
+    const body = {
+      fantasy_content: {
+        league: [
+          { league_key: 'x' },
+          {
+            transactions: {
+              '0': { transaction: [{ type: 'add' }, { players: { count: 0 } }] },
+              count: 1,
+            },
+          },
+        ],
+      },
+    };
+
+    expect(parseTransactions(body)).toEqual([]);
+  });
+});
+
+describe('fixture self-consistency', () => {
+  /**
+   * The roster and the scoreboard describe the same week and must agree.
+   *
+   * They did not at first: the roster reused the whole-team points helper for each
+   * player, so nine starters summed to nearly a thousand against a scoreboard total
+   * near a hundred. Any challenge calculated across both fixtures would have been
+   * checking arithmetic against a contradiction.
+   */
+  it('starter points sum to the team’s scoreboard total', () => {
+    const week = 3;
+    const matchups = parseScoreboard(fixtures.mockScoreboardResponse(week));
+
+    for (const matchup of matchups) {
+      for (const team of matchup.teams) {
+        const teamId = Number(team.teamKey.split('.t.').at(-1));
+        const roster = parseTeamRoster(fixtures.mockTeamRosterResponse(teamId, week));
+
+        const starters = roster.slots.filter((slot) => slot.selectedPosition !== 'BN');
+        const total =
+          Math.round(starters.reduce((sum, slot) => sum + (slot.points ?? 0), 0) * 10) / 10;
+
+        expect(total, team.teamKey).toBe(team.points);
+      }
+    }
+  });
+
+  it('gives the bench its own points, not a share of the team total', () => {
+    const roster = parseTeamRoster(fixtures.mockTeamRosterResponse(3, 3));
+    const bench = roster.slots.filter((slot) => slot.selectedPosition === 'BN');
+
+    expect(bench.length).toBeGreaterThan(0);
+    // Bench points never count toward a team's score, so they must not be derived
+    // from it — otherwise Bench Mob would be measuring the same number twice.
+    for (const slot of bench) {
+      expect(slot.points).toBeTypeOf('number');
+      expect(slot.points).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('standings points equal the sum of the weeks the scoreboard shows', () => {
+    // A member can add up their own weeks. If the season total disagrees with them,
+    // the portal looks broken even though nothing it computed was wrong.
+    const rows = parseStandings(fixtures.mockStandingsResponse());
+
+    for (const row of rows) {
+      const teamId = Number(row.teamKey.split('.t.').at(-1));
+
+      let total = 0;
+      for (let week = 1; week < fixtures.MOCK_CURRENT_WEEK; week += 1) {
+        const matchups = parseScoreboard(fixtures.mockScoreboardResponse(week));
+        const team = matchups
+          .flatMap((matchup) => matchup.teams)
+          .find((candidate) => candidate.teamKey === row.teamKey);
+        total += team?.points ?? 0;
+      }
+
+      expect(Math.round(total * 10) / 10, row.teamKey).toBe(row.pointsFor);
+      expect(teamId).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps player points plausible for a single player', () => {
+    // A fixture where one starter outscores a real NFL week by 5x is not a useful
+    // test bed, and it reads as obviously fake in the UI.
+    const roster = parseTeamRoster(fixtures.mockTeamRosterResponse(7, 5));
+
+    for (const slot of roster.slots) {
+      expect(slot.points).toBeLessThan(60);
+    }
   });
 });

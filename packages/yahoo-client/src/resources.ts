@@ -150,6 +150,37 @@ export interface YahooStandingsRow {
   managers: YahooManager[];
 }
 
+/**
+ * One roster or waiver move.
+ *
+ * Ephemeral. Displayed live and cached for minutes; the portal keeps no
+ * transaction history of its own, because Yahoo's terms forbid retaining it.
+ */
+export interface YahooTransaction {
+  transactionKey: string;
+  /** add, drop, add/drop, trade, commish. Yahoo's own vocabulary. */
+  type: string;
+  status?: string;
+  /** Unix seconds, as Yahoo reports it. */
+  timestamp?: number;
+  /** Who initiated it, when Yahoo says. */
+  players: Array<{
+    playerKey: string;
+    /** Ephemeral display text. */
+    name: string;
+    position?: string;
+    nflTeam?: string;
+    /** added or dropped. */
+    movement?: string;
+    /** Where the player came from: team, waivers, or freeagents. */
+    source?: string;
+    /** Where the player went. */
+    destination?: string;
+    sourceTeamKey?: YahooTeamKey;
+    destinationTeamKey?: YahooTeamKey;
+  }>;
+}
+
 // --------------------------------------------------------------------------
 // Parsers
 // --------------------------------------------------------------------------
@@ -473,6 +504,70 @@ export function parseStandings(body: unknown): YahooStandingsRow[] {
   });
 
   return rows;
+}
+
+/**
+ * Parses `/league/{league_key}/transactions`.
+ *
+ * Each transaction carries a `players` collection whose entries hold a
+ * `transaction_data` block describing the movement. Yahoo returns that block as a
+ * bare object for a single move and as a numeric-keyed collection for an add/drop
+ * pair, so both shapes are handled.
+ */
+export function parseTransactions(body: unknown): YahooTransaction[] {
+  const content = fantasyContent(body);
+  const leagues = descend(content, ['league']);
+  const league = leagues[0] ?? mergeParts(content['league']);
+
+  const transactions: YahooTransaction[] = [];
+
+  for (const node of descend(league, ['transactions', 'transaction'])) {
+    const transactionKey = optionalString(node, 'transaction_key');
+    const type = optionalString(node, 'type');
+    if (!transactionKey || !type) continue;
+
+    const players: YahooTransaction['players'] = [];
+
+    for (const playerNode of descend(node, ['players', 'player'])) {
+      const playerKey = optionalString(playerNode, 'player_key');
+      if (!playerKey) continue;
+
+      const nameNode = mergeParts(playerNode['name']);
+      const entry: YahooTransaction['players'][number] = {
+        playerKey,
+        name: optionalString(nameNode, 'full') ?? '(unknown player)',
+      };
+
+      assign(entry, 'position', optionalString(playerNode, 'display_position'));
+      assign(entry, 'nflTeam', optionalString(playerNode, 'editorial_team_abbr'));
+
+      // A single move is one object; an add/drop pair is a collection of two.
+      const rawData = playerNode['transaction_data'];
+      const dataNodes = Array.isArray(rawData)
+        ? [mergeParts(rawData)]
+        : collect(rawData).map((item) => mergeParts(item));
+      const data = dataNodes[0] ?? {};
+
+      assign(entry, 'movement', optionalString(data, 'type'));
+      assign(entry, 'source', optionalString(data, 'source_type'));
+      assign(entry, 'destination', optionalString(data, 'destination_type'));
+
+      const sourceTeam = optionalString(data, 'source_team_key');
+      if (sourceTeam) entry.sourceTeamKey = sourceTeam as YahooTeamKey;
+      const destinationTeam = optionalString(data, 'destination_team_key');
+      if (destinationTeam) entry.destinationTeamKey = destinationTeam as YahooTeamKey;
+
+      players.push(entry);
+    }
+
+    const transaction: YahooTransaction = { transactionKey, type, players };
+    assign(transaction, 'status', optionalString(node, 'status'));
+    assign(transaction, 'timestamp', optionalNumber(node, 'timestamp'));
+
+    transactions.push(transaction);
+  }
+
+  return transactions;
 }
 
 /** Yahoo reports a streak as `{ type: 'win', value: '3' }`. */

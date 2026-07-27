@@ -128,6 +128,156 @@ leagueViewRoutes.get('/api/league/matchups/:week', async (c) => {
 });
 
 /**
+ * Recent league transactions: adds, drops, trades, waiver claims.
+ *
+ * Read-only. Yahoo publishes no write operation for transactions, so this page
+ * reports moves and offers no way to make one — anything else would be an
+ * unsupported call dressed up as a feature.
+ */
+leagueViewRoutes.get('/api/league/transactions', async (c) => {
+  const ctx = c.get('ctx');
+  requireAuthenticated(ctx.principal);
+  requireLeagueId(ctx);
+
+  const link = await currentLink(ctx as never);
+  if (!link) {
+    throw new AppError('yahoo_league_not_linked', {
+      publicMessage: 'No Yahoo league is linked yet, so there are no transactions to show.',
+    });
+  }
+
+  const transactions = await ctx.yahoo.getTransactions(link.connectionUserId, link.yahooLeagueKey, {
+    refresh: c.req.query('refresh') === '1',
+  });
+
+  /**
+   * Team names come from a separate read, because the transactions resource returns
+   * only team keys. Cached for half an hour, so this is nearly always free.
+   */
+  const teams = await ctx.yahoo.getLeagueTeams(link.connectionUserId, link.yahooLeagueKey);
+  const nameByKey = new Map(teams.map((team) => [team.teamKey, team.name]));
+  const yourKeys = new Set(
+    teams.filter((team) => isOwnedByViewer(team.managers)).map((team) => team.teamKey),
+  );
+
+  return c.json({
+    seasonYear: link.seasonYear,
+    transactions: transactions.map((transaction) => ({
+      transactionKey: transaction.transactionKey,
+      type: transaction.type,
+      status: transaction.status ?? null,
+      // Yahoo reports Unix seconds; ISO is what the client formats.
+      occurredAt: transaction.timestamp
+        ? new Date(transaction.timestamp * 1000).toISOString()
+        : null,
+      involvesYou: transaction.players.some(
+        (player) =>
+          (player.sourceTeamKey && yourKeys.has(player.sourceTeamKey)) ||
+          (player.destinationTeamKey && yourKeys.has(player.destinationTeamKey)),
+      ),
+      players: transaction.players.map((player) => ({
+        name: player.name,
+        position: player.position ?? null,
+        nflTeam: player.nflTeam ?? null,
+        movement: player.movement ?? null,
+        source: player.source ?? null,
+        destination: player.destination ?? null,
+        sourceTeamName: player.sourceTeamKey ? (nameByKey.get(player.sourceTeamKey) ?? null) : null,
+        destinationTeamName: player.destinationTeamKey
+          ? (nameByKey.get(player.destinationTeamKey) ?? null)
+          : null,
+      })),
+    })),
+    fetchedAt: new Date().toISOString(),
+  });
+});
+
+/**
+ * The signed-in user's roster for a week: starters, bench, and per-player points.
+ *
+ * `week` is optional; without it, Yahoo's current week is used. The team is resolved
+ * from Yahoo's `is_current_login` flag rather than from a portal mapping, so this
+ * works before a commissioner has linked anyone.
+ */
+leagueViewRoutes.get('/api/league/roster', async (c) => {
+  const ctx = c.get('ctx');
+  requireAuthenticated(ctx.principal);
+  requireLeagueId(ctx);
+
+  const link = await currentLink(ctx as never);
+  if (!link) {
+    throw new AppError('yahoo_league_not_linked', {
+      publicMessage: 'No Yahoo league is linked yet, so there is no roster to show.',
+    });
+  }
+
+  const metadata = await ctx.yahoo.getLeagueMetadata(link.connectionUserId, link.yahooLeagueKey);
+  const requestedWeek = c.req.query('week');
+  const week = requestedWeek
+    ? weekNumberSchema.parse(Number(requestedWeek))
+    : (metadata.currentWeek ?? metadata.startWeek ?? 1);
+
+  const teams = await ctx.yahoo.getLeagueTeams(link.connectionUserId, link.yahooLeagueKey);
+
+  /**
+   * An explicit `team` wins, so any team's roster can be inspected — matchup
+   * previews need the opponent's lineup, not only your own.
+   */
+  const requestedTeam = c.req.query('team');
+  const team = requestedTeam
+    ? teams.find((candidate) => candidate.teamKey === requestedTeam)
+    : teams.find((candidate) => isOwnedByViewer(candidate.managers));
+
+  if (!team) {
+    /**
+     * Not an error. A commissioner reading a league they do not play in has no team,
+     * and the UI needs to say so rather than show a failure.
+     */
+    return c.json({ week, seasonYear: link.seasonYear, team: null, slots: [] });
+  }
+
+  const roster = await ctx.yahoo.getRoster(link.connectionUserId, team.teamKey, week, {
+    refresh: c.req.query('refresh') === '1',
+  });
+
+  const slots = roster.slots.map((slot) => ({
+    playerName: slot.playerName,
+    // Yahoo's slot code. 'BN' is bench, 'IR' injured reserve, everything else starts.
+    selectedPosition: slot.selectedPosition,
+    isStarter: slot.selectedPosition !== 'BN' && slot.selectedPosition !== 'IR',
+    displayPosition: slot.displayPosition ?? null,
+    nflTeam: slot.nflTeamAbbreviation ?? null,
+    injuryStatus: slot.injuryStatus ?? null,
+    points: slot.points ?? null,
+  }));
+
+  const sum = (starters: boolean): number | null => {
+    const relevant = slots.filter((slot) => slot.isStarter === starters && slot.points !== null);
+    if (relevant.length === 0) return null;
+    return Math.round(relevant.reduce((total, slot) => total + (slot.points ?? 0), 0) * 10) / 10;
+  };
+
+  return c.json({
+    week,
+    seasonYear: link.seasonYear,
+    team: {
+      yahooTeamKey: team.teamKey,
+      name: team.name,
+      managers: team.managers.map((manager) => manager.nickname),
+      isYou: isOwnedByViewer(team.managers),
+    },
+    slots,
+    startersPoints: sum(true),
+    /**
+     * What the bench scored — the number behind the Bench Mob challenge, and the
+     * one every manager wants to see after a loss.
+     */
+    benchPoints: sum(false),
+    fetchedAt: new Date().toISOString(),
+  });
+});
+
+/**
  * A compact summary for the home screen.
  *
  * One request rather than three, because this is the first paint a manager sees

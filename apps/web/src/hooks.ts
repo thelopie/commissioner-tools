@@ -10,7 +10,9 @@ import {
   type MatchupsResponse,
   type MeResponse,
   type SessionResponse,
+  type RosterResponse,
   type StandingsResponse,
+  type TransactionsResponse,
 } from './api/client.js';
 
 /** Query keys in one place, so invalidation cannot drift from fetching. */
@@ -26,6 +28,8 @@ export const queryKeys = {
   me: ['league', 'me'] as const,
   standings: ['league', 'standings'] as const,
   matchups: (week: number) => ['league', 'matchups', week] as const,
+  transactions: ['league', 'transactions'] as const,
+  roster: (week: number | null) => ['league', 'roster', week] as const,
 };
 
 export function useSession(): UseQueryResult<SessionResponse> {
@@ -227,5 +231,32 @@ export function useMatchups(week: number | null): UseQueryResult<MatchupsRespons
     queryKey: queryKeys.matchups(week ?? 0),
     queryFn: () => api.get<MatchupsResponse>(`/api/league/matchups/${week}`),
     enabled: week !== null,
+  });
+}
+
+export function useTransactions(enabled: boolean): UseQueryResult<TransactionsResponse> {
+  return useQuery({
+    queryKey: queryKeys.transactions,
+    queryFn: () => api.get<TransactionsResponse>('/api/league/transactions'),
+    enabled,
+  });
+}
+
+/**
+ * The signed-in user's roster.
+ *
+ * `week` may be null, in which case the API resolves Yahoo's current week — that
+ * avoids a second round trip just to learn which week to ask for.
+ */
+export function useRoster(enabled: boolean, week: number | null): UseQueryResult<RosterResponse> {
+  return useQuery({
+    queryKey: queryKeys.roster(week),
+    queryFn: () =>
+      api.get<RosterResponse>(
+        week === null ? '/api/league/roster' : `/api/league/roster?week=${week}`,
+      ),
+    enabled,
+    // Points move during games.
+    staleTime: 20_000,
   });
 }

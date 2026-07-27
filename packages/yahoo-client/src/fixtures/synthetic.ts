@@ -243,14 +243,49 @@ function mockPoints(seed: number): number {
   return Math.round((whole + tenths) * 10) / 10;
 }
 
+/**
+ * The week's schedule: teams paired off in list order.
+ *
+ * One function, used by the scoreboard, the standings and the rosters. When each
+ * fixture derived its own pairing they disagreed — standings credited every team
+ * with the home formula's points while the scoreboard gave away teams a different
+ * number, so a team's season total did not match the sum of its own weeks.
+ */
+function mockPairings(): Array<{ home: number; away: number }> {
+  const pairings: Array<{ home: number; away: number }> = [];
+  for (let i = 0; i < MOCK_TEAMS.length; i += 2) {
+    pairings.push({ home: MOCK_TEAMS[i]!.teamId, away: MOCK_TEAMS[i + 1]!.teamId });
+  }
+  return pairings;
+}
+
+/**
+ * A team's points for one week — the single source of truth for that number.
+ *
+ * Home and away use different seeds so a matchup is not two views of one value.
+ */
+export function mockTeamWeekPoints(teamId: number, week: number): number {
+  const isAway = mockPairings().some((pairing) => pairing.away === teamId);
+  return isAway ? mockPoints(teamId * week + 7) : mockPoints(teamId * week);
+}
+
+/** Who a team played in a given week. Fixed pairings, so it does not vary by week. */
+function mockOpponent(teamId: number): number | undefined {
+  for (const pairing of mockPairings()) {
+    if (pairing.home === teamId) return pairing.away;
+    if (pairing.away === teamId) return pairing.home;
+  }
+  return undefined;
+}
+
 export function mockScoreboardResponse(week: number): unknown {
   const matchups: unknown[] = [];
 
   for (let i = 0; i < MOCK_TEAMS.length; i += 2) {
     const home = MOCK_TEAMS[i]!;
     const away = MOCK_TEAMS[i + 1]!;
-    const homePoints = mockPoints(home.teamId * week);
-    const awayPoints = mockPoints(away.teamId * week + 7);
+    const homePoints = mockTeamWeekPoints(home.teamId, week);
+    const awayPoints = mockTeamWeekPoints(away.teamId, week);
 
     matchups.push({
       matchup: [
@@ -328,7 +363,70 @@ const MOCK_ROSTER_TEMPLATE: Array<{ position: string; slot: string; name: string
   { position: 'TE', slot: 'BN', name: 'Mock Bench Tightend' },
 ];
 
+/**
+ * Per-player points that add up to the team's scoreboard total.
+ *
+ * The first version reused `mockPoints`, which produces WHOLE-TEAM totals — so nine
+ * starters summed to nearly a thousand while the scoreboard said the same team
+ * scored about a hundred. Two fixtures disagreeing about the same week makes every
+ * calculation built on them untrustworthy.
+ *
+ * Starters are therefore a deterministic split of the team's actual week total, and
+ * the bench is scored independently, because bench points never count.
+ */
+function mockRosterPoints(teamId: number, week: number): number[] {
+  const starterCount = MOCK_ROSTER_TEMPLATE.filter(
+    (template) => template.slot !== 'BN' && template.slot !== 'IR',
+  ).length;
+
+  // Weights, not points: shares of the team total. +1 keeps every weight positive.
+  const weights = MOCK_ROSTER_TEMPLATE.map(
+    (_, index) => (mockPoints(teamId * 10 + index + week) % 20) + 1,
+  );
+  const starterWeight = weights.slice(0, starterCount).reduce((total, weight) => total + weight, 0);
+
+  const teamTotal = mockTeamWeekPoints(teamId, week);
+
+  const points = MOCK_ROSTER_TEMPLATE.map((template, index) => {
+    if (template.slot === 'BN' || template.slot === 'IR') {
+      /**
+       * Scaled to the same per-slot range as the starters.
+       *
+       * A flat 0–24 range made the bench out-score the starters most weeks, which
+       * reads as a bug rather than a bad lineup decision. Zero to twice the team's
+       * average starter is the range a real bench occupies.
+       */
+      const average = teamTotal / starterCount;
+      const spread = (mockPoints(teamId * 31 + index + week * 7) % 200) / 100;
+      return Math.round(average * spread * 10) / 10;
+    }
+    return Math.round(((teamTotal * weights[index]!) / starterWeight) * 10) / 10;
+  });
+
+  /**
+   * Rounding each share to a tenth leaves a remainder. It lands on the top scorer,
+   * so the starters sum to the scoreboard total EXACTLY — otherwise a challenge
+   * calculated from rosters would disagree with the one calculated from the
+   * scoreboard by a tenth, and neither would be obviously wrong.
+   */
+  const starterSum =
+    Math.round(points.slice(0, starterCount).reduce((total, value) => total + value, 0) * 10) / 10;
+  const remainder = Math.round((teamTotal - starterSum) * 10) / 10;
+
+  if (remainder !== 0) {
+    let topIndex = 0;
+    for (let index = 1; index < starterCount; index += 1) {
+      if (points[index]! > points[topIndex]!) topIndex = index;
+    }
+    points[topIndex] = Math.round((points[topIndex]! + remainder) * 10) / 10;
+  }
+
+  return points;
+}
+
 export function mockTeamRosterResponse(teamId: number, week: number): unknown {
+  const points = mockRosterPoints(teamId, week);
+
   const players = MOCK_ROSTER_TEMPLATE.map((template, index) => ({
     player: [
       [
@@ -357,7 +455,7 @@ export function mockTeamRosterResponse(teamId: number, week: number): unknown {
         player_points: {
           coverage_type: 'week',
           week: String(week),
-          total: String(mockPoints(teamId * 10 + index + week)),
+          total: String(points[index]),
         },
       },
     ],
@@ -393,11 +491,11 @@ export function mockStandingsResponse(): unknown {
     let losses = 0;
 
     for (let week = 1; week < MOCK_CURRENT_WEEK; week += 1) {
-      const own = mockPoints(team.teamId * week);
-      // Pair each team against the next one along, wrapping, so every team has an
-      // opponent every week.
-      const opponentId = (team.teamId % MOCK_TEAMS.length) + 1;
-      const against = mockPoints(opponentId * week + 7);
+      const own = mockTeamWeekPoints(team.teamId, week);
+      // The same opponent the scoreboard shows, so a season total is the sum of the
+      // weeks a member can actually look up.
+      const opponentId = mockOpponent(team.teamId);
+      const against = opponentId === undefined ? 0 : mockTeamWeekPoints(opponentId, week);
 
       pointsFor += own;
       pointsAgainst += against;
@@ -453,6 +551,164 @@ export function mockStandingsResponse(): unknown {
               ),
             },
           ],
+        },
+      ],
+    },
+  };
+}
+
+/**
+ * Recent transactions.
+ *
+ * A believable mix: a waiver add/drop pair, a free-agent pickup, a straight drop,
+ * and a two-sided trade. Enough variety that the display logic for each movement
+ * type is actually exercised.
+ */
+export function mockTransactionsResponse(nowSeconds?: number): unknown {
+  /**
+   * The clock is a parameter, not `Date.now()`.
+   *
+   * Tests need the same bytes on every run, so the default is fixed. The mock
+   * SERVER passes its own clock, because a demo whose every move reads "8 months
+   * ago" looks like stale data rather than a live league.
+   */
+  const base = nowSeconds ?? 1_764_000_000;
+
+  const entries = [
+    {
+      key: `${MOCK_LEAGUE_KEY}.tr.101`,
+      type: 'add/drop',
+      status: 'successful',
+      timestamp: base - 3_600,
+      players: [
+        {
+          id: 901,
+          name: 'Mock Waiver Add',
+          position: 'WR',
+          movement: 'add',
+          source: 'waivers',
+          destination: 'team',
+          destinationTeam: 3,
+        },
+        {
+          id: 902,
+          name: 'Mock Waiver Drop',
+          position: 'TE',
+          movement: 'drop',
+          source: 'team',
+          sourceTeam: 3,
+          destination: 'waivers',
+        },
+      ],
+    },
+    {
+      key: `${MOCK_LEAGUE_KEY}.tr.102`,
+      type: 'add',
+      status: 'successful',
+      timestamp: base - 18_000,
+      players: [
+        {
+          id: 903,
+          name: 'Mock Free Agent',
+          position: 'RB',
+          movement: 'add',
+          source: 'freeagents',
+          destination: 'team',
+          destinationTeam: 7,
+        },
+      ],
+    },
+    {
+      key: `${MOCK_LEAGUE_KEY}.tr.103`,
+      type: 'drop',
+      status: 'successful',
+      timestamp: base - 90_000,
+      players: [
+        {
+          id: 904,
+          name: 'Mock Dropped Kicker',
+          position: 'K',
+          movement: 'drop',
+          source: 'team',
+          sourceTeam: 11,
+          destination: 'waivers',
+        },
+      ],
+    },
+    {
+      key: `${MOCK_LEAGUE_KEY}.tr.104`,
+      type: 'trade',
+      status: 'successful',
+      timestamp: base - 200_000,
+      players: [
+        {
+          id: 905,
+          name: 'Mock Traded Away',
+          position: 'QB',
+          movement: 'trade',
+          source: 'team',
+          sourceTeam: 1,
+          destination: 'team',
+          destinationTeam: 5,
+        },
+        {
+          id: 906,
+          name: 'Mock Traded For',
+          position: 'WR',
+          movement: 'trade',
+          source: 'team',
+          sourceTeam: 5,
+          destination: 'team',
+          destinationTeam: 1,
+        },
+      ],
+    },
+  ];
+
+  return {
+    fantasy_content: {
+      league: [
+        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Dinkel League' },
+        {
+          transactions: countedCollection(
+            entries.map((entry) => ({
+              transaction: [
+                {
+                  transaction_key: entry.key,
+                  type: entry.type,
+                  status: entry.status,
+                  timestamp: String(entry.timestamp),
+                },
+                {
+                  players: countedCollection(
+                    entry.players.map((player) => ({
+                      player: [
+                        [
+                          { player_key: `${MOCK_GAME_KEY}.p.${player.id}` },
+                          { name: { full: player.name, first: 'Mock', last: 'Player' } },
+                          { display_position: player.position },
+                          { editorial_team_abbr: 'MCK' },
+                        ],
+                        {
+                          transaction_data: {
+                            type: player.movement,
+                            source_type: player.source,
+                            destination_type: player.destination,
+                            ...(player.sourceTeam
+                              ? { source_team_key: teamKey(player.sourceTeam) }
+                              : {}),
+                            ...(player.destinationTeam
+                              ? { destination_team_key: teamKey(player.destinationTeam) }
+                              : {}),
+                          },
+                        },
+                      ],
+                    })),
+                  ),
+                },
+              ],
+            })),
+          ),
         },
       ],
     },

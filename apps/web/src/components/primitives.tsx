@@ -195,12 +195,19 @@ export function DataPoint({
 export function Monogram({ name, size = 40 }: { name: string; size?: number }): JSX.Element {
   const theme = useTheme();
 
+  /**
+   * The first LETTER of each word, not the first character.
+   *
+   * Filtering words that merely contain a letter still took `part[0]`, so
+   * "Josh (commissioner)" rendered as "J(" — a punctuation mark inside an avatar.
+   */
   const initials =
     name
       .split(/\s+/)
-      .filter((part) => /[a-z0-9]/i.test(part))
+      .map((part) => /[a-z0-9]/i.exec(part)?.[0])
+      .filter((letter): letter is string => letter !== undefined)
       .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase() ?? '')
+      .map((letter) => letter.toUpperCase())
       .join('') || '?';
 
   let hash = 0;

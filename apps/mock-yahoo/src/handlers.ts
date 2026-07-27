@@ -95,6 +95,16 @@ export function handleFantasyRequest(path: string): MockResponse {
     return leagueScopedResponse(standings[1]!, fixtures.mockStandingsResponse());
   }
 
+  const transactions = /^league\/([^/]+)\/transactions(?:;count=\d+)?$/.exec(clean);
+  if (transactions) {
+    // The live clock, so recent moves read as recent. The fixture defaults to a
+    // fixed timestamp for tests; only this server passes a real one.
+    return leagueScopedResponse(
+      transactions[1]!,
+      fixtures.mockTransactionsResponse(Math.floor(Date.now() / 1000)),
+    );
+  }
+
   const scoreboard = /^league\/([^/]+)\/scoreboard;week=(\d+)$/.exec(clean);
   if (scoreboard) {
     return leagueScopedResponse(

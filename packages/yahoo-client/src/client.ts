@@ -6,6 +6,7 @@ import {
   parseScoreboard,
   parseStandings,
   parseTeamRoster,
+  parseTransactions,
   parseUserLeagues,
   parseUserProfile,
   type YahooLeagueMetadata,
@@ -14,6 +15,7 @@ import {
   type YahooStandingsRow,
   type YahooTeam,
   type YahooTeamRoster,
+  type YahooTransaction,
   type YahooUserProfile,
 } from './resources.js';
 import type { YahooLeagueKey, YahooTeamKey } from '@dinkel/shared';
@@ -184,6 +186,19 @@ export class YahooClient {
       `league/${encodeURIComponent(leagueKey)}/scoreboard;week=${encodeURIComponent(String(week))}`,
     );
     return parseScoreboard(body, week);
+  }
+
+  /**
+   * Recent league transactions: adds, drops, trades, waiver claims.
+   *
+   * Read-only. Yahoo documents no write operation for transactions, so the portal
+   * displays them and never creates one.
+   */
+  async getTransactions(leagueKey: YahooLeagueKey, count = 25): Promise<YahooTransaction[]> {
+    const body = await this.get(
+      `league/${encodeURIComponent(leagueKey)}/transactions;count=${encodeURIComponent(String(count))}`,
+    );
+    return parseTransactions(body);
   }
 
   async getTeamRoster(teamKey: YahooTeamKey, week: number): Promise<YahooTeamRoster> {
