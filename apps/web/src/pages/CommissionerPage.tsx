@@ -19,6 +19,14 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import FormControl from '@mui/material/FormControl';
+import InputLabel from '@mui/material/InputLabel';
+import MenuItem from '@mui/material/MenuItem';
+import Select from '@mui/material/Select';
 import RefreshIcon from '@mui/icons-material/RefreshRounded';
 import CheckCircleIcon from '@mui/icons-material/CheckCircleRounded';
 import LinkOffIcon from '@mui/icons-material/LinkOffRounded';
@@ -31,8 +39,11 @@ import {
   useConfirmDisplayName,
   useConnection,
   useDisconnectYahoo,
+  useLeagueMembers,
   useLeagueOverview,
   useManualRefresh,
+  useMapLeagueMember,
+  usePortalUsers,
   useSelectLeague,
   useSession,
   useYahooLeagues,
@@ -594,14 +605,12 @@ function LeagueSection(): JSX.Element {
                             )}
                           </Stack>
                         ))}
-                        {team.leagueMemberId === null && (
-                          <Typography
-                            variant="caption"
-                            sx={{ color: 'warning.main', mt: 0.5, display: 'block' }}
-                          >
-                            not mapped
-                          </Typography>
-                        )}
+                        <MemberMapping
+                          seasonYear={yahoo.seasonYear}
+                          yahooTeamKey={team.yahooTeamKey}
+                          yahooTeamName={team.name}
+                          leagueMemberId={team.leagueMemberId}
+                        />
                       </Box>
                     </Stack>
                   </CardContent>
@@ -622,6 +631,180 @@ function LeagueSection(): JSX.Element {
         </Typography>
       </Stack>
     </Box>
+  );
+}
+
+/**
+ * Maps one Yahoo team to a portal member.
+ *
+ * The mapping is the hinge the whole portal turns on: challenge results, dues and
+ * draft records are keyed to the portal member, so a manager who leaves the league
+ * — or a Yahoo connection that lapses — does not erase their history.
+ *
+ * Two ways in, and neither copies Yahoo data into a permanent record: link an
+ * existing portal user, or type the league's own name for someone who has never
+ * signed in. The Yahoo nickname is shown on the card as live context only.
+ */
+function MemberMapping({
+  seasonYear,
+  yahooTeamKey,
+  yahooTeamName,
+  leagueMemberId,
+}: {
+  seasonYear: number;
+  yahooTeamKey: string;
+  yahooTeamName: string;
+  leagueMemberId: string | null;
+}): JSX.Element {
+  const members = useLeagueMembers(seasonYear);
+  const users = usePortalUsers();
+  const session = useSession();
+  const map = useMapLeagueMember(seasonYear);
+  const notify = useNotify();
+
+  const [open, setOpen] = useState(false);
+  const [userId, setUserId] = useState('');
+  const [typedName, setTypedName] = useState('');
+
+  const mapped = members.data?.members.find((member) => member.leagueMemberId === leagueMemberId);
+
+  /** Members with no Yahoo team yet — the usual case after a CSV import. */
+  const unmappedMembers = (members.data?.members ?? []).filter(
+    (member) => member.yahooTeamKey === null,
+  );
+
+  /**
+   * The signed-in user, offered explicitly.
+   *
+   * `/api/users` finds portal users THROUGH their league membership, so before the
+   * first member exists it returns nothing — including the commissioner doing the
+   * mapping. Without this the first team could only be mapped by typing a name,
+   * which would create a nameless duplicate of an account that already exists.
+   */
+  const self = session.data?.user ?? null;
+  const selfAlreadyMember =
+    self !== null && (members.data?.members ?? []).some((member) => member.userId === self.userId);
+
+  if (leagueMemberId !== null) {
+    return (
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.75 }}>
+        <CheckCircleIcon sx={{ fontSize: 15, color: 'success.main' }} />
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {mapped?.displayName ?? 'mapped'}
+        </Typography>
+      </Stack>
+    );
+  }
+
+  const submit = (): void => {
+    const chosen = unmappedMembers.find((member) => member.leagueMemberId === userId);
+
+    map.mutate(
+      {
+        yahooTeamKey,
+        // Linking an existing member reuses its id; a portal user or a typed name
+        // creates one.
+        ...(chosen
+          ? {
+              leagueMemberId: chosen.leagueMemberId,
+              ...(chosen.userId ? { userId: chosen.userId } : {}),
+              ...(chosen.userId ? {} : { legacyManagerName: chosen.displayName }),
+            }
+          : userId
+            ? { userId }
+            : { legacyManagerName: typedName.trim() }),
+      },
+      {
+        onSuccess: () => {
+          notify(`Mapped ${yahooTeamName}.`, 'success');
+          setOpen(false);
+          setUserId('');
+          setTypedName('');
+        },
+        onError: (error) => notify(error.message, 'error'),
+      },
+    );
+  };
+
+  const canSubmit = userId !== '' || typedName.trim().length > 0;
+
+  return (
+    <>
+      <Button size="small" variant="outlined" sx={{ mt: 0.75 }} onClick={() => setOpen(true)}>
+        Map to a member
+      </Button>
+
+      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle>Map {yahooTeamName}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              Link this Yahoo team to the person who owns it. Records stay attached to the person,
+              not to the Yahoo team.
+            </Typography>
+
+            <FormControl size="small" fullWidth>
+              <InputLabel id={`member-${yahooTeamKey}`}>Existing person</InputLabel>
+              <Select
+                labelId={`member-${yahooTeamKey}`}
+                label="Existing person"
+                value={userId}
+                onChange={(event) => {
+                  setUserId(event.target.value);
+                  if (event.target.value) setTypedName('');
+                }}
+              >
+                <MenuItem value="">
+                  <em>Nobody yet — type a name below</em>
+                </MenuItem>
+
+                {self !== null && !selfAlreadyMember && (
+                  <MenuItem value={self.userId}>{self.displayName} · you</MenuItem>
+                )}
+
+                {unmappedMembers.map((member) => (
+                  <MenuItem key={member.leagueMemberId} value={member.leagueMemberId}>
+                    {member.displayName}
+                  </MenuItem>
+                ))}
+
+                {(users.data?.users ?? [])
+                  .filter(
+                    (user) =>
+                      !(members.data?.members ?? []).some(
+                        (member) => member.userId === user.userId,
+                      ),
+                  )
+                  .map((user) => (
+                    <MenuItem key={user.userId} value={user.userId}>
+                      {user.displayName} · portal user
+                    </MenuItem>
+                  ))}
+              </Select>
+            </FormControl>
+
+            <TextField
+              size="small"
+              label="Or the league's own name for them"
+              placeholder="How the league refers to this manager"
+              helperText="Use this for someone who has never signed in. Type your league's name for them, not their Yahoo nickname."
+              value={typedName}
+              onChange={(event) => {
+                setTypedName(event.target.value);
+                if (event.target.value) setUserId('');
+              }}
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="contained" disabled={!canSubmit || map.isPending} onClick={submit}>
+            {map.isPending ? 'Mapping…' : 'Map'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </>
   );
 }
 

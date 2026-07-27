@@ -916,6 +916,245 @@ describe('LLWS draft-order workflow', () => {
     expect(statusBody.note).toContain('manually in Yahoo');
   });
 
+  /**
+   * Sets up a complete, computed selection order for `count` managers.
+   *
+   * Finishes are recorded in reverse, so the LAST team entered wins the tournament.
+   * That makes "highest LLWS finish picks first" a real assertion rather than one
+   * that would also pass if the code simply preserved entry order.
+   */
+  async function readyToSelect(count: number): Promise<{
+    jar: Record<string, string>;
+    auth: Record<string, string>;
+    order: Array<{
+      leagueMemberId: string;
+      selectionOrder: number;
+      derivedFrom: { llwsFinishRank?: number };
+    }>;
+  }> {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    for (let i = 1; i <= count; i += 1) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: `Manager ${i}` }),
+      });
+    }
+
+    await app.request('/api/llws/2026/teams', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        teams: Array.from({ length: count }, (_, i) => ({ name: `Region ${i + 1}` })),
+      }),
+    });
+
+    await app.request('/api/llws/2026/draw', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ seed: 'llws-2026:selection-test' }),
+    });
+
+    const teams = await (
+      await app.request('/api/llws/2026/teams', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    // Reverse order: the last team entered finishes first.
+    for (const [index, team] of [...teams.teams].reverse().entries()) {
+      await app.request(`/api/llws/2026/teams/${team.llwsTeamId}/finish`, {
+        method: 'PUT',
+        headers: auth,
+        body: JSON.stringify({ finishRank: index + 1 }),
+      });
+    }
+
+    const computed = await app.request('/api/draft/2026/selection-order', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ tieBreakers: ['seeded_random'], seed: 'tiebreak-seed' }),
+    });
+    expect(computed.status).toBe(200);
+
+    const status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    return { jar, auth, order: status.selections };
+  }
+
+  it('queues the manager whose LLWS team finished highest first', async () => {
+    const { jar, order } = await readyToSelect(4);
+
+    const first = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder)[0]!;
+    expect(first.derivedFrom.llwsFinishRank).toBe(1);
+
+    const status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    // Only the front of the queue is open; nobody else can act yet.
+    expect(status.currentTurn.leagueMemberId).toBe(first.leagueMemberId);
+    expect(status.selections.filter((s: { status: string }) => s.status === 'open')).toHaveLength(
+      1,
+    );
+  });
+
+  it('advances the turn when a slot is taken, and keeps the choice', async () => {
+    const { jar, auth, order } = await readyToSelect(4);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    // Selection order 1 takes draft slot 4: choosing first is not drafting first,
+    // and the two must not be conflated anywhere in the pipeline.
+    const response = await app.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ draftPosition: 4, leagueMemberId: sorted[0]!.leagueMemberId }),
+    });
+    expect(response.status).toBe(200);
+
+    const status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(status.currentTurn.leagueMemberId).toBe(sorted[1]!.leagueMemberId);
+    expect(status.availablePositions).not.toContain(4);
+    expect(
+      status.finalOrder.find((e: { draftPosition: number }) => e.draftPosition === 4),
+    ).toMatchObject({ leagueMemberId: sorted[0]!.leagueMemberId });
+  });
+
+  it('refuses a slot somebody already took', async () => {
+    const { auth, order } = await readyToSelect(4);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    await app.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ draftPosition: 2, leagueMemberId: sorted[0]!.leagueMemberId }),
+    });
+
+    const clash = await app.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ draftPosition: 2, leagueMemberId: sorted[1]!.leagueMemberId }),
+    });
+
+    expect(clash.status).toBe(409);
+    expect((await clash.json()).error.code).toBe('draft_position_taken');
+  });
+
+  it('marks a commissioner pick as such rather than as the manager’s own', async () => {
+    // Taking somebody's choice away is legitimate when they stall the queue, but it
+    // must be visible in the record.
+    const { jar, auth, order } = await readyToSelect(3);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    await app.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ draftPosition: 1, leagueMemberId: sorted[0]!.leagueMemberId }),
+    });
+
+    const status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const picked = status.selections.find(
+      (s: { leagueMemberId: string }) => s.leagueMemberId === sorted[0]!.leagueMemberId,
+    );
+    expect(picked.status).toBe('commissioner_assigned');
+  });
+
+  it('reports the order incomplete until every slot is filled', async () => {
+    /**
+     * Twelve, because the slot count comes from the SEASON's team count — which the
+     * Yahoo league link sets to 12 — not from however many members happen to be
+     * mapped. A league with three mapped members really does have nine draft slots
+     * nobody can claim, and the status endpoint is right to keep saying so.
+     */
+    const { jar, auth, order } = await readyToSelect(12);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    let status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+    expect(status.complete).toBe(false);
+    expect(status.missingPositions).toHaveLength(12);
+
+    for (const [index, selection] of sorted.entries()) {
+      await app.request('/api/draft/2026/select', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          draftPosition: index + 1,
+          leagueMemberId: selection.leagueMemberId,
+        }),
+      });
+    }
+
+    status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(status.complete).toBe(true);
+    expect(status.missingPositions).toEqual([]);
+    // Nobody is up once everyone has chosen.
+    expect(status.currentTurn).toBeNull();
+  });
+
+  it('never moves a locked pick when the order is recomputed', async () => {
+    const { jar, auth, order } = await readyToSelect(4);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    await app.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ draftPosition: 3, leagueMemberId: sorted[0]!.leagueMemberId }),
+    });
+
+    // Recomputing with different tiebreakers must not reshuffle a slot somebody
+    // already holds — that would take back a decision already announced.
+    const recompute = await app.request('/api/draft/2026/selection-order', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ tieBreakers: ['worse_prior_season_finish', 'seeded_random'] }),
+    });
+    expect(recompute.status).toBe(200);
+
+    const status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const held = status.selections.find(
+      (s: { leagueMemberId: string }) => s.leagueMemberId === sorted[0]!.leagueMemberId,
+    );
+    expect(held.chosenDraftPosition).toBe(3);
+  });
+
+  it('records a reminder without pretending to send anything', async () => {
+    const { auth } = await readyToSelect(3);
+
+    const response = await app.request('/api/draft/2026/remind', { method: 'POST', headers: auth });
+    expect(response.status).toBe(200);
+    expect((await response.json()).reminded).toBe(true);
+  });
+
   it('refuses to redraw over an existing draw without explicit confirmation', async () => {
     const jar = await signInAsCommissioner();
     const auth = {

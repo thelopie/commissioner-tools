@@ -8,6 +8,8 @@ import { AppShell } from './components/AppShell.js';
 import { HomePage } from './pages/HomePage.js';
 import { MatchupsPage } from './pages/MatchupsPage.js';
 import { MyTeamPage } from './pages/MyTeamPage.js';
+import { DraftPage } from './pages/DraftPage.js';
+import { LlwsPage } from './pages/LlwsPage.js';
 import { TransactionsPage } from './pages/TransactionsPage.js';
 import { StandingsPage } from './pages/StandingsPage.js';
 import { SignInPage } from './pages/SignInPage.js';
@@ -114,6 +116,10 @@ export function App(): JSX.Element {
             element={authenticated ? <MyTeamPage /> : <Navigate to="/signin" replace />}
           />
           <Route
+            path="/draft"
+            element={authenticated ? <DraftPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
             path="/transactions"
             element={authenticated ? <TransactionsPage /> : <Navigate to="/signin" replace />}
           />
@@ -137,6 +143,24 @@ export function App(): JSX.Element {
                       403,
                       'commissioner_required',
                       'Commissioner tools are commissioner-only.',
+                    )
+                  }
+                />
+              )
+            }
+          />
+          <Route
+            path="/commissioner/llws"
+            element={
+              isCommissioner ? (
+                <LlwsPage />
+              ) : (
+                <ErrorNotice
+                  error={
+                    new ApiError(
+                      403,
+                      'commissioner_required',
+                      'Setting up the LLWS draw is commissioner-only. The draft board itself is open to everyone.',
                     )
                   }
                 />

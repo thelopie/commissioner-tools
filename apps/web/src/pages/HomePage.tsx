@@ -1,5 +1,6 @@
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   Card,
@@ -15,8 +16,15 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import WhatshotIcon from '@mui/icons-material/WhatshotRounded';
 import CompressIcon from '@mui/icons-material/CompressRounded';
 import LinkOffIcon from '@mui/icons-material/LinkOffRounded';
+import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounded';
 import { Link as RouterLink } from 'react-router-dom';
-import { useConnection, useLeagueMe, useSession } from '../hooks.js';
+import {
+  useConnection,
+  useDraftStatus,
+  useLeagueMe,
+  useLeagueOverview,
+  useSession,
+} from '../hooks.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
 
@@ -115,6 +123,14 @@ export function HomePage(): JSX.Element {
         description={`${data.leagueName ?? 'Your league'} · ${data.seasonYear} season · week ${data.week}`}
       />
 
+      {/*
+        The draft turn outranks the scoreboard.
+        A manager who opens the portal while it is their turn to choose a draft slot
+        needs to know that before anything else, and once a year it is the single
+        most time-sensitive thing the portal knows.
+      */}
+      <DraftTurnBanner />
+
       {data.matchup ? <MatchupHero matchup={data.matchup} you={data.you} /> : <NoTeamNotice />}
 
       <Grid container spacing={2}>
@@ -167,6 +183,51 @@ export function HomePage(): JSX.Element {
  * Deliberately the largest thing on the page. During a game this is the only
  * number anyone cares about, and it should be readable at arm's length.
  */
+/**
+ * Shows the open draft turn, and nothing at all the rest of the year.
+ *
+ * The query does not poll unless a turn is open, so outside the draft this costs a
+ * single cheap read and renders nothing.
+ */
+function DraftTurnBanner(): JSX.Element | null {
+  const overview = useLeagueOverview(true);
+  const status = useDraftStatus(overview.data?.league?.currentSeasonYear ?? null);
+
+  const turn = status.data?.currentTurn;
+  if (!turn) return null;
+
+  if (turn.isYou) {
+    return (
+      <Alert
+        severity="warning"
+        icon={<FormatListNumberedIcon />}
+        action={
+          <Button component={RouterLink} to="/draft" size="small" variant="contained">
+            Choose
+          </Button>
+        }
+      >
+        <AlertTitle>It&rsquo;s your turn to choose a draft slot</AlertTitle>
+        Everyone behind you is waiting.
+      </Alert>
+    );
+  }
+
+  return (
+    <Alert
+      severity="info"
+      icon={<FormatListNumberedIcon />}
+      action={
+        <Button component={RouterLink} to="/draft" size="small">
+          View board
+        </Button>
+      }
+    >
+      Draft slots are being chosen — {turn.displayName} is up.
+    </Alert>
+  );
+}
+
 function MatchupHero({
   matchup,
   you,

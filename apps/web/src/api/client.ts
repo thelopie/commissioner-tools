@@ -379,3 +379,135 @@ export interface MeResponse {
   closestMatchup?: { margin: number; teams: string[] } | null;
   fetchedAt?: string;
 }
+
+// --------------------------------------------------------------------------
+// LLWS draft order
+// --------------------------------------------------------------------------
+
+export interface LLWSTeam {
+  llwsTeamId: string;
+  name: string;
+  region?: string;
+  bracket: 'united_states' | 'international' | 'unknown';
+  /** Where the team finished. Absent until the commissioner records it. */
+  finishRank?: number;
+  finishLabel?: string;
+  eliminatedAt?: string;
+}
+
+export interface LLWSTeamsResponse {
+  teams: LLWSTeam[];
+}
+
+export interface LLWSAssignmentRecord {
+  assignmentId: string;
+  leagueMemberId: string;
+  llwsTeamId: string;
+  /** Visible on purpose: anyone can re-run the draw and audit it. */
+  randomizationSeed: string;
+  assignedAt: string;
+  publishedAt?: string;
+}
+
+export interface AssignmentsResponse {
+  assignments: LLWSAssignmentRecord[];
+  published: boolean;
+  seed: string | null;
+}
+
+export interface DrawResponse {
+  assignments: Array<{ leagueMemberId: string; llwsTeamId: string }>;
+  seed: string;
+  randomizationRunId: string;
+  unassignedLeagueMemberIds: string[];
+  unassignedLlwsTeamIds: string[];
+  published: boolean;
+  note: string;
+}
+
+export interface VerifyDrawResponse {
+  verified: boolean;
+  seed?: string;
+  reason?: string;
+  mismatches?: Array<{ leagueMemberId: string; recorded: string | null; expected: string | null }>;
+  note?: string;
+}
+
+/** How a manager's place in the selection queue was arrived at. */
+export interface SelectionDerivation {
+  llwsTeamId?: string;
+  llwsFinishRank?: number;
+  appliedTieBreaker?: string;
+  explanation: string;
+}
+
+export interface SelectionOrderResponse {
+  order: Array<{
+    leagueMemberId: string;
+    selectionOrder: number;
+    llwsFinishRank?: number;
+    appliedTieBreaker?: string;
+    explanation: string;
+  }>;
+  unplaced: Array<{ leagueMemberId: string; reason: string }>;
+  seed?: string;
+}
+
+export type SelectionStatus = 'waiting' | 'open' | 'locked' | 'commissioner_assigned' | 'skipped';
+
+export interface DraftStatusResponse {
+  selections: Array<{
+    leagueMemberId: string;
+    displayName: string;
+    selectionOrder: number;
+    chosenDraftPosition: number | null;
+    status: SelectionStatus;
+    remindersSent: number;
+    derivedFrom: SelectionDerivation;
+  }>;
+  availablePositions: number[];
+  /** Null when nobody's turn is open — before the order is computed, or after all picks. */
+  currentTurn: { leagueMemberId: string; displayName: string; isYou: boolean } | null;
+  finalOrder: Array<{
+    draftPosition: number;
+    leagueMemberId: string | null;
+    displayName: string | null;
+  }>;
+  complete: boolean;
+  missingPositions: number[];
+  /** Always false. Yahoo documents no endpoint that sets draft order. */
+  yahooWriteSupported: boolean;
+  note: string;
+}
+
+// --------------------------------------------------------------------------
+// League members — Dinkel's own roster of people, mapped to Yahoo teams
+// --------------------------------------------------------------------------
+
+export interface LeagueMemberRecord {
+  leagueMemberId: string;
+  seasonYear: number;
+  userId: string | null;
+  /**
+   * Dinkel's own name for this person: a portal user's confirmed display name, or
+   * a name the commissioner typed. Never a Yahoo nickname.
+   */
+  displayName: string;
+  yahooTeamKey: string | null;
+  isActive: boolean;
+}
+
+export interface LeagueMembersResponse {
+  members: LeagueMemberRecord[];
+}
+
+export interface PortalUserSummary {
+  userId: string;
+  displayName: string;
+  role: 'commissioner' | 'manager' | 'readonly';
+  status: string;
+}
+
+export interface PortalUsersResponse {
+  users: PortalUserSummary[];
+}

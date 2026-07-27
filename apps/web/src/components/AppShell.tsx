@@ -27,6 +27,8 @@ import CloudSyncIcon from '@mui/icons-material/CloudSyncRounded';
 import HistoryIcon from '@mui/icons-material/HistoryRounded';
 import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import SwapHorizIcon from '@mui/icons-material/SwapHorizRounded';
+import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounded';
+import SportsBaseballIcon from '@mui/icons-material/SportsBaseballRounded';
 import SettingsIcon from '@mui/icons-material/SettingsRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
@@ -78,12 +80,14 @@ const NAV_ITEMS: NavItem[] = [
  * item would shrink all of them below a comfortable tap target.
  */
 const MEMBER_ITEMS: Array<{ label: string; to: string; icon: React.ReactNode }> = [
+  { label: 'Draft order', to: '/draft', icon: <FormatListNumberedIcon /> },
   { label: 'Transactions', to: '/transactions', icon: <SwapHorizIcon /> },
 ];
 
 /** Administrative screens, reached from the account menu. */
 const COMMISSIONER_ITEMS: Array<{ label: string; to: string; icon: React.ReactNode }> = [
   { label: 'Commissioner tools', to: '/commissioner', icon: <SettingsIcon /> },
+  { label: 'LLWS draft setup', to: '/commissioner/llws', icon: <SportsBaseballIcon /> },
   { label: 'Yahoo status', to: '/yahoo-capabilities', icon: <CloudSyncIcon /> },
   { label: 'Audit history', to: '/audit', icon: <HistoryIcon /> },
 ];
