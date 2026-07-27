@@ -99,3 +99,23 @@ jobs:
 
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
+
+      # Recorded so a known-and-accepted advisory is a stated decision rather
+      # than something that quietly scrolled past in a log.
+      - name: Note accepted advisories
+        if: always()
+        run: |
+          cat <<'NOTE'
+          Accepted advisory: GHSA-qwww-vcr4-c8h2 (react-router, RSC Mode CSRF Bypass).
+
+          Not applicable here. It affects React Router's unstable RSC server mode;
+          this frontend is a client-only SPA using BrowserRouter, with no RSC, no
+          server-side loaders, and no router-handled actions. Every request that
+          changes state goes through the API's own double-submit CSRF check.
+
+          No fixed release exists in the 7.x line and 8.x is unpublished, so the
+          only "fix" npm offers is 7.11.0 — which sits inside a far broader
+          advisory range (6.0.0 - 7.17.0) and would be a net regression.
+
+          Revisit when react-router >8.2.0 ships.
+          NOTE

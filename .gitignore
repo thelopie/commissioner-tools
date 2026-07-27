@@ -1,13 +1,14 @@
-# Dependencies
+﻿# Dependencies
 node_modules/
 
 # Build output
 dist/
+dist-types/
 build/
 *.tsbuildinfo
 .vite/
 
-# Environment — never commit real credentials
+# Environment â€” never commit real credentials
 .env
 .env.*
 !.env.example

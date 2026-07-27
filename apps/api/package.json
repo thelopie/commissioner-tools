@@ -20,7 +20,7 @@
     "@dinkel/draft-order": "*",
     "@dinkel/shared": "*",
     "@dinkel/yahoo-client": "*",
-    "@hono/node-server": "^1.13.7",
+    "@hono/node-server": "^2.0.12",
     "hono": "^4.6.14",
     "zod": "^3.24.1"
   },

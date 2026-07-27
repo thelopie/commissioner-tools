@@ -411,6 +411,17 @@ Full detail in [PRIVACY.md](PRIVACY.md).
 - Explicit single-origin CORS allowlist — no wildcard, no origin reflection.
 - Dependency audit in CI.
 
+### Accepted advisory
+
+`GHSA-qwww-vcr4-c8h2` (react-router, RSC Mode CSRF Bypass) is knowingly accepted.
+It affects React Router's unstable RSC server mode; this frontend is a client-only
+SPA using `BrowserRouter` with no RSC, no server-side loaders, and no
+router-handled actions, and every state-changing request goes through the API's own
+double-submit CSRF check. No fixed release exists in the 7.x line and 8.x is
+unpublished, so npm's only suggested "fix" is 7.11.0 — which falls inside a much
+broader advisory range (`6.0.0 - 7.17.0`) and would be a net regression. Revisit
+when react-router past 8.2.0 ships.
+
 ---
 
 ## Current limitations

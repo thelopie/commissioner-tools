@@ -10,11 +10,9 @@
     "deploy": "cdk deploy",
     "destroy": "cdk destroy"
   },
-  "dependencies": {
+  "devDependencies": {
+    "aws-cdk": "^2.173.1",
     "aws-cdk-lib": "^2.173.4",
     "constructs": "^10.4.2"
-  },
-  "devDependencies": {
-    "aws-cdk": "^2.173.1"
   }
 }
