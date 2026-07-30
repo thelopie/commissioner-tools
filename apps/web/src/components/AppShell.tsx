@@ -30,6 +30,7 @@ import SwapHorizIcon from '@mui/icons-material/SwapHorizRounded';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounded';
 import SportsBaseballIcon from '@mui/icons-material/SportsBaseballRounded';
 import CampaignIcon from '@mui/icons-material/CampaignRounded';
+import ArticleIcon from '@mui/icons-material/ArticleRounded';
 import PaymentsIcon from '@mui/icons-material/PaymentsRounded';
 import ChecklistIcon from '@mui/icons-material/ChecklistRounded';
 import SettingsIcon from '@mui/icons-material/SettingsRounded';
@@ -84,6 +85,7 @@ const NAV_ITEMS: NavItem[] = [
  */
 const MEMBER_ITEMS: Array<{ label: string; to: string; icon: React.ReactNode }> = [
   { label: 'Announcements', to: '/announcements', icon: <CampaignIcon /> },
+  { label: 'Recaps', to: '/recaps', icon: <ArticleIcon /> },
   { label: 'Dues and prizes', to: '/money', icon: <PaymentsIcon /> },
   { label: 'Draft order', to: '/draft', icon: <FormatListNumberedIcon /> },
   { label: 'Transactions', to: '/transactions', icon: <SwapHorizIcon /> },

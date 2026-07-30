@@ -39,6 +39,16 @@ export const internalIdSchema = z
   .brand<'InternalId'>();
 export type InternalId = z.infer<typeof internalIdSchema>;
 
+/**
+ * The actor recorded when a schedule did something, not a person.
+ *
+ * Audit and `createdBy` fields require an id, and a scheduled job has no user. A
+ * reserved all-zero ULID keeps those fields honestly typed while being obviously
+ * not an account — it cannot collide with a generated id, and a reader seeing it in
+ * an audit row can tell at a glance that nobody clicked anything.
+ */
+export const SYSTEM_ACTOR_ID = '00000000000000000000000000' as InternalId;
+
 /** An NFL season year, e.g. 2026. */
 export const seasonYearSchema = z.number().int().min(1990).max(2100);
 export type SeasonYear = z.infer<typeof seasonYearSchema>;

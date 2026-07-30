@@ -15,6 +15,7 @@ import { leagueOpsRoutes } from './routes/league-ops.js';
 import { challengeRoutes } from './routes/challenges.js';
 import { draftRoutes } from './routes/draft.js';
 import { importRoutes } from './routes/imports.js';
+import { recapRoutes } from './routes/recaps.js';
 
 /**
  * Application assembly.
@@ -216,6 +217,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   app.route('/', challengeRoutes);
   app.route('/', draftRoutes);
   app.route('/', importRoutes);
+  app.route('/', recapRoutes);
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: 'No such endpoint.' } }, 404));
 

@@ -18,6 +18,7 @@ import {
   type DuesResponse,
   type PayoutsResponse,
   type PrizeRulesResponse,
+  type RecapsResponse,
   type TasksResponse,
   type ChallengeResultsResponse,
   type DraftStatusResponse,
@@ -45,6 +46,7 @@ export const queryKeys = {
   prizeRules: (seasonYear: number) => ['prize-rules', seasonYear] as const,
   tasks: ['tasks'] as const,
   announcements: ['announcements'] as const,
+  recaps: (seasonYear: number) => ['recaps', seasonYear] as const,
   challengeResults: (seasonYear: number, week: number) =>
     ['challenges', 'results', seasonYear, week] as const,
   me: ['league', 'me'] as const,
@@ -812,6 +814,54 @@ export function useSavePrizeRule(seasonYear: number | null) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.prizeRules(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+// --------------------------------------------------------------------------
+// Weekly recaps
+// --------------------------------------------------------------------------
+
+export function useRecaps(seasonYear: number | null): UseQueryResult<RecapsResponse> {
+  return useQuery({
+    queryKey: queryKeys.recaps(seasonYear ?? 0),
+    queryFn: () => api.get<RecapsResponse>(`/api/recaps/${seasonYear}`),
+    enabled: seasonYear !== null,
+  });
+}
+
+/**
+ * Drafts a week's recap now rather than waiting for the schedule.
+ *
+ * Calls the same builder the Tuesday job calls, so a manual draft and a scheduled
+ * one cannot produce different recaps.
+ */
+export function useDraftRecap(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (week: number) =>
+      api.post<{ recap: unknown }>(`/api/recaps/${seasonYear}/${week}/draft`, {}),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.recaps(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+/** Publishes a reviewed recap, or sends it back to draft. */
+export function usePublishRecap(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: { week: number; body?: string; publish: boolean }) =>
+      api.post<{ ok: boolean; status: string }>(`/api/recaps/${seasonYear}/${input.week}/publish`, {
+        ...(input.body === undefined ? {} : { body: input.body }),
+        publish: input.publish,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.recaps(seasonYear ?? 0) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
   });

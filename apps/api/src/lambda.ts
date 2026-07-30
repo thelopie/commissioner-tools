@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import { handle } from 'hono/aws-lambda';
 import { createApp, loadConfig } from './app.js';
 import { createLogger, describeError } from './lib/logger.js';
+import { runScheduledJob } from './jobs/runner.js';
+import { isScheduledJobEvent } from './jobs/types.js';
 
 /**
  * Lambda entry point.
@@ -48,4 +50,26 @@ function build(): Hono {
   }
 }
 
-export const handler = handle(build());
+const httpHandler = handle(build());
+
+/**
+ * The Lambda handler, for HTTP requests and for scheduled jobs.
+ *
+ * Six EventBridge rules invoke this same function with `{source: 'scheduled-job'}`.
+ * Before this branch existed they were dispatched straight into the HTTP adapter,
+ * which has no idea what to do with them — so every scheduled rule would have failed
+ * from the moment the stack was deployed, weekly, silently, forever.
+ *
+ * A job's failure is rethrown by the runner and left to propagate here, because that
+ * is what routes the invocation to the dead-letter queue.
+ */
+export const handler = async (event: unknown, lambdaContext?: unknown): Promise<unknown> => {
+  if (isScheduledJobEvent(event)) {
+    return runScheduledJob(event);
+  }
+
+  return (httpHandler as (event: unknown, context?: unknown) => Promise<unknown>)(
+    event,
+    lambdaContext,
+  );
+};

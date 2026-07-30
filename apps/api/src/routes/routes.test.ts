@@ -2180,6 +2180,163 @@ describe('prize rules', () => {
   });
 });
 
+describe('weekly recaps', () => {
+  async function linkedLeague(): Promise<{
+    jar: Record<string, string>;
+    auth: Record<string, string>;
+  }> {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    return { jar, auth };
+  }
+
+  /**
+   * The fact pack is the whole design: every number in a recap is computed here, in
+   * code, and a model — when one is used at all — is given only the finished list.
+   * A recap with no facts would mean the prose had nothing to be accountable to.
+   */
+  it('drafts a recap whose facts are computed, not written', async () => {
+    const { jar, auth } = await linkedLeague();
+
+    const drafted = await app.request('/api/recaps/2026/2/draft', {
+      method: 'POST',
+      headers: auth,
+    });
+    expect(drafted.status).toBe(200);
+
+    const recap = (await drafted.json()).recap;
+    expect(recap.facts.length).toBeGreaterThan(0);
+    expect(recap.templateBody).toContain('Week 2');
+
+    // Never published by drafting, whether a person or a schedule asked for it.
+    expect(recap.status).toBe('draft');
+
+    const listed = await (
+      await app.request('/api/recaps/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+    expect(listed.recaps).toHaveLength(1);
+    expect(listed.note).toContain('Nothing is emailed');
+  });
+
+  it('produces a readable recap with no model involved', async () => {
+    // No ANTHROPIC_API_KEY in the test environment, so this is the no-prose path —
+    // which must still yield a complete recap rather than an empty one.
+    const { auth } = await linkedLeague();
+
+    const drafted = await app.request('/api/recaps/2026/2/draft', {
+      method: 'POST',
+      headers: auth,
+    });
+    const recap = (await drafted.json()).recap;
+
+    expect(recap.proseBody).toBeNull();
+    expect(recap.templateBody.length).toBeGreaterThan(20);
+  });
+
+  it('hides drafts from members until they are published', async () => {
+    const { auth } = await linkedLeague();
+    await app.request('/api/recaps/2026/2/draft', { method: 'POST', headers: auth });
+
+    // Demote and look again: an unreviewed recap is not league communication, and
+    // prose nobody has read is exactly what not to show by accident.
+    const user = table.ofEntity('PortalUser')[0]!;
+    await table.put({ ...user, role: 'manager', isPrimaryCommissioner: false });
+
+    const memberJar = await signIn();
+    const asMember = await (
+      await app.request('/api/recaps/2026', { headers: { Cookie: cookieHeader(memberJar) } })
+    ).json();
+
+    expect(asMember.recaps).toHaveLength(0);
+  });
+
+  it('publishes the reviewed text, not the draft it started from', async () => {
+    const { jar, auth } = await linkedLeague();
+    await app.request('/api/recaps/2026/2/draft', { method: 'POST', headers: auth });
+
+    const published = await app.request('/api/recaps/2026/2/publish', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ body: 'A commissioner rewrote this bit.', publish: true }),
+    });
+    expect(published.status).toBe(200);
+
+    const listed = await (
+      await app.request('/api/recaps/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(listed.recaps[0].status).toBe('published');
+    expect(listed.recaps[0].proseBody).toBe('A commissioner rewrote this bit.');
+  });
+
+  it('refuses to redraft over something the league has already read', async () => {
+    const { auth } = await linkedLeague();
+    await app.request('/api/recaps/2026/2/draft', { method: 'POST', headers: auth });
+    await app.request('/api/recaps/2026/2/publish', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ publish: true }),
+    });
+
+    const again = await app.request('/api/recaps/2026/2/draft', { method: 'POST', headers: auth });
+
+    expect(again.status).toBe(409);
+    expect((await again.json()).error.message).toContain('already published');
+  });
+
+  it('lets a commissioner take a recap back to draft', async () => {
+    const { jar, auth } = await linkedLeague();
+    await app.request('/api/recaps/2026/2/draft', { method: 'POST', headers: auth });
+    await app.request('/api/recaps/2026/2/publish', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ publish: true }),
+    });
+
+    await app.request('/api/recaps/2026/2/publish', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ publish: false }),
+    });
+
+    const listed = await (
+      await app.request('/api/recaps/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+    expect(listed.recaps[0].status).toBe('draft');
+  });
+
+  it('never persists a Yahoo team name outside the recap facts', async () => {
+    const { auth } = await linkedLeague();
+    await app.request('/api/recaps/2026/2/draft', { method: 'POST', headers: auth });
+
+    /**
+     * A recap fact is a derived label — "Highest score: Dovetail Dynasty, 141.8" —
+     * which the retention rules permit, and which is what lets a 2019 recap still
+     * read correctly. Nothing ELSE durable may carry a Yahoo name.
+     */
+    const durable = table
+      .all()
+      .filter((item) => item['entity'] !== 'YahooCacheEntry' && item['entity'] !== 'LeagueRecap');
+
+    expect(JSON.stringify(durable)).not.toContain('Dovetail Dynasty');
+  });
+});
+
 describe('CSV import', () => {
   it('previews without writing, and reports what would happen', async () => {
     const jar = await signInAsCommissioner();

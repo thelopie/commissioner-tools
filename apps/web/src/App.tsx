@@ -13,6 +13,7 @@ import { LlwsPage } from './pages/LlwsPage.js';
 import { MoneyPage } from './pages/MoneyPage.js';
 import { AnnouncementsPage } from './pages/AnnouncementsPage.js';
 import { TasksPage } from './pages/TasksPage.js';
+import { RecapsPage } from './pages/RecapsPage.js';
 import { TransactionsPage } from './pages/TransactionsPage.js';
 import { StandingsPage } from './pages/StandingsPage.js';
 import { SignInPage } from './pages/SignInPage.js';
@@ -125,6 +126,10 @@ export function App(): JSX.Element {
           <Route
             path="/money"
             element={authenticated ? <MoneyPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/recaps"
+            element={authenticated ? <RecapsPage /> : <Navigate to="/signin" replace />}
           />
           <Route
             path="/announcements"

@@ -693,3 +693,37 @@ export interface PrizeRulesResponse {
   rules: PrizeRule[];
   note: string;
 }
+
+// --------------------------------------------------------------------------
+// Weekly recaps
+// --------------------------------------------------------------------------
+
+/** One computed fact. Every number in a recap comes from this list. */
+export interface RecapFact {
+  key: string;
+  label: string;
+  /** Already formatted by the API; the client never does recap arithmetic. */
+  value: string;
+  leagueMemberId?: string;
+}
+
+export interface LeagueRecap {
+  recapId: string;
+  seasonYear: number;
+  week: number;
+  facts: RecapFact[];
+  /** Deterministic prose assembled from the facts. Always present. */
+  templateBody: string;
+  /** Model-written prose, when generation is enabled. Null otherwise. */
+  proseBody: string | null;
+  proseModel?: string;
+  status: 'draft' | 'in_review' | 'published' | 'archived';
+  publishedAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface RecapsResponse {
+  recaps: LeagueRecap[];
+  note: string;
+}

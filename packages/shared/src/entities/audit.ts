@@ -52,6 +52,7 @@ export const auditActionSchema = z.enum([
   'challenge.definition_created',
   'challenge.definition_updated',
   'challenge.calculated',
+  'recap.drafted',
   'challenge.recalculated',
   'challenge.finalized',
   'challenge.overridden',
@@ -80,6 +81,7 @@ export const auditActionSchema = z.enum([
   'announcement.published',
   'recap.generated',
   'recap.published',
+  'recap.returned_to_draft',
 
   // Scheduled work
   'scheduled_job.started',
