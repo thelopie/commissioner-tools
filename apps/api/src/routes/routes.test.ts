@@ -1312,6 +1312,112 @@ describe('LLWS draft-order workflow', () => {
     expect(asMember.assignments).toHaveLength(0);
   });
 
+  /**
+   * The prior-season tiebreaker, end to end.
+   *
+   * `worse_prior_season_finish` is the DEFAULT tiebreaker for the selection order and
+   * its only input is the previous season's `finalFinishOrder`. Until there was a way
+   * to record that, the rule had nothing to compare and every tie fell through to the
+   * random seed — which looks like it worked, and is not the rule the league agreed.
+   *
+   * Two managers whose LLWS teams finish level must be separated by last season, with
+   * the WORSE prior finish choosing first.
+   */
+  it('separates a tie by last season, worst finisher choosing first', async () => {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    for (const name of ['Champion', 'WoodenSpoon']) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: name }),
+      });
+    }
+
+    const members = (
+      await (
+        await app.request('/api/league/members?seasonYear=2026', {
+          headers: { Cookie: cookieHeader(jar) },
+        })
+      ).json()
+    ).members as Array<{ leagueMemberId: string; displayName: string }>;
+
+    const champion = members.find((m) => m.displayName === 'Champion')!;
+    const spoon = members.find((m) => m.displayName === 'WoodenSpoon')!;
+
+    // Last season: Champion first, WoodenSpoon last.
+    const saved = await app.request('/api/seasons/2025', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({
+        finalFinishOrder: [champion.leagueMemberId, spoon.leagueMemberId],
+      }),
+    });
+    expect(saved.status).toBe(200);
+
+    await app.request('/api/llws/2026/teams', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ teams: [{ name: 'Region A' }, { name: 'Region B' }] }),
+    });
+    await app.request('/api/llws/2026/draw', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ seed: 'llws-2026:tiebreak' }),
+    });
+
+    // Both LLWS teams go out at the same stage, so the finishes cannot separate them.
+    const teams = (
+      await (
+        await app.request('/api/llws/2026/teams', { headers: { Cookie: cookieHeader(jar) } })
+      ).json()
+    ).teams as Array<{ llwsTeamId: string }>;
+
+    for (const team of teams) {
+      await app.request(`/api/llws/2026/teams/${team.llwsTeamId}/finish`, {
+        method: 'PUT',
+        headers: auth,
+        body: JSON.stringify({ finishRank: 3 }),
+      });
+    }
+
+    await app.request('/api/draft/2026/selection-order', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ tieBreakers: ['worse_prior_season_finish'] }),
+    });
+
+    const status = await (
+      await app.request('/api/draft/2026/status', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const ordered = [...status.selections].sort(
+      (a: { selectionOrder: number }, b: { selectionOrder: number }) =>
+        a.selectionOrder - b.selectionOrder,
+    );
+
+    // Worse last season chooses first. Without the recorded order this would be
+    // whatever the seed happened to produce.
+    expect(ordered[0].displayName).toBe('WoodenSpoon');
+    expect(ordered[1].displayName).toBe('Champion');
+    expect(ordered[0].derivedFrom.appliedTieBreaker).toBe('worse_prior_season_finish');
+  });
+
   it('refuses to redraw over an existing draw without explicit confirmation', async () => {
     const jar = await signInAsCommissioner();
     const auth = {

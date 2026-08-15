@@ -19,6 +19,7 @@ import {
   type PayoutsResponse,
   type PrizeRulesResponse,
   type RecapsResponse,
+  type SeasonsResponse,
   type TasksResponse,
   type ChallengeResultsResponse,
   type DraftStatusResponse,
@@ -46,6 +47,7 @@ export const queryKeys = {
   prizeRules: (seasonYear: number) => ['prize-rules', seasonYear] as const,
   tasks: ['tasks'] as const,
   announcements: ['announcements'] as const,
+  seasons: ['seasons'] as const,
   recaps: (seasonYear: number) => ['recaps', seasonYear] as const,
   challengeResults: (seasonYear: number, week: number) =>
     ['challenges', 'results', seasonYear, week] as const,
@@ -864,5 +866,40 @@ export function usePublishRecap(seasonYear: number | null) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.recaps(seasonYear ?? 0) });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
+  });
+}
+
+/**
+ * Records how last season finished, best first.
+ *
+ * This is the only input the `worse_prior_season_finish` tiebreaker has, and it is
+ * the DEFAULT tiebreaker for the draft selection order. Without it that rule has
+ * nothing to compare and every tie falls straight through to seeded random — which
+ * looks like it worked, and quietly is not the rule the league agreed.
+ *
+ * Stored against the prior season, using this season's member IDs: a person keeps
+ * one league member ID across seasons, which is what lets a 2025 finish still be
+ * matched to the same person in 2026.
+ */
+export function useSavePriorFinishOrder(priorSeasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (leagueMemberIdsBestFirst: string[]) =>
+      api.put<{ season: unknown }>(`/api/seasons/${priorSeasonYear}`, {
+        finalFinishOrder: leagueMemberIdsBestFirst,
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.seasons });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+export function usePriorSeason(priorSeasonYear: number | null): UseQueryResult<SeasonsResponse> {
+  return useQuery({
+    queryKey: queryKeys.seasons,
+    queryFn: () => api.get<SeasonsResponse>('/api/seasons'),
+    enabled: priorSeasonYear !== null,
   });
 }

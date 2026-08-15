@@ -28,6 +28,9 @@ import { Link as RouterLink } from 'react-router-dom';
 import {
   useAddLlwsTeams,
   useAssignments,
+  useLeagueMembers,
+  usePriorSeason,
+  useSavePriorFinishOrder,
   useComputeSelectionOrder,
   useDraftStatus,
   useDrawAssignments,
@@ -40,6 +43,7 @@ import {
 } from '../hooks.js';
 import type { LLWSAssignmentView } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
+import { useNotify } from '../components/SnackbarProvider.js';
 import { EmptyState, PageHeader, SectionHeader } from '../components/primitives.js';
 
 /**
@@ -122,6 +126,8 @@ export function LlwsPage(): JSX.Element {
       />
 
       <StepFinishes seasonYear={seasonYear} />
+
+      <StepPriorFinish seasonYear={seasonYear} />
 
       <StepSelectionOrder
         seasonYear={seasonYear}
@@ -631,6 +637,139 @@ function FinishRow({
         </Button>
       </Grid>
     </Grid>
+  );
+}
+
+/**
+ * Last season's finishing order.
+ *
+ * The `worse_prior_season_finish` tiebreaker is the DEFAULT for the selection order,
+ * and this is its only input. Without it the rule has nothing to compare, so every
+ * tie falls straight through to seeded random — which looks like it worked and
+ * quietly is not the rule the league agreed.
+ *
+ * Ranked against THIS season's members on purpose: a person keeps one league member
+ * ID across seasons, which is what lets a 2025 finish be matched to the same person
+ * in 2026 long after Yahoo's own standings have expired.
+ */
+function StepPriorFinish({ seasonYear }: { seasonYear: number }): JSX.Element {
+  const priorYear = seasonYear - 1;
+  const members = useLeagueMembers(seasonYear);
+  const seasons = usePriorSeason(priorYear);
+  const save = useSavePriorFinishOrder(priorYear);
+  const notify = useNotify();
+
+  const list = members.data?.members ?? [];
+  const stored =
+    seasons.data?.seasons.find((season) => season.seasonYear === priorYear)?.finalFinishOrder ?? [];
+
+  /** Rank per member, seeded from whatever was stored before. */
+  const [ranks, setRanks] = useState<Record<string, string>>({});
+
+  const rankOf = (leagueMemberId: string): string => {
+    if (ranks[leagueMemberId] !== undefined) return ranks[leagueMemberId]!;
+    const index = stored.indexOf(leagueMemberId);
+    return index === -1 ? '' : String(index + 1);
+  };
+
+  const entered = list
+    .map((member) => ({ member, rank: Number(rankOf(member.leagueMemberId)) }))
+    .filter((entry) => Number.isInteger(entry.rank) && entry.rank > 0);
+
+  const duplicates =
+    new Set(entered.map((entry) => entry.rank)).size !== entered.length && entered.length > 0;
+
+  const canSave = entered.length > 0 && !duplicates;
+
+  return (
+    <Box>
+      <SectionHeader
+        title={`3b · ${priorYear} finish`}
+        count={stored.length}
+        action={
+          stored.length > 0 ? <Chip size="small" color="success" label="recorded" /> : undefined
+        }
+      />
+
+      <Card>
+        <CardContent>
+          <Stack spacing={2}>
+            <Typography variant="body2" color="text.secondary">
+              Rank 1 is last season&rsquo;s champion. This is what the &ldquo;worse prior season
+              finish&rdquo; tiebreaker compares when two managers&rsquo; LLWS teams go out together
+              — without it, those ties are settled by the random seed instead.
+            </Typography>
+
+            {list.length === 0 ? (
+              <Alert severity="info">Map Yahoo teams to members first.</Alert>
+            ) : (
+              <Stack divider={<Divider flexItem />}>
+                {list.map((member) => (
+                  <Stack
+                    key={member.leagueMemberId}
+                    direction="row"
+                    spacing={1.5}
+                    alignItems="center"
+                    sx={{ py: 1 }}
+                  >
+                    <Typography
+                      variant="body2"
+                      sx={{ fontWeight: 600, flexGrow: 1, minWidth: 0 }}
+                      noWrap
+                    >
+                      {member.displayName}
+                    </Typography>
+
+                    <TextField
+                      size="small"
+                      label="Finish"
+                      value={rankOf(member.leagueMemberId)}
+                      onChange={(event) =>
+                        setRanks((previous) => ({
+                          ...previous,
+                          [member.leagueMemberId]: event.target.value,
+                        }))
+                      }
+                      sx={{ width: 110 }}
+                    />
+                  </Stack>
+                ))}
+              </Stack>
+            )}
+
+            {duplicates && (
+              <Alert severity="error">
+                Two managers share a finishing position. One of them has to be ahead, or the
+                tiebreaker cannot separate them.
+              </Alert>
+            )}
+
+            <Box>
+              <Button
+                variant="contained"
+                disabled={!canSave || save.isPending}
+                onClick={() => {
+                  // Stored best-first, which is the order the tiebreaker reads.
+                  const ordered = [...entered]
+                    .sort((a, b) => a.rank - b.rank)
+                    .map((entry) => entry.member.leagueMemberId);
+
+                  save.mutate(ordered, {
+                    onSuccess: () =>
+                      notify(`Recorded the ${priorYear} finishing order.`, 'success'),
+                    onError: (error) => notify(error.message, 'error'),
+                  });
+                }}
+              >
+                {save.isPending ? 'Saving…' : `Save the ${priorYear} order`}
+              </Button>
+            </Box>
+
+            {save.isError && <ErrorNotice error={save.error} hideRetry />}
+          </Stack>
+        </CardContent>
+      </Card>
+    </Box>
   );
 }
 

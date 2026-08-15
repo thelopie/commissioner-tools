@@ -753,3 +753,18 @@ export interface RecapsResponse {
   recaps: LeagueRecap[];
   note: string;
 }
+
+export interface SeasonSummary {
+  seasonYear: number;
+  status: string;
+  teamCount?: number;
+  /**
+   * Best-first order of league member IDs. Dinkel's own record, so a draft
+   * tiebreaker still works years after Yahoo's data has expired.
+   */
+  finalFinishOrder: string[];
+}
+
+export interface SeasonsResponse {
+  seasons: SeasonSummary[];
+}
