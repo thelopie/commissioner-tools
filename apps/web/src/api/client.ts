@@ -409,8 +409,34 @@ export interface LLWSAssignmentRecord {
   publishedAt?: string;
 }
 
+/** One manager's drawn team, resolved to names by the API. */
+export interface LLWSAssignmentView {
+  assignmentId: string;
+  leagueMemberId: string;
+  displayName: string;
+  llwsTeamId: string;
+  teamName: string;
+  region: string | null;
+  bracket: 'united_states' | 'international' | 'unknown';
+  /** Set once the commissioner records how far the team got. */
+  finishRank: number | null;
+  finishLabel: string | null;
+  randomizationSeed: string;
+  publishedAt: string | null;
+  isYou: boolean;
+}
+
 export interface AssignmentsResponse {
-  assignments: LLWSAssignmentRecord[];
+  assignments: LLWSAssignmentView[];
+  /** Teams nobody drew. Normal when the field is bigger than the league. */
+  undrawnTeams: Array<{
+    llwsTeamId: string;
+    name: string;
+    region: string | null;
+    bracket: string;
+  }>;
+  /** Managers with no team — a setup mistake, not a normal case. */
+  unassignedManagers: Array<{ leagueMemberId: string; displayName: string }>;
   published: boolean;
   seed: string | null;
 }

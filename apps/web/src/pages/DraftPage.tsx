@@ -25,7 +25,14 @@ import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounde
 import PrintIcon from '@mui/icons-material/PrintRounded';
 import LockIcon from '@mui/icons-material/LockRounded';
 import HourglassIcon from '@mui/icons-material/HourglassEmptyRounded';
-import { useDraftStatus, useLeagueOverview, useSelectDraftPosition, useSession } from '../hooks.js';
+import SportsBaseballIcon from '@mui/icons-material/SportsBaseballRounded';
+import {
+  useAssignments,
+  useDraftStatus,
+  useLeagueOverview,
+  useSelectDraftPosition,
+  useSession,
+} from '../hooks.js';
 import type { DraftStatusResponse } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { EmptyState, Monogram, PageHeader, SectionHeader } from '../components/primitives.js';
@@ -48,6 +55,13 @@ export function DraftPage(): JSX.Element {
   const status = useDraftStatus(seasonYear);
   const select = useSelectDraftPosition(seasonYear);
 
+  const assignments = useAssignments(seasonYear);
+
+  /** The signed-in manager's own LLWS team, once the draw is published. */
+  const yourAssignment = (assignments.data?.assignments ?? []).find(
+    (assignment) => assignment.isYou && assignment.publishedAt !== null,
+  );
+
   const [pending, setPending] = useState<number | null>(null);
 
   /** Set when a commissioner is choosing on someone else's behalf. */
@@ -58,6 +72,28 @@ export function DraftPage(): JSX.Element {
 
   const isCommissioner = session.data?.user?.role === 'commissioner';
   const yourTurn = status.data?.currentTurn?.isYou === true;
+
+  /**
+   * Rendered in the empty state as well as the board.
+   *
+   * Between publishing the draw and the tournament finishing there is no selection
+   * order yet — which is exactly the stretch when a manager most wants to know which
+   * team they got. Showing this only once the queue exists would hide it for the
+   * fortnight it matters most.
+   */
+  const drawnTeamBanner = yourAssignment ? (
+    <Alert severity="success" icon={<SportsBaseballIcon />} className="no-print">
+      <AlertTitle>
+        You drew {yourAssignment.teamName}
+        {yourAssignment.region ? ` · ${yourAssignment.region}` : ''}
+      </AlertTitle>
+      {yourAssignment.finishRank === null
+        ? 'How far they go decides when you choose your draft slot.'
+        : `They finished ${yourAssignment.finishRank}${
+            yourAssignment.finishLabel ? ` — ${yourAssignment.finishLabel}` : ''
+          }.`}
+    </Alert>
+  ) : null;
 
   if (status.isLoading || overview.isLoading) {
     return (
@@ -83,6 +119,7 @@ export function DraftPage(): JSX.Element {
     return (
       <Stack spacing={3}>
         <PageHeader title="Draft order" />
+        {drawnTeamBanner}
         <EmptyState
           icon={<FormatListNumberedIcon />}
           title="The selection order has not been set yet"
@@ -173,6 +210,8 @@ export function DraftPage(): JSX.Element {
           }
         />
       </Box>
+
+      {drawnTeamBanner}
 
       {yourTurn && (
         <Card

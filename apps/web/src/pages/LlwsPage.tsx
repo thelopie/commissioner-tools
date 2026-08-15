@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   Alert,
+  AlertTitle,
   Box,
   Button,
   Card,
@@ -37,6 +38,7 @@ import {
   useRemindCurrentTurn,
   useVerifyDraw,
 } from '../hooks.js';
+import type { LLWSAssignmentView } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { EmptyState, PageHeader, SectionHeader } from '../components/primitives.js';
 
@@ -114,6 +116,9 @@ export function LlwsPage(): JSX.Element {
         published={published}
         seed={assignments.data?.seed ?? null}
         teamCount={teamList.length}
+        assignments={assignments.data?.assignments ?? []}
+        undrawnTeams={assignments.data?.undrawnTeams ?? []}
+        unassignedManagers={assignments.data?.unassignedManagers ?? []}
       />
 
       <StepFinishes seasonYear={seasonYear} />
@@ -252,12 +257,18 @@ function StepDraw({
   published,
   seed,
   teamCount,
+  assignments,
+  undrawnTeams,
+  unassignedManagers,
 }: {
   seasonYear: number;
   hasDraw: boolean;
   published: boolean;
   seed: string | null;
   teamCount: number;
+  assignments: LLWSAssignmentView[];
+  undrawnTeams: Array<{ llwsTeamId: string; name: string; region: string | null }>;
+  unassignedManagers: Array<{ leagueMemberId: string; displayName: string }>;
 }): JSX.Element {
   const draw = useDrawAssignments(seasonYear);
   const publish = usePublishAssignments(seasonYear);
@@ -371,6 +382,104 @@ function StepDraw({
               <Alert severity="info">
                 Published. Redrawing now would change a manager&rsquo;s team after they were told
                 what it was, so the API refuses it without a recorded override.
+              </Alert>
+            )}
+
+            {/*
+              The draw itself.
+              Nothing rendered this before, which meant the one thing the whole step
+              exists to produce — who got which team — was invisible in the portal.
+            */}
+            {assignments.length > 0 && (
+              <Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: 'text.secondary',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    fontWeight: 700,
+                  }}
+                >
+                  Who drew what
+                </Typography>
+
+                <Stack divider={<Divider flexItem />} sx={{ mt: 0.5 }}>
+                  {assignments.map((assignment) => (
+                    <Stack
+                      key={assignment.assignmentId}
+                      direction="row"
+                      spacing={1.5}
+                      alignItems="center"
+                      sx={{ py: 1 }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, minWidth: 0, flexGrow: 1 }}
+                        noWrap
+                      >
+                        {assignment.displayName}
+                      </Typography>
+
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {assignment.teamName}
+                        {assignment.region ? ` · ${assignment.region}` : ''}
+                      </Typography>
+
+                      {assignment.finishRank !== null && (
+                        <Chip
+                          size="small"
+                          color="success"
+                          label={`finished ${assignment.finishRank}`}
+                        />
+                      )}
+                    </Stack>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {/*
+              Teams nobody drew.
+              With a twenty-team field and a twelve-team league this is the normal
+              case, not an error — but eight teams silently missing looks exactly
+              like eight teams the commissioner forgot to enter.
+            */}
+            {undrawnTeams.length > 0 && (
+              <Alert severity="info">
+                <AlertTitle>
+                  {undrawnTeams.length} team{undrawnTeams.length === 1 ? '' : 's'} nobody drew
+                </AlertTitle>
+                <Typography variant="body2" sx={{ mb: 1 }}>
+                  Expected when the field is bigger than the league. They take no part in the draft
+                  order.
+                </Typography>
+                <Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
+                  {undrawnTeams.map((team) => (
+                    <Chip
+                      key={team.llwsTeamId}
+                      size="small"
+                      variant="outlined"
+                      label={team.region ? `${team.name} · ${team.region}` : team.name}
+                    />
+                  ))}
+                </Stack>
+              </Alert>
+            )}
+
+            {/*
+              Managers with no team, which IS a mistake — somebody would be left out
+              of the draft order entirely.
+            */}
+            {hasDraw && unassignedManagers.length > 0 && (
+              <Alert severity="error">
+                <AlertTitle>
+                  {unassignedManagers.length} manager
+                  {unassignedManagers.length === 1 ? '' : 's'} drew nothing
+                </AlertTitle>
+                {unassignedManagers.map((manager) => manager.displayName).join(', ')} — the field
+                was smaller than the league. Add more teams and redraw before publishing, or they
+                will have no place in the draft order.
               </Alert>
             )}
 

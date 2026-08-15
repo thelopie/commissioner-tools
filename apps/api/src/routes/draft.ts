@@ -166,8 +166,83 @@ draftRoutes.get('/api/llws/:seasonYear/assignments', async (c) => {
   const published = assignments.filter((assignment) => assignment.publishedAt !== undefined);
   const visible = principal.role === 'commissioner' ? assignments : published;
 
+  /**
+   * Resolved to names, because IDs are not a draw result.
+   *
+   * The stored assignment is two ULIDs. Telling somebody they drew
+   * `01KYJ6Q45WA6JKRQZBF7KZ8W9W` is not telling them anything, and every client
+   * doing this join separately is how one of them ends up doing it wrong.
+   */
+  const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
+  const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
+
+  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
+  const users = await ctx.repositories.users.listByLeague(leagueId);
+  const userById = new Map(users.map((user) => [user.userId, user]));
+
+  const nameOf = (memberId: string): string => {
+    const member = members.find((candidate) => candidate.leagueMemberId === memberId);
+    if (!member) return '(former member)';
+    return (
+      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
+      member.legacyManagerName ??
+      '(unnamed manager)'
+    );
+  };
+
+  /** The member this viewer is, so the UI can lead with their own team. */
+  const ownMemberId = members.find((member) => member.userId === principal.userId)?.leagueMemberId;
+
+  const drawnTeamIds = new Set(assignments.map((assignment) => assignment.llwsTeamId));
+
   return c.json({
-    assignments: visible,
+    assignments: visible.map((assignment) => {
+      const team = teamById.get(assignment.llwsTeamId);
+      return {
+        assignmentId: assignment.assignmentId,
+        leagueMemberId: assignment.leagueMemberId,
+        displayName: nameOf(assignment.leagueMemberId),
+        llwsTeamId: assignment.llwsTeamId,
+        teamName: team?.name ?? '(unknown team)',
+        region: team?.region ?? null,
+        bracket: team?.bracket ?? 'unknown',
+        finishRank: team?.finishRank ?? null,
+        finishLabel: team?.finishLabel ?? null,
+        randomizationSeed: assignment.randomizationSeed,
+        publishedAt: assignment.publishedAt ?? null,
+        isYou: assignment.leagueMemberId === ownMemberId,
+      };
+    }),
+
+    /**
+     * Teams nobody drew.
+     *
+     * The LLWS field is twenty and a fantasy league is rarely that big, so this is
+     * the normal case rather than an error — but it has to be visible. Eight teams
+     * silently absent from the draw is indistinguishable from eight teams the
+     * commissioner forgot to enter.
+     */
+    undrawnTeams: teams
+      .filter((team) => !drawnTeamIds.has(team.llwsTeamId))
+      .map((team) => ({
+        llwsTeamId: team.llwsTeamId,
+        name: team.name,
+        region: team.region ?? null,
+        bracket: team.bracket,
+      })),
+
+    /** Managers with no team, which is a setup mistake rather than a normal case. */
+    unassignedManagers: members
+      .filter((member) => member.isActive)
+      .filter(
+        (member) =>
+          !assignments.some((assignment) => assignment.leagueMemberId === member.leagueMemberId),
+      )
+      .map((member) => ({
+        leagueMemberId: member.leagueMemberId,
+        displayName: nameOf(member.leagueMemberId),
+      })),
+
     published: published.length > 0,
     // The seed is deliberately visible so anyone can audit the draw.
     seed: visible[0]?.randomizationSeed ?? null,

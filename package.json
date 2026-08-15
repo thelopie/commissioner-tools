@@ -2,7 +2,7 @@
   "name": "commissioner-tools",
   "version": "0.1.0",
   "private": true,
-  "description": "Dinkel Portal — a private, noncommercial companion app for a Yahoo Fantasy Football league",
+  "description": "Dinkel Portal \u2014 a private, noncommercial companion app for a Yahoo Fantasy Football league",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -22,7 +22,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "build": "npm run build --workspaces --if-present",
-    "dev": "node scripts/dev.mjs",
+    "db:setup": "node scripts/ensure-local-table.mjs",
+    "dev": "npm run db:setup && node scripts/dev.mjs",
     "dev:api": "npm run dev --workspace @dinkel/api",
     "dev:web": "npm run dev --workspace @dinkel/web",
     "dev:mock-yahoo": "npm run dev --workspace @dinkel/mock-yahoo",

@@ -1155,6 +1155,163 @@ describe('LLWS draft-order workflow', () => {
     expect((await response.json()).reminded).toBe(true);
   });
 
+  /**
+   * The real shape of this problem: a twenty-team field and a twelve-team league.
+   *
+   * The LLWS is always bigger than a fantasy league, so eight teams going undrawn is
+   * the normal case rather than an error — but they have to be reported. Eight teams
+   * silently absent looks exactly like eight teams the commissioner forgot to enter,
+   * and the first they would know of it is a draft order missing people.
+   */
+  it('draws a full league from a larger field and reports the teams nobody drew', async () => {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    for (let i = 1; i <= 12; i += 1) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: `Manager ${i}` }),
+      });
+    }
+
+    // Twenty teams, as the LLWS field actually is.
+    await app.request('/api/llws/2026/teams', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        teams: Array.from({ length: 20 }, (_, i) => ({
+          name: `Region ${i + 1}`,
+          bracket: i < 10 ? 'united_states' : 'international',
+        })),
+      }),
+    });
+
+    const draw = await app.request('/api/llws/2026/draw', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ seed: 'llws-2026:twenty-team-field' }),
+    });
+    expect(draw.status).toBe(201);
+
+    const drawBody = await draw.json();
+    expect(drawBody.assignments).toHaveLength(12);
+    expect(drawBody.unassignedLlwsTeamIds).toHaveLength(8);
+    // Nobody is left without a team; that would be the actual problem.
+    expect(drawBody.unassignedLeagueMemberIds).toHaveLength(0);
+
+    const view = await (
+      await app.request('/api/llws/2026/assignments', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(view.assignments).toHaveLength(12);
+    expect(view.undrawnTeams).toHaveLength(8);
+    expect(view.unassignedManagers).toHaveLength(0);
+
+    // Names, not ULIDs. A draw result nobody can read is not a result.
+    for (const assignment of view.assignments) {
+      expect(assignment.displayName).toMatch(/^Manager \d+$/);
+      expect(assignment.teamName).toMatch(/^Region \d+$/);
+    }
+
+    // Every team is accounted for exactly once, drawn or not.
+    const drawnIds = view.assignments.map((a: { llwsTeamId: string }) => a.llwsTeamId);
+    const undrawnIds = view.undrawnTeams.map((t: { llwsTeamId: string }) => t.llwsTeamId);
+    expect(new Set([...drawnIds, ...undrawnIds]).size).toBe(20);
+  });
+
+  it('reports managers who drew nothing when the field is too small', async () => {
+    // The mirror case, and a genuine setup mistake: somebody would have no place in
+    // the draft order at all.
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: name }),
+      });
+    }
+
+    await app.request('/api/llws/2026/teams', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ teams: [{ name: 'Only Region' }] }),
+    });
+
+    await app.request('/api/llws/2026/draw', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ seed: 'llws-2026:short-field' }),
+    });
+
+    const view = await (
+      await app.request('/api/llws/2026/assignments', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(view.assignments).toHaveLength(1);
+    expect(view.unassignedManagers).toHaveLength(2);
+    expect(view.undrawnTeams).toHaveLength(0);
+  });
+
+  it('keeps an unpublished draw away from members', async () => {
+    // The draw is not league news until it is published, and a half-drawn field
+    // leaking invites exactly the argument the seed exists to prevent.
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/league/members', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ seasonYear: 2026, legacyManagerName: 'Alpha' }),
+    });
+    await app.request('/api/llws/2026/teams', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ teams: [{ name: 'Region One' }] }),
+    });
+    await app.request('/api/llws/2026/draw', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({ seed: 'unpublished' }),
+    });
+
+    const user = table.ofEntity('PortalUser')[0]!;
+    await table.put({ ...user, role: 'manager', isPrimaryCommissioner: false });
+
+    const memberJar = await signIn();
+    const asMember = await (
+      await app.request('/api/llws/2026/assignments', {
+        headers: { Cookie: cookieHeader(memberJar) },
+      })
+    ).json();
+
+    expect(asMember.assignments).toHaveLength(0);
+  });
+
   it('refuses to redraw over an existing draw without explicit confirmation', async () => {
     const jar = await signInAsCommissioner();
     const auth = {
