@@ -645,6 +645,34 @@ describe('league discovery and linking', () => {
     expect(body.fetchedAt).toBeDefined();
   });
 
+  it('resolves a season year without Yahoo, so the portal-owned pages still work', async () => {
+    /**
+     * `currentSeasonYear` is only written when a Yahoo league is linked. The draft
+     * board, the LLWS field and the challenge pages all key off it, so before Yahoo
+     * arrives every one of them rendered empty — including the pages that owe Yahoo
+     * nothing at all. The newest season created here stands in.
+     */
+    const jar = await signInAsCommissioner();
+
+    await app.request('/api/seasons/2026', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeader(jar),
+        [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+      },
+      body: JSON.stringify({ status: 'draft_pending' }),
+    });
+
+    const response = await app.request('/api/league/overview', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+
+    const body = await response.json();
+    expect(body.linked).toBe(false);
+    expect(body.league.currentSeasonYear).toBe(2026);
+  });
+
   it('does not persist any Yahoo team or manager name', async () => {
     const jar = await signInAsCommissioner();
     await app.request('/api/yahoo/league-link', {

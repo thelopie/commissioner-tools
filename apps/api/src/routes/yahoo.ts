@@ -280,10 +280,26 @@ yahooRoutes.get('/api/league/overview', async (c) => {
 
   if (!league) throw new AppError('not_found', { publicMessage: 'League record missing.' });
 
+  /**
+   * The season the rest of the portal works in.
+   *
+   * `currentSeasonYear` is only ever set by linking a Yahoo league, so on a portal
+   * without Yahoo it stays null — and the draft board, the LLWS field and the
+   * challenge pages all key off it, so every one of them rendered empty. The parts of
+   * the portal that owe nothing to Yahoo should not go dark waiting for it, so an
+   * unset value falls back to the newest season the commissioner has created here.
+   */
+  const seasonYear =
+    league.currentSeasonYear ??
+    (await ctx.repositories.leagues.listSeasons(leagueId)).reduce<number | null>(
+      (latest, season) => (latest === null || season.seasonYear > latest ? season.seasonYear : latest),
+      null,
+    );
+
   if (!link) {
     // Not an error: a freshly bootstrapped portal legitimately has no link yet.
     return c.json({
-      league: { leagueId, name: league.name, currentSeasonYear: league.currentSeasonYear ?? null },
+      league: { leagueId, name: league.name, currentSeasonYear: seasonYear },
       linked: false,
       yahoo: null,
     });
@@ -306,7 +322,7 @@ yahooRoutes.get('/api/league/overview', async (c) => {
   );
 
   return c.json({
-    league: { leagueId, name: league.name, currentSeasonYear: league.currentSeasonYear ?? null },
+    league: { leagueId, name: league.name, currentSeasonYear: seasonYear },
     linked: true,
     yahoo: {
       seasonYear: link.seasonYear,

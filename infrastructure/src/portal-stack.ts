@@ -292,6 +292,33 @@ export class PortalStack extends Stack {
      * which matters, since browsers increasingly block those — and the Yahoo
      * redirect URI is a single stable HTTPS URL.
      */
+    /**
+     * Serves the app shell for client-side routes, without touching the API.
+     *
+     * `/money` and `/draft` are React Router paths, not S3 keys, so the bucket would
+     * 404 them. Anything with a file extension is a real asset and passes through; a
+     * missing asset keeps its 404 rather than quietly returning HTML.
+     */
+    const spaRewrite = new cloudfront.Function(this, 'SpaRewrite', {
+      functionName: `${prefix}-spa-rewrite`,
+      comment: 'Rewrites extensionless paths to /index.html for client-side routing.',
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      code: cloudfront.FunctionCode.fromInline(`
+function handler(event) {
+  var request = event.request;
+  var uri = request.uri;
+
+  // A trailing slash or no dot in the last segment means an app route, not a file.
+  var last = uri.substring(uri.lastIndexOf('/') + 1);
+  if (last.indexOf('.') === -1) {
+    request.uri = '/index.html';
+  }
+
+  return request;
+}
+      `),
+    });
+
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       comment: `${prefix} portal`,
       defaultRootObject: 'index.html',
@@ -302,6 +329,12 @@ export class PortalStack extends Stack {
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
         cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+        functionAssociations: [
+          {
+            function: spaRewrite,
+            eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+          },
+        ],
         responseHeadersPolicy: new cloudfront.ResponseHeadersPolicy(this, 'SecurityHeaders', {
           responseHeadersPolicyName: `${prefix}-security-headers`,
           securityHeadersBehavior: {
@@ -343,11 +376,18 @@ export class PortalStack extends Stack {
         ...apiBehavior('/auth/*', apiDomain),
         ...apiBehavior('/health', apiDomain),
       },
-      errorResponses: [
-        // Client-side routing: unknown paths render the app, which then routes.
-        { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
-        { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
-      ],
+      /*
+        No distribution-wide `errorResponses` mapping 403/404 to index.html.
+
+        That is the usual way to support client-side routing, and here it was actively
+        harmful: CloudFront applies error responses across every behaviour, including
+        the API ones. So a CSRF failure, an authorization refusal, and a genuine
+        `not_found` all reached the browser as HTTP 200 with an HTML body — the client
+        then tried to parse the app shell as JSON. Every API error looked like success.
+
+        Client-side routing is handled instead by `spaRewrite` on the S3 behaviour
+        alone, so API responses keep the status the API gave them.
+      */
       ...(config.domainName && config.certificateArn
         ? {
             domainNames: [config.domainName],
