@@ -1,88 +1,31 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { CssBaseline, ThemeProvider, useMediaQuery } from '@mui/material';
-import { darkTheme, lightTheme } from './index.js';
+import { useEffect } from 'react';
+import { CssBaseline, ThemeProvider } from '@mui/material';
+import { darkTheme } from './index.js';
 
 /**
- * Colour-scheme control.
+ * Dark, always.
  *
- * Three states rather than two: `system` is the default and the one most people
- * want, with explicit light and dark as overrides. A binary toggle silently
- * discards the OS preference, which is the wrong default for something checked on
- * a phone at night.
+ * This used to offer system/light/dark with a toggle in the header and the choice
+ * kept in localStorage. It was reasonable and nobody wanted it: the league is one
+ * dozen people looking at a scoreboard, mostly on a phone, mostly in the evening.
+ * A single committed look is easier to design against than two half-tuned ones, and
+ * it takes a control out of the header that was competing with the actual content.
  *
- * The choice persists in localStorage. This is a display preference with no
- * privacy weight, so it does not belong on the server.
+ * The light tokens are still in `tokens.ts` if this ever needs undoing — what went
+ * away is the theme built from them, not the palette itself.
  */
-
-export type ColorSchemePreference = 'system' | 'light' | 'dark';
-
-const STORAGE_KEY = 'lopie:color-scheme';
-
-interface ColorSchemeContextValue {
-  preference: ColorSchemePreference;
-  /** What is actually rendering, after resolving `system`. */
-  resolved: 'light' | 'dark';
-  setPreference: (next: ColorSchemePreference) => void;
-  /** Cycles system → light → dark → system. */
-  cycle: () => void;
-}
-
-const ColorSchemeContext = createContext<ColorSchemeContextValue | null>(null);
-
-function readStored(): ColorSchemePreference {
-  try {
-    const value = localStorage.getItem(STORAGE_KEY);
-    if (value === 'light' || value === 'dark' || value === 'system') return value;
-  } catch {
-    // Private browsing can throw on localStorage access. A missing preference is
-    // not worth failing a render over.
-  }
-  return 'system';
-}
-
 export function ColorSchemeProvider({ children }: { children: React.ReactNode }): JSX.Element {
-  const prefersDark = useMediaQuery('(prefers-color-scheme: dark)');
-  const [preference, setPreferenceState] = useState<ColorSchemePreference>(readStored);
-
-  const resolved: 'light' | 'dark' =
-    preference === 'system' ? (prefersDark ? 'dark' : 'light') : preference;
-
-  const setPreference = useCallback((next: ColorSchemePreference) => {
-    setPreferenceState(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // Preference simply will not persist. Not worth surfacing.
-    }
+  // Keeps native UI — form controls, scrollbars, the flash before React mounts — in
+  // step with the app rather than defaulting to the OS preference.
+  useEffect(() => {
+    document.documentElement.style.colorScheme = 'dark';
+    document.documentElement.dataset['theme'] = 'dark';
   }, []);
 
-  const cycle = useCallback(() => {
-    setPreference(preference === 'system' ? 'light' : preference === 'light' ? 'dark' : 'system');
-  }, [preference, setPreference]);
-
-  // Keep the native UI (form controls, scrollbars) in step with the app.
-  useEffect(() => {
-    document.documentElement.style.colorScheme = resolved;
-    document.documentElement.dataset['theme'] = resolved;
-  }, [resolved]);
-
-  const value = useMemo(
-    () => ({ preference, resolved, setPreference, cycle }),
-    [preference, resolved, setPreference, cycle],
-  );
-
   return (
-    <ColorSchemeContext.Provider value={value}>
-      <ThemeProvider theme={resolved === 'dark' ? darkTheme : lightTheme}>
-        <CssBaseline enableColorScheme />
-        {children}
-      </ThemeProvider>
-    </ColorSchemeContext.Provider>
+    <ThemeProvider theme={darkTheme}>
+      <CssBaseline />
+      {children}
+    </ThemeProvider>
   );
-}
-
-export function useColorScheme(): ColorSchemeContextValue {
-  const context = useContext(ColorSchemeContext);
-  if (!context) throw new Error('useColorScheme must be used inside ColorSchemeProvider');
-  return context;
 }

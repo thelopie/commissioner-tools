@@ -34,13 +34,9 @@ import ArticleIcon from '@mui/icons-material/ArticleRounded';
 import PaymentsIcon from '@mui/icons-material/PaymentsRounded';
 import ChecklistIcon from '@mui/icons-material/ChecklistRounded';
 import SettingsIcon from '@mui/icons-material/SettingsRounded';
-import LightModeIcon from '@mui/icons-material/LightModeRounded';
-import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
-import ContrastIcon from '@mui/icons-material/ContrastRounded';
 import LogoutIcon from '@mui/icons-material/LogoutRounded';
 import { Link as RouterLink, useLocation } from 'react-router-dom';
 import { useState } from 'react';
-import { useColorScheme } from '../theme/ColorSchemeProvider.js';
 import { RAIL_WIDTH } from '../theme/tokens.js';
 import { Monogram } from './primitives.js';
 
@@ -151,6 +147,15 @@ export function AppShell({
     heading?.focus();
   }, [location.pathname]);
 
+  /**
+   * The signed-out home page supplies its own banner, with the league name across
+   * the artwork. A bar above it repeating the same name in miniature was the first
+   * thing anybody saw, and it said nothing the hero did not say better. Everywhere
+   * else the bar still earns its place: it holds the account menu, and on the other
+   * public pages it is the only way back.
+   */
+  const hideHeader = !authenticated && location.pathname === '/';
+
   const activeIndex = items.findIndex(
     (item) => item.to === (location.pathname === '' ? '/' : location.pathname),
   );
@@ -183,42 +188,42 @@ export function AppShell({
       {authenticated && showRail && <NavigationRail items={items} pathname={location.pathname} />}
 
       <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <AppBar
-          position="sticky"
-          elevation={0}
-          sx={{
-            bgcolor: 'background.default',
-            color: 'text.primary',
-            borderBottom: 1,
-            borderColor: 'divider',
-            // Keeps the bar readable when content scrolls beneath it.
-            backdropFilter: 'saturate(180%) blur(8px)',
-          }}
-        >
-          <Toolbar sx={{ gap: 1.5, minHeight: { xs: 60, md: 68 } }}>
-            {(!authenticated || !showRail) && <Wordmark />}
+        {!hideHeader && (
+          <AppBar
+            position="sticky"
+            elevation={0}
+            sx={{
+              bgcolor: 'background.default',
+              color: 'text.primary',
+              borderBottom: 1,
+              borderColor: 'divider',
+              // Keeps the bar readable when content scrolls beneath it.
+              backdropFilter: 'saturate(180%) blur(8px)',
+            }}
+          >
+            <Toolbar sx={{ gap: 1.5, minHeight: { xs: 60, md: 68 } }}>
+              {(!authenticated || !showRail) && <Wordmark />}
 
-            <Box sx={{ flexGrow: 1 }} />
+              <Box sx={{ flexGrow: 1 }} />
 
-            {yahooMode === 'mock' && (
-              <Tooltip title="Reading synthetic fixtures from the local mock server. No real Yahoo data is involved.">
-                <Chip size="small" color="warning" label="Mock data" />
-              </Tooltip>
-            )}
+              {yahooMode === 'mock' && (
+                <Tooltip title="Reading synthetic fixtures from the local mock server. No real Yahoo data is involved.">
+                  <Chip size="small" color="warning" label="Mock data" />
+                </Tooltip>
+              )}
 
-            <ThemeToggle />
-
-            {authenticated && (
-              <AccountMenu
-                displayName={displayName ?? 'Manager'}
-                roleLabel={roleLabel}
-                isCommissioner={isCommissioner}
-                onSignOut={onSignOut}
-                signOutPending={signOutPending}
-              />
-            )}
-          </Toolbar>
-        </AppBar>
+              {authenticated && (
+                <AccountMenu
+                  displayName={displayName ?? 'Manager'}
+                  roleLabel={roleLabel}
+                  isCommissioner={isCommissioner}
+                  onSignOut={onSignOut}
+                  signOutPending={signOutPending}
+                />
+              )}
+            </Toolbar>
+          </AppBar>
+        )}
 
         <Box
           component="main"
@@ -482,25 +487,6 @@ function Wordmark(): JSX.Element {
         La Liga de Lopie
       </Typography>
     </Stack>
-  );
-}
-
-function ThemeToggle(): JSX.Element {
-  const { preference, cycle } = useColorScheme();
-
-  const { icon, label } =
-    preference === 'system'
-      ? { icon: <ContrastIcon />, label: 'Theme: following your device' }
-      : preference === 'light'
-        ? { icon: <LightModeIcon />, label: 'Theme: light' }
-        : { icon: <DarkModeIcon />, label: 'Theme: dark' };
-
-  return (
-    <Tooltip title={`${label} — click to change`}>
-      <IconButton onClick={cycle} aria-label={label}>
-        {icon}
-      </IconButton>
-    </Tooltip>
   );
 }
 

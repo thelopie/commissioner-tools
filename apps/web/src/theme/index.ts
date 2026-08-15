@@ -535,7 +535,6 @@ function buildTheme(scheme: ColorRoles, mode: 'light' | 'dark'): Theme {
   });
 }
 
-export const lightTheme = buildTheme(lightScheme, 'light');
 export const darkTheme = buildTheme(darkScheme, 'dark');
 
 export { lightScheme, darkScheme, motion, shape, typeScale, stateLayer };
