@@ -430,7 +430,7 @@ function Crest(): JSX.Element {
           fontSize: '1.1rem',
         }}
       >
-        D
+        LL
       </Box>
     </Tooltip>
   );
