@@ -144,6 +144,13 @@ export interface SessionResponse {
   authenticated: boolean;
   needsBootstrap: boolean;
   yahooMode: 'mock' | 'live';
+  /**
+   * False while the deployment is still waiting on its Yahoo API credentials.
+   *
+   * Everything the portal owns keeps working; only signing in and reading Yahoo data
+   * are unavailable, and both say so rather than failing obscurely.
+   */
+  yahooConfigured?: boolean;
   user?: {
     userId: string;
     displayName: string;

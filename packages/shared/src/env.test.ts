@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EnvValidationError, loadServerEnv, publicConfig } from './env.js';
+import { EnvValidationError, isYahooConfigured, loadServerEnv, publicConfig } from './env.js';
 
 const key = () => Buffer.alloc(32, 7).toString('base64');
 
@@ -93,14 +93,35 @@ describe('loadServerEnv', () => {
     ).toThrow(/32 bytes/);
   });
 
-  it('rejects placeholder credentials when running in live mode', () => {
-    expect(() =>
-      loadServerEnv({
-        ...valid(),
-        YAHOO_MODE: 'live',
-        YAHOO_CLIENT_ID: 'replace-me',
-      }),
-    ).toThrow(/placeholder/);
+  /**
+   * A deployment waiting on Yahoo's approval must still serve the portal.
+   *
+   * This used to throw, which meant a new install could not show a single page —
+   * dues, the draft board and the sign-in screen all returned a 500 because two
+   * strings in a secret were unset. Starting and reporting the gap is louder than a
+   * 500 and lets everything the portal owns keep working.
+   */
+  it('starts with placeholder credentials in live mode, and reports Yahoo unconfigured', () => {
+    const env = loadServerEnv({
+      ...valid(),
+      YAHOO_MODE: 'live',
+      YAHOO_CLIENT_ID: 'replace-me',
+      YAHOO_CLIENT_SECRET: 'replace-me',
+    });
+
+    expect(env.YAHOO_MODE).toBe('live');
+    expect(isYahooConfigured(env)).toBe(false);
+  });
+
+  it('reports Yahoo configured once real credentials are in place', () => {
+    const env = loadServerEnv({
+      ...valid(),
+      YAHOO_MODE: 'live',
+      YAHOO_CLIENT_ID: 'a-real-client-id',
+      YAHOO_CLIENT_SECRET: 'a-real-secret',
+    });
+
+    expect(isYahooConfigured(env)).toBe(true);
   });
 
   it('allows placeholder credentials in mock mode', () => {
@@ -135,6 +156,7 @@ describe('publicConfig', () => {
 
     expect(config).toEqual({
       yahooMode: 'mock',
+      yahooConfigured: true,
       appBaseUrl: 'https://localhost:5173',
       recapProseEnabled: true,
     });

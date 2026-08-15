@@ -26,6 +26,7 @@ export type AppErrorCode =
   | 'oauth_redirect_mismatch'
 
   // Yahoo
+  | 'yahoo_not_configured'
   | 'yahoo_not_connected'
   | 'yahoo_needs_reconnect'
   | 'yahoo_rate_limited'
@@ -73,6 +74,7 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   oauth_exchange_failed: 502,
   oauth_redirect_mismatch: 400,
 
+  yahoo_not_configured: 503,
   yahoo_not_connected: 409,
   yahoo_needs_reconnect: 409,
   yahoo_rate_limited: 429,
@@ -117,6 +119,8 @@ const DEFAULT_MESSAGES: Partial<Record<AppErrorCode, string>> = {
   session_expired: 'Your session expired. Sign in again.',
   forbidden: 'You do not have access to this.',
   commissioner_required: 'This action requires commissioner access.',
+  yahoo_not_configured:
+    'This portal is still waiting on its Yahoo API credentials, so signing in is not open yet.',
   yahoo_not_connected: 'Connect your Yahoo account to load league data.',
   yahoo_needs_reconnect:
     'Your Yahoo connection needs to be renewed. Reconnect to continue loading league data.',

@@ -6,6 +6,7 @@ import {
   type InternalId,
   type PortalUser,
   type YahooGuid,
+  isYahooConfigured,
 } from '@lopie/shared';
 import {
   buildAuthorizeUrl,
@@ -79,6 +80,18 @@ authRoutes.get('/auth/yahoo/start', async (c) => {
     ctx.config.yahooOAuthBaseUrl === null
       ? authorizeUrl
       : authorizeUrl.replace('https://api.login.yahoo.com', ctx.config.yahooOAuthBaseUrl);
+
+  /*
+    Refused outright rather than bounced to Yahoo with a placeholder client ID, which
+    would show the league one of Yahoo's own error pages and no way to tell whether
+    the fault was theirs, ours, or Yahoo's.
+  */
+  if (!isYahooConfigured(env)) {
+    throw new AppError('yahoo_not_configured', {
+      publicMessage:
+        'Signing in is not open yet — this portal is still waiting on its Yahoo API credentials.',
+    });
+  }
 
   ctx.logger.info('Yahoo OAuth started', { yahooMode: env.YAHOO_MODE, returnTo });
 
@@ -198,6 +211,8 @@ authRoutes.get('/api/session', async (c) => {
       authenticated: false,
       needsBootstrap: ctx.leagueId === null,
       yahooMode: ctx.config.env.YAHOO_MODE,
+      // Drives the "not open yet" screen instead of a sign-in button that cannot work.
+      yahooConfigured: isYahooConfigured(ctx.config.env),
     });
   }
 
@@ -205,6 +220,7 @@ authRoutes.get('/api/session', async (c) => {
 
   return c.json({
     authenticated: true,
+    yahooConfigured: isYahooConfigured(ctx.config.env),
     needsBootstrap: ctx.leagueId === null,
     yahooMode: ctx.config.env.YAHOO_MODE,
     user: user ? publicUser(user) : null,

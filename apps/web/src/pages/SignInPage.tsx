@@ -1,8 +1,19 @@
-import { Alert, Box, Button, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import {
+  Alert,
+  AlertTitle,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Stack,
+  Typography,
+} from '@mui/material';
 import LockIcon from '@mui/icons-material/LockRounded';
 import VisibilityIcon from '@mui/icons-material/VisibilityRounded';
 import BlockIcon from '@mui/icons-material/BlockRounded';
 import { useSearchParams } from 'react-router-dom';
+import { useSession } from '../hooks.js';
 
 /**
  * Sign-in.
@@ -18,6 +29,16 @@ import { useSearchParams } from 'react-router-dom';
 export function SignInPage(): JSX.Element {
   const [params] = useSearchParams();
   const yahooError = params.get('yahooError');
+
+  /**
+   * Whether the deployment has its Yahoo credentials yet.
+   *
+   * Undefined while the session request is in flight, which is why the check below is
+   * an explicit `=== false` — a brief flash of "not open yet" on every page load would
+   * be worse than a button that is momentarily enabled.
+   */
+  const session = useSession();
+  const notOpenYet = session.data?.yahooConfigured === false;
 
   return (
     <Box sx={{ maxWidth: 560, mx: 'auto', mt: { xs: 1, sm: 5 } }}>
@@ -53,9 +74,23 @@ export function SignInPage(): JSX.Element {
         <Card variant="filled">
           <CardContent>
             <Stack spacing={2.5}>
-              <Button variant="contained" size="large" href="/auth/yahoo/start" fullWidth>
-                Sign in with Yahoo
-              </Button>
+              {notOpenYet ? (
+                /*
+                  Waiting on Yahoo's approval of the API application. Offering the
+                  button anyway would send people to a Yahoo error page that gives
+                  them no way to tell whose fault it is.
+                */
+                <Alert severity="info">
+                  <AlertTitle>Not open just yet</AlertTitle>
+                  The portal is waiting on its Yahoo API credentials. Everything is built and ready
+                  — signing in opens as soon as Yahoo approves the connection, and your commissioner
+                  will let you know.
+                </Alert>
+              ) : (
+                <Button variant="contained" size="large" href="/auth/yahoo/start" fullWidth>
+                  Sign in with Yahoo
+                </Button>
+              )}
 
               <Stack spacing={1.5}>
                 <Guarantee

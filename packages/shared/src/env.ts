@@ -70,17 +70,20 @@ export const serverEnvSchema = z
   })
   .superRefine((env, ctx) => {
     if (env.YAHOO_MODE === 'live') {
-      // In live mode the placeholder credentials from .env.example are a
-      // configuration error, not a usable value.
-      for (const key of ['YAHOO_CLIENT_ID', 'YAHOO_CLIENT_SECRET'] as const) {
-        if (env[key] === 'replace-me') {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: [key],
-            message: 'still the .env.example placeholder, but YAHOO_MODE=live',
-          });
-        }
-      }
+      /*
+        Placeholder Yahoo credentials do NOT stop the service starting.
+
+        They used to, and that was the wrong trade. A deployment waiting on Yahoo
+        approval — which is the normal state of a new install for days or weeks —
+        could not serve a single page: standings, dues, the draft board and the sign-in
+        screen all returned a 500, because two strings in a secret were unset.
+
+        Refusing to boot only makes sense if the alternative is pretending to work.
+        It is not: `isYahooConfigured` drives an explicit "not connected yet" state
+        through the API and the interface, and the OAuth route refuses outright. That
+        is louder than a 500 and considerably more useful, since everything the portal
+        owns rather than reads from Yahoo keeps working.
+      */
 
       /**
        * Yahoo requires an HTTPS redirect URI and will not accept plain
@@ -178,13 +181,35 @@ export function loadServerEnv(source: NodeJS.ProcessEnv = process.env): ServerEn
  * allowlist: adding a field here is a visible decision, so a secret cannot
  * reach the frontend by being spread in accidentally.
  */
+/** What the stack writes into a fresh secret, and what `.env.example` ships. */
+export const YAHOO_CREDENTIAL_PLACEHOLDER = 'replace-me';
+
+/**
+ * Whether real Yahoo credentials are in place.
+ *
+ * False on a fresh deployment waiting on Yahoo's approval. Everything the portal owns
+ * — dues, prizes, the draft order, announcements — works regardless; only reads of
+ * Yahoo data and signing in are unavailable, and both say so.
+ */
+export function isYahooConfigured(env: ServerEnv): boolean {
+  if (env.YAHOO_MODE === 'mock') return true;
+  return (
+    env.YAHOO_CLIENT_ID !== YAHOO_CREDENTIAL_PLACEHOLDER &&
+    env.YAHOO_CLIENT_SECRET !== YAHOO_CREDENTIAL_PLACEHOLDER &&
+    env.YAHOO_CLIENT_ID.length > 0 &&
+    env.YAHOO_CLIENT_SECRET.length > 0
+  );
+}
+
 export function publicConfig(env: ServerEnv): {
   yahooMode: YahooMode;
+  yahooConfigured: boolean;
   appBaseUrl: string;
   recapProseEnabled: boolean;
 } {
   return {
     yahooMode: env.YAHOO_MODE,
+    yahooConfigured: isYahooConfigured(env),
     appBaseUrl: env.APP_BASE_URL,
     recapProseEnabled: Boolean(env.ANTHROPIC_API_KEY),
   };
