@@ -27,11 +27,11 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@dinkel/shared': src('shared'),
-      '@dinkel/yahoo-client': src('yahoo-client'),
-      '@dinkel/challenge-engine': src('challenge-engine'),
-      '@dinkel/draft-order': src('draft-order'),
-      '@dinkel/csv-import': src('csv-import'),
+      '@lopie/shared': src('shared'),
+      '@lopie/yahoo-client': src('yahoo-client'),
+      '@lopie/challenge-engine': src('challenge-engine'),
+      '@lopie/draft-order': src('draft-order'),
+      '@lopie/csv-import': src('csv-import'),
     },
   },
 });

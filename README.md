@@ -1,4 +1,4 @@
-# Dinkel Portal
+# La Liga de Lopie
 
 A private, noncommercial companion application for a long-running Yahoo Fantasy
 Football league.
@@ -313,9 +313,9 @@ The certificate must be in **us-east-1** — CloudFront requires it.
 5. Build and upload the frontend:
 
    ```bash
-   npm run build --workspace @dinkel/web
+   npm run build --workspace @lopie/web
    aws s3 sync apps/web/dist "s3://$(aws cloudformation describe-stacks \
-     --stack-name DinkelPortal-dev \
+     --stack-name LaLigaDeLopie-dev \
      --query 'Stacks[0].Outputs[?OutputKey==`WebBucketName`].OutputValue' --output text)" --delete
    aws cloudfront create-invalidation --distribution-id <DistributionId> --paths '/*'
    ```

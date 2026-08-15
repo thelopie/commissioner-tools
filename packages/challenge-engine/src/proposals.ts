@@ -6,7 +6,7 @@ import type {
   TieBreaker,
   WeeklyChallengeDefinition,
   YahooCapabilityKey,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 
 /**
  * Proposed rules for the league's thirteen weekly challenges.

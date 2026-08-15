@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { type AppError } from '@dinkel/shared';
+import { type AppError } from '@lopie/shared';
 import {
   buildAuthorizeUrl,
   createOAuthState,

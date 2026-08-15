@@ -31,7 +31,7 @@ import type { Construct } from 'constructs';
 import { resourcePrefix, type DeploymentConfig } from './config.js';
 
 /**
- * The Dinkel Portal stack.
+ * The La Liga de Lopie stack.
  *
  * One stack, because the pieces share a lifecycle and a ten-person league does not
  * benefit from cross-stack references. Everything is least-privilege by default:
@@ -106,7 +106,7 @@ export class PortalStack extends Stack {
     const secret = new secretsmanager.Secret(this, 'AppSecrets', {
       secretName: `${prefix}/app`,
       description:
-        'Dinkel Portal secrets: Yahoo client credentials, session secret, token encryption key, ' +
+        'La Liga de Lopie secrets: Yahoo client credentials, session secret, token encryption key, ' +
         'and the optional Anthropic API key for recap prose.',
       generateSecretString: {
         // Session and encryption keys are generated here rather than by a human,
@@ -449,7 +449,7 @@ export class PortalStack extends Stack {
     // ---------------------------------------------------------------- alarms
     const alarmTopic = new sns.Topic(this, 'AlarmTopic', {
       topicName: `${prefix}-alarms`,
-      displayName: 'Dinkel Portal alarms',
+      displayName: 'La Liga de Lopie alarms',
     });
 
     if (config.alertEmail) {

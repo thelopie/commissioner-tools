@@ -1,4 +1,4 @@
-import type { InternalId } from '@dinkel/shared';
+import type { InternalId } from '@lopie/shared';
 import type { AppConfig } from '../config.js';
 import type { Logger } from '../lib/logger.js';
 import type { Table } from '../lib/table.js';

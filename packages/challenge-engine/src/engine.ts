@@ -6,7 +6,7 @@ import {
   type WeeklyChallengeDefinition,
   type WeeklyChallengeResult,
   type YahooCapabilityKey,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import { calculatorFor, type CalculatorResult } from './calculators.js';
 import { formatValue, type TeamWeek, type WeekInput } from './inputs.js';
 

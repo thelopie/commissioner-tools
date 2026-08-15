@@ -1,4 +1,4 @@
-import { AppError, type YahooCapabilityKey } from '@dinkel/shared';
+import { AppError, type YahooCapabilityKey } from '@lopie/shared';
 
 /**
  * The capability gate.

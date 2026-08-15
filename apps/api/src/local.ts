@@ -1,5 +1,5 @@
 import { serve } from '@hono/node-server';
-import { EnvValidationError } from '@dinkel/shared';
+import { EnvValidationError } from '@lopie/shared';
 import { createApp, loadConfig } from './app.js';
 import { createLogger } from './lib/logger.js';
 

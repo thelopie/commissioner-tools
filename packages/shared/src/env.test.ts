@@ -11,7 +11,7 @@ const valid = (): NodeJS.ProcessEnv => ({
   YAHOO_MODE: 'mock',
   APP_BASE_URL: 'https://localhost:5173',
   AWS_REGION: 'us-east-1',
-  DYNAMODB_TABLE_NAME: 'dinkel-portal-dev',
+  DYNAMODB_TABLE_NAME: 'lopie-portal-dev',
   SESSION_SECRET: key(),
   TOKEN_ENCRYPTION_KEY: key(),
 });

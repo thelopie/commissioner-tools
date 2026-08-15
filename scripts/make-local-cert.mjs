@@ -42,7 +42,7 @@ prompt = no
 C = US
 ST = Local
 L = Local
-O = Dinkel Portal Local Development
+O = La Liga de Lopie Local Development
 CN = localhost
 
 [v3_req]

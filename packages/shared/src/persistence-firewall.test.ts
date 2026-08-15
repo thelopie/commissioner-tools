@@ -85,8 +85,8 @@ describe('persistence firewall', () => {
     expect(paths).toContain('cachedManagerNickname');
   });
 
-  it('honours a reviewed exception for Dinkel-owned data', () => {
-    // legacyManagerName is typed by a commissioner or imported from Dinkel's own
+  it('honours a reviewed exception for portal-owned data', () => {
+    // legacyManagerName is typed by a commissioner or imported from the league's own
     // spreadsheet — it exists so pre-portal history needs no Yahoo data.
     const schema = z.object({ legacyManagerName: z.string() });
 

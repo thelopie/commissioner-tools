@@ -4,7 +4,7 @@ import {
   type LeagueRecap,
   type RecapFact,
   type InternalId,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import { currentLink } from '../routes/yahoo.js';
 import { describeError } from '../lib/logger.js';
 import type { JobContext } from './types.js';
@@ -193,7 +193,7 @@ async function collectFacts(
   }
 
   /**
-   * Challenge winners, from Dinkel's own finalized results.
+   * Challenge winners, from the portal's own finalized results.
    *
    * Only settled ones: a provisional result can still change, and a recap that named
    * a winner who later lost the challenge would be worse than one that stayed quiet.

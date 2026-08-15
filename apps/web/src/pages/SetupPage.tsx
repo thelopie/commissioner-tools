@@ -16,7 +16,7 @@ export function SetupPage(): JSX.Element {
   const session = useSession();
   const bootstrap = useBootstrap();
 
-  const [leagueName, setLeagueName] = useState('Dinkel');
+  const [leagueName, setLeagueName] = useState('La Liga de Lopie');
   const [timezone, setTimezone] = useState(
     // A sensible default from the browser; the commissioner can correct it.
     Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',

@@ -7,8 +7,8 @@ import {
   yahooLeagueKeySchema,
   type InternalId,
   type YahooLeagueKey,
-} from '@dinkel/shared';
-import { getCapabilityMatrix } from '@dinkel/yahoo-client';
+} from '@lopie/shared';
+import { getCapabilityMatrix } from '@lopie/yahoo-client';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -125,10 +125,10 @@ yahooRoutes.get('/api/yahoo/leagues', async (c) => {
 });
 
 /**
- * Links a Yahoo league to a Dinkel season.
+ * Links a Yahoo league to a portal season.
  *
  * Nothing about the league, game, team, or season is hardcoded: every identifier
- * arrives from the commissioner's selection and is stored separately from Dinkel's
+ * arrives from the commissioner's selection and is stored separately from the portal's
  * own IDs, so the link can be changed or lost without touching league history.
  */
 yahooRoutes.post('/api/yahoo/league-link', async (c) => {
@@ -267,7 +267,7 @@ yahooRoutes.delete('/api/yahoo/league-link/:seasonYear', async (c) => {
  *
  * Yahoo names come back live on every request and are cached for minutes, never
  * stored. That is why a manager who leaves the league still has a name on their
- * 2021 challenge win: that name is Dinkel's own profile field, not this response.
+ * 2021 challenge win: that name is the portal's own profile field, not this response.
  */
 yahooRoutes.get('/api/league/overview', async (c) => {
   const ctx = c.get('ctx');
@@ -330,7 +330,7 @@ yahooRoutes.get('/api/league/overview', async (c) => {
           isYahooCommissioner: manager.isCommissioner ?? false,
           isYou: manager.isCurrentLogin ?? false,
         })),
-        // Whether this Yahoo team has been mapped to a Dinkel member yet.
+        // Whether this Yahoo team has been mapped to a portal member yet.
         leagueMemberId: memberByTeamKey.get(team.teamKey)?.leagueMemberId ?? null,
       })),
     },
@@ -340,7 +340,7 @@ yahooRoutes.get('/api/league/overview', async (c) => {
   });
 });
 
-/** Maps a Yahoo team to a Dinkel league member, so history survives the link. */
+/** Maps a Yahoo team to a portal league member, so history survives the link. */
 yahooRoutes.post('/api/league/members', async (c) => {
   const ctx = c.get('ctx');
   const principal = requireCommissioner(ctx.principal);
@@ -429,7 +429,7 @@ yahooRoutes.get('/api/league/members', async (c) => {
       leagueMemberId: member.leagueMemberId,
       seasonYear: member.seasonYear,
       userId: member.userId,
-      // Dinkel's own name: the portal user's confirmed display name, or the
+      // The portal's own name: the portal user's confirmed display name, or the
       // legacy name from the CSV import. Never a Yahoo nickname.
       displayName:
         (member.userId ? userById.get(member.userId)?.displayName : undefined) ??

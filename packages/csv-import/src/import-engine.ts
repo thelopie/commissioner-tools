@@ -1,4 +1,4 @@
-import { AppError, type ImportKind, type ImportRowOutcome } from '@dinkel/shared';
+import { AppError, type ImportKind, type ImportRowOutcome } from '@lopie/shared';
 import { parseCsv } from './parse-csv.js';
 import { IMPORT_TEMPLATES, type TemplateColumn } from './templates.js';
 

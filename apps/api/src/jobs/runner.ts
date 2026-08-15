@@ -1,4 +1,4 @@
-import { AppError, generateId, keys, SYSTEM_ACTOR_ID, type InternalId } from '@dinkel/shared';
+import { AppError, generateId, keys, SYSTEM_ACTOR_ID, type InternalId } from '@lopie/shared';
 import { createLogger, describeError, type Logger } from '../lib/logger.js';
 import { Table } from '../lib/table.js';
 import { createRepositories, type Repositories } from '../repositories.js';

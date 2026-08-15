@@ -1,4 +1,4 @@
-import { AppError } from '@dinkel/shared';
+import { AppError } from '@lopie/shared';
 
 /**
  * CSV parsing.

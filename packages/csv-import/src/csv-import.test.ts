@@ -14,7 +14,7 @@ import {
   validators as v,
   type ExistingRecord,
 } from './index.js';
-import type { ImportKind } from '@dinkel/shared';
+import type { ImportKind } from '@lopie/shared';
 
 describe('parseCsv', () => {
   it('parses headers and rows', () => {

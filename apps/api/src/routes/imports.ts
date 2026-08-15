@@ -5,7 +5,7 @@ import {
   importKindSchema,
   type ImportKind,
   type InternalId,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   analyzeImport,
   assertCanRollback,
@@ -14,7 +14,7 @@ import {
   renderTemplate,
   suggestMappings,
   type ExistingRecord,
-} from '@dinkel/csv-import';
+} from '@lopie/csv-import';
 import { z } from 'zod';
 import type { AppEnv, RequestContext } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -47,7 +47,7 @@ importRoutes.get('/api/imports/templates/:kind', async (c) => {
   const csv = renderTemplate(kind);
 
   c.header('Content-Type', 'text/csv; charset=utf-8');
-  c.header('Content-Disposition', `attachment; filename="dinkel-${kind}-template.csv"`);
+  c.header('Content-Disposition', `attachment; filename="lopie-${kind}-template.csv"`);
   return c.body(csv);
 });
 
@@ -96,7 +96,7 @@ importRoutes.post('/api/imports/dry-run', async (c) => {
   );
 
   const actorId = principal.userId as InternalId;
-  const { parseCsv } = await import('@dinkel/csv-import');
+  const { parseCsv } = await import('@lopie/csv-import');
 
   const headers = parseCsv(body.csvText).headers;
   // Suggested, never applied silently: a fuzzy match could land `paid` in the

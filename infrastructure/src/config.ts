@@ -59,5 +59,5 @@ function optional(scope: Construct, key: string): string | undefined {
 
 /** Resource name prefix, so dev and prod can coexist in one account. */
 export function resourcePrefix(config: DeploymentConfig): string {
-  return `dinkel-portal-${config.environmentName}`;
+  return `lopie-portal-${config.environmentName}`;
 }

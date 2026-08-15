@@ -3,11 +3,11 @@ import { z } from 'zod';
 /**
  * Identifier discipline.
  *
- * Internal Dinkel identifiers and Yahoo identifiers are deliberately distinct
+ * Internal portal identifiers and Yahoo identifiers are deliberately distinct
  * types. Yahoo keys are opaque strings owned by Yahoo whose format can change;
  * internal IDs are ours forever. Nothing in this codebase uses a Yahoo key as a
  * primary key, so a Yahoo league can be re-linked or replaced without rewriting
- * Dinkel history.
+ * League history.
  */
 
 /** A Yahoo game key, e.g. the per-season NFL game. Format is Yahoo's to change. */

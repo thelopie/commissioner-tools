@@ -5,7 +5,7 @@ import {
   seasonYearSchema,
   type InternalId,
   type LLWSAssignment,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   assertAssignmentsUnique,
   assertCanSelect,
@@ -16,7 +16,7 @@ import {
   nextTurn,
   verifyDraw,
   type SelectionState,
-} from '@dinkel/draft-order';
+} from '@lopie/draft-order';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -482,7 +482,7 @@ draftRoutes.post('/api/draft/:seasonYear/selection-order', async (c) => {
   const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
   const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
 
-  // Prior-season finish comes from Dinkel's own record, not Yahoo standings,
+  // Prior-season finish comes from the portal's own record, not Yahoo standings,
   // which cannot be retained past 24 hours.
   const priorSeason = await ctx.repositories.leagues.findSeason(leagueId, seasonYear - 1);
   const priorFinish = new Map(

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { loadServerEnv, type ServerEnv } from '@dinkel/shared';
-import { setCapabilityMatrix, type CapabilityMatrix } from '@dinkel/yahoo-client';
+import { loadServerEnv, type ServerEnv } from '@lopie/shared';
+import { setCapabilityMatrix, type CapabilityMatrix } from '@lopie/yahoo-client';
 
 /**
  * Application configuration, resolved once per process.

@@ -4,14 +4,14 @@ import {
   type InternalId,
   type WeeklyChallengeDefinition,
   type WeeklyChallengeResult,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   calculateChallenge,
   decideRecalculation,
   type PlayerWeek,
   type TeamWeek,
-} from '@dinkel/challenge-engine';
-import { isCapabilityVerified } from '@dinkel/yahoo-client';
+} from '@lopie/challenge-engine';
+import { isCapabilityVerified } from '@lopie/yahoo-client';
 import { created, type Repositories } from '../repositories.js';
 import { currentLink } from '../routes/yahoo.js';
 import type { YahooService } from './yahoo-service.js';

@@ -14,7 +14,7 @@ import { PortalStack } from './portal-stack.js';
 const app = new App();
 const config = readConfig(app);
 
-const stack = new PortalStack(app, `DinkelPortal-${config.environmentName}`, {
+const stack = new PortalStack(app, `LaLigaDeLopie-${config.environmentName}`, {
   config,
   env: {
     // Undefined when not deploying. CDK resolves these at deploy time from the
@@ -23,11 +23,11 @@ const stack = new PortalStack(app, `DinkelPortal-${config.environmentName}`, {
     ...(process.env['CDK_DEFAULT_REGION'] ? { region: process.env['CDK_DEFAULT_REGION'] } : {}),
   },
   description:
-    'Dinkel Portal — a private, noncommercial companion application for a Yahoo Fantasy Football ' +
+    'La Liga de Lopie — a private, noncommercial companion application for a Yahoo Fantasy Football ' +
     'league. Not affiliated with Yahoo.',
 });
 
-Tags.of(stack).add('Application', 'dinkel-portal');
+Tags.of(stack).add('Application', 'lopie-portal');
 Tags.of(stack).add('Environment', config.environmentName);
 Tags.of(stack).add('ManagedBy', 'aws-cdk');
 // Tagged so cost is attributable and a stray resource is identifiable.

@@ -1,4 +1,4 @@
-import { AppError, type InternalId } from '@dinkel/shared';
+import { AppError, type InternalId } from '@lopie/shared';
 import { createSeededRandom, shuffle } from './random.js';
 
 /**

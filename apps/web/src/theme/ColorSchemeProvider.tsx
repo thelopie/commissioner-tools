@@ -16,7 +16,7 @@ import { darkTheme, lightTheme } from './index.js';
 
 export type ColorSchemePreference = 'system' | 'light' | 'dark';
 
-const STORAGE_KEY = 'dinkel:color-scheme';
+const STORAGE_KEY = 'lopie:color-scheme';
 
 interface ColorSchemeContextValue {
   preference: ColorSchemePreference;

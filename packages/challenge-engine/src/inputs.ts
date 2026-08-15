@@ -1,4 +1,4 @@
-import type { InternalId, SeasonYear, WeekNumber } from '@dinkel/shared';
+import type { InternalId, SeasonYear, WeekNumber } from '@lopie/shared';
 
 /**
  * The engine's input contract.
@@ -42,7 +42,7 @@ export interface PlayerWeek {
 
 /** One competitor's week: their roster, their score, and their matchup outcome. */
 export interface TeamWeek {
-  /** Dinkel's identifier. The engine never sees a Yahoo team key. */
+  /** The portal's identifier. The engine never sees a Yahoo team key. */
   leagueMemberId: InternalId;
   /** Total points for the week. */
   teamPoints?: number;

@@ -1,4 +1,4 @@
-import { AppError, type DraftOrderTieBreaker, type InternalId } from '@dinkel/shared';
+import { AppError, type DraftOrderTieBreaker, type InternalId } from '@lopie/shared';
 import { createSeededRandom } from './random.js';
 
 /**
@@ -24,7 +24,7 @@ export interface SelectionOrderEntry {
   llwsTeamId?: InternalId;
   /** LLWS finish, lower is better. Undefined when the team's run is unresolved. */
   llwsFinishRank?: number;
-  /** Prior season's finish, lower is better. Dinkel-owned; used for tiebreaks. */
+  /** Prior season's finish, lower is better. portal-owned; used for tiebreaks. */
   priorSeasonFinish?: number;
 }
 

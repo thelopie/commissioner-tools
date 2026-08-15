@@ -1,4 +1,4 @@
-import { AppError } from '@dinkel/shared';
+import { AppError } from '@lopie/shared';
 import { needsRefresh, refreshAccessToken, type FetchLike, type TokenSet } from './oauth.js';
 import {
   parseLeagueMetadata,
@@ -18,7 +18,7 @@ import {
   type YahooTransaction,
   type YahooUserProfile,
 } from './resources.js';
-import type { YahooLeagueKey, YahooTeamKey } from '@dinkel/shared';
+import type { YahooLeagueKey, YahooTeamKey } from '@lopie/shared';
 
 export const YAHOO_FANTASY_BASE_URL = 'https://fantasysports.yahooapis.com/fantasy/v2';
 
@@ -174,7 +174,7 @@ export class YahooClient {
    * League standings.
    *
    * Displayed live only. A season's final order is recorded separately as
-   * Dinkel's own data, because Yahoo standings cannot be retained past 24 hours.
+   * the portal's own data, because Yahoo standings cannot be retained past 24 hours.
    */
   async getStandings(leagueKey: YahooLeagueKey): Promise<YahooStandingsRow[]> {
     const body = await this.get(`league/${encodeURIComponent(leagueKey)}/standings`);

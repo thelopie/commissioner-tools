@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PortalRole } from '@dinkel/shared';
+import type { PortalRole } from '@lopie/shared';
 import {
   requireAuthenticated,
   requireCommissioner,

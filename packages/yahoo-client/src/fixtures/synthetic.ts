@@ -123,7 +123,7 @@ export function mockUserLeaguesResponse(): unknown {
                             {
                               league_key: MOCK_LEAGUE_KEY,
                               league_id: '100001',
-                              name: 'Mock Dinkel League',
+                              name: 'Mock Lopie League',
                               // Yahoo returns these as strings.
                               num_teams: '12',
                               season: String(MOCK_SEASON),
@@ -167,7 +167,7 @@ export function mockLeagueSettingsResponse(): unknown {
         {
           league_key: MOCK_LEAGUE_KEY,
           league_id: '100001',
-          name: 'Mock Dinkel League',
+          name: 'Mock Lopie League',
           season: String(MOCK_SEASON),
           num_teams: '12',
           scoring_type: 'head',
@@ -196,7 +196,7 @@ export function mockLeagueTeamsResponse(): unknown {
   return {
     fantasy_content: {
       league: [
-        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Dinkel League' },
+        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Lopie League' },
         {
           teams: countedCollection(
             MOCK_TEAMS.map((team) => ({
@@ -338,7 +338,7 @@ export function mockScoreboardResponse(week: number): unknown {
   return {
     fantasy_content: {
       league: [
-        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Dinkel League' },
+        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Lopie League' },
         { scoreboard: [{ week: String(week) }, { matchups: countedCollection(matchups) }] },
       ],
     },
@@ -518,7 +518,7 @@ export function mockStandingsResponse(): unknown {
   return {
     fantasy_content: {
       league: [
-        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Dinkel League' },
+        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Lopie League' },
         {
           standings: [
             {
@@ -668,7 +668,7 @@ export function mockTransactionsResponse(nowSeconds?: number): unknown {
   return {
     fantasy_content: {
       league: [
-        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Dinkel League' },
+        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Lopie League' },
         {
           transactions: countedCollection(
             entries.map((entry) => ({

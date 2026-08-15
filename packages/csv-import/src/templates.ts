@@ -1,4 +1,4 @@
-import type { ImportKind } from '@dinkel/shared';
+import type { ImportKind } from '@lopie/shared';
 import { toCsv } from './parse-csv.js';
 import * as v from './validators.js';
 
@@ -130,7 +130,7 @@ export const IMPORT_TEMPLATES: Record<ImportKind, ImportTemplate> = {
         field: 'teamNameNote',
         required: false,
         description:
-          'Their team name that season, for your own reference. Stored as a Dinkel note — ' +
+          'Their team name that season, for your own reference. Stored as a portal note — ' +
           'current team names always come live from Yahoo.',
         validate: (raw) => v.optionalText(raw, { max: 120 }),
         example: 'Sample Team Name',

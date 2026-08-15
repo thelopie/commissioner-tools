@@ -5,7 +5,7 @@ import {
   type YahooConnection,
   type YahooLeagueKey,
   type YahooTeamKey,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   createTokenProvider,
   YahooClient,
@@ -19,7 +19,7 @@ import {
   type YahooTeamRoster,
   type YahooTransaction,
   type YahooUserProfile,
-} from '@dinkel/yahoo-client';
+} from '@lopie/yahoo-client';
 import type { AppConfig } from '../config.js';
 import { decryptToken, DecryptionError, encryptToken } from '../lib/crypto.js';
 import type { Logger } from '../lib/logger.js';

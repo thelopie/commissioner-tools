@@ -6,14 +6,14 @@ import {
   weekNumberSchema,
   type InternalId,
   type WeeklyChallengeDefinition,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   assertCanFinalize,
   assertCanOverride,
   CHALLENGE_PROPOSALS,
   proposalToDefinition,
-} from '@dinkel/challenge-engine';
-import { isCapabilityVerified } from '@dinkel/yahoo-client';
+} from '@lopie/challenge-engine';
+import { isCapabilityVerified } from '@lopie/yahoo-client';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -27,7 +27,7 @@ import { calculateWeek } from '../services/challenge-calculation.js';
  *
  * The route's job is fetching, translating Yahoo data into the engine's plain
  * numeric input, and persisting the outcome. All arithmetic lives in
- * `@dinkel/challenge-engine`, deliberately: nothing here decides a winner, and no
+ * `@lopie/challenge-engine`, deliberately: nothing here decides a winner, and no
  * language model is involved at any point.
  */
 

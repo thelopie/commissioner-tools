@@ -1,4 +1,4 @@
-import { AppError, roleAtLeast, type PortalRole } from '@dinkel/shared';
+import { AppError, roleAtLeast, type PortalRole } from '@lopie/shared';
 
 /**
  * Backend authorization.
@@ -8,7 +8,7 @@ import { AppError, roleAtLeast, type PortalRole } from '@dinkel/shared';
  * hand must be refused by the server, so hiding a button is never the security
  * boundary.
  *
- * Portal roles are Dinkel's own. Yahoo commissioner status confers nothing —
+ * Portal roles are the portal's own. Yahoo commissioner status confers nothing —
  * Yahoo decides who runs the Yahoo league, not who may spend league money or
  * finalize a paid result in this portal.
  */

@@ -31,7 +31,7 @@ import {
   type YahooConnection,
   type YahooGuid,
   type YahooLeagueLink,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import type { Table } from './lib/table.js';
 
 /**
@@ -316,7 +316,7 @@ export class LeagueRepository {
    * same time cannot both become the founding commissioner — the loser gets a
    * conflict rather than a silently overwritten league.
    *
-   * @throws {import('@dinkel/shared').AppError} `duplicate` when already claimed.
+   * @throws {import('@lopie/shared').AppError} `duplicate` when already claimed.
    */
   async claimPortal(leagueId: InternalId): Promise<void> {
     await this.table.putNew({

@@ -6,13 +6,13 @@ import {
   type InternalId,
   type PortalUser,
   type YahooGuid,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   buildAuthorizeUrl,
   createOAuthState,
   exchangeCodeForTokens,
   validateOAuthState,
-} from '@dinkel/yahoo-client';
+} from '@lopie/yahoo-client';
 import { z } from 'zod';
 import type { AppEnv, RequestContext } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -40,7 +40,7 @@ import { created, now } from '../repositories.js';
  * Authentication, the Yahoo OAuth flow, and role management.
  *
  * Portal identity is the Yahoo GUID, the one Yahoo value the terms allow storing
- * indefinitely. Portal ROLES are Dinkel's own and are set here — Yahoo commissioner
+ * indefinitely. Portal ROLES are the portal's own and are set here — Yahoo commissioner
  * status grants nothing.
  */
 
@@ -173,7 +173,7 @@ authRoutes.get('/auth/yahoo/callback', async (c) => {
     const destination = new URL(returnTo, env.APP_BASE_URL);
     if (isNewUser && prefillDisplayName) {
       // The display name is confirmed by the user, at which point it becomes
-      // Dinkel's own data rather than retained Yahoo content.
+      // the portal's own data rather than retained Yahoo content.
       destination.searchParams.set('welcome', '1');
     }
 
@@ -553,7 +553,7 @@ async function establishIdentity(
   const { env } = ctx.config;
 
   // A temporary client, because identity is needed before a connection exists.
-  const { YahooClient } = await import('@dinkel/yahoo-client');
+  const { YahooClient } = await import('@lopie/yahoo-client');
 
   const probe = new YahooClient({
     fetchImpl: ctx.yahooFetch,
@@ -693,7 +693,7 @@ export async function parseJson<T extends z.ZodTypeAny>(
 
   const result = schema.safeParse(raw);
   if (!result.success) {
-    const { ValidationError } = await import('@dinkel/shared');
+    const { ValidationError } = await import('@lopie/shared');
     throw new ValidationError(
       result.error.issues.map((issue) => ({
         field: issue.path.join('.') || '(body)',

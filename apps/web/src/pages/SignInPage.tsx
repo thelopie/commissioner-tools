@@ -39,7 +39,7 @@ export function SignInPage(): JSX.Element {
             D
           </Box>
           <Typography variant="h1" id="page-title" tabIndex={-1} sx={{ outline: 'none' }}>
-            Dinkel Portal
+            La Liga de Lopie
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ maxWidth: '46ch' }}>
             League operations for a long-running fantasy football league. Yahoo stays the source of

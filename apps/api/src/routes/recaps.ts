@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { AppError, seasonYearSchema, weekNumberSchema, type InternalId } from '@dinkel/shared';
+import { AppError, seasonYearSchema, weekNumberSchema, type InternalId } from '@lopie/shared';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';

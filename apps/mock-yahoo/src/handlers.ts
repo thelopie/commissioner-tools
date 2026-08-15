@@ -1,4 +1,4 @@
-import { fixtures } from '@dinkel/yahoo-client';
+import { fixtures } from '@lopie/yahoo-client';
 
 /**
  * Mock Yahoo route handling, separated from the HTTP server so it is unit

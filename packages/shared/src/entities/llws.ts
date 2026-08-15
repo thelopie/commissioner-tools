@@ -5,7 +5,7 @@ import { auditableSchema, externalKeySchema, isoTimestampSchema } from './common
 /**
  * The LLWS draft-order workflow.
  *
- * Dinkel decides fantasy draft order from the Little League World Series: each
+ * The league decides fantasy draft order from the Little League World Series: each
  * manager is randomly assigned an LLWS team, the tournament plays out, and how
  * far your team advanced determines the order in which you *pick your draft slot*
  * — not the slot itself. So there are two ordered things kept distinct here:
@@ -22,7 +22,7 @@ export const llwsTeamSchema = auditableSchema.extend({
   leagueId: internalIdSchema,
   seasonYear: seasonYearSchema,
 
-  /** e.g. "Southwest — Needville, TX". Dinkel's own data, typed in. */
+  /** e.g. "Southwest — Needville, TX". the portal's own data, typed in. */
   name: z.string().min(1).max(160),
   region: z.string().max(80).optional(),
   bracket: z.enum(['united_states', 'international', 'unknown']).default('unknown'),

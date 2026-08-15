@@ -1,5 +1,5 @@
-import { AppError, type InternalId, type PortalRole } from '@dinkel/shared';
-import type { FetchLike } from '@dinkel/yahoo-client';
+import { AppError, type InternalId, type PortalRole } from '@lopie/shared';
+import type { FetchLike } from '@lopie/yahoo-client';
 import type { AppConfig } from './config.js';
 import type { Logger } from './lib/logger.js';
 import type { Table } from './lib/table.js';

@@ -4,7 +4,7 @@ import {
   parseUserLeagues,
   parseLeagueTeams,
   parseTeamRoster,
-} from '@dinkel/yahoo-client';
+} from '@lopie/yahoo-client';
 import { handleFantasyRequest, handleTokenRequest } from './handlers.js';
 
 describe('mock token endpoint', () => {

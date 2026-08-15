@@ -13,7 +13,7 @@ import {
   assertCacheTtl,
   YAHOO_CACHE_MAX_TTL_SECONDS,
   type TableKey,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 
 /**
  * Single-table DynamoDB access.
@@ -276,7 +276,7 @@ export class Table {
   /**
    * Writes a Yahoo cache entry.
    *
-   * @throws {import('@dinkel/shared').YahooCacheTtlError} when the requested TTL
+   * @throws {import('@lopie/shared').YahooCacheTtlError} when the requested TTL
    *   exceeds the 24-hour ceiling. Refusing loudly rather than clamping keeps a
    *   caller's wrong assumption visible.
    */

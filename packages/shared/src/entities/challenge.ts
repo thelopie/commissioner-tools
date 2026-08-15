@@ -33,7 +33,7 @@ export type YahooCapabilityKey = z.infer<typeof yahooCapabilityKeySchema>;
 /**
  * How a winner is computed.
  *
- * Every variant is pure arithmetic implemented in `@dinkel/challenge-engine`.
+ * Every variant is pure arithmetic implemented in `@lopie/challenge-engine`.
  * A language model is never involved in determining a winner — it may only
  * describe an outcome that this code already decided.
  */

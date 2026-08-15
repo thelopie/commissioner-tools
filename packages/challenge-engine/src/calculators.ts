@@ -1,4 +1,4 @@
-import type { Calculation, WeeklyChallengeDefinition } from '@dinkel/shared';
+import type { Calculation, WeeklyChallengeDefinition } from '@lopie/shared';
 import {
   bench,
   formatValue,

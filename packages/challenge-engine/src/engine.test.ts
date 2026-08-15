@@ -4,7 +4,7 @@ import type {
   WeeklyChallengeDefinition,
   WeeklyChallengeResult,
   YahooCapabilityKey,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import {
   assertCanFinalize,
   assertCanOverride,

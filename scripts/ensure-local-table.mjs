@@ -21,7 +21,7 @@ import {
 } from '@aws-sdk/client-dynamodb';
 
 const endpoint = process.env.DYNAMODB_ENDPOINT ?? 'http://127.0.0.1:8000';
-const tableName = process.env.DYNAMODB_TABLE_NAME ?? 'dinkel-portal-local';
+const tableName = process.env.DYNAMODB_TABLE_NAME ?? 'lopie-portal-local';
 const region = process.env.AWS_REGION ?? 'us-east-1';
 
 /**

@@ -37,7 +37,7 @@ export const portalUserSchema = auditableSchema.extend({
   /**
    * Display name shown throughout the portal and on historical records.
    *
-   * Owned by Dinkel, not Yahoo: prefilled from the Yahoo nickname at first
+   * Owned by the portal, not Yahoo: prefilled from the Yahoo nickname at first
    * sign-in and then confirmed by the user, after which it is our data. This is
    * what lets a 2021 challenge result still render a name after the manager has
    * left the league or the Yahoo connection has lapsed.
@@ -82,7 +82,7 @@ export const leagueMemberSchema = auditableSchema.extend({
 
   /**
    * Manager label for seasons imported from the legacy spreadsheet, where no
-   * portal user exists. Dinkel's own data, from Dinkel's own CSV.
+   * portal user exists. The portal's own data, from the league's own CSV.
    */
   legacyManagerName: z.string().min(1).max(80).optional(),
 

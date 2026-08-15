@@ -1,6 +1,6 @@
 # Privacy notice
 
-The Dinkel Portal is a private, noncommercial tool run by and for the members of one
+The La Liga de Lopie is a private, noncommercial tool run by and for the members of one
 fantasy football league. It is not a product, it is not sold, and it carries no
 advertising.
 

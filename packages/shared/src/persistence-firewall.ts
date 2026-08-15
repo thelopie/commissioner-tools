@@ -55,14 +55,14 @@ const FORBIDDEN_FIELD_PATTERNS: readonly RegExp[] = [
 ];
 
 /**
- * Fields that match a forbidden pattern but are legitimately Dinkel-owned.
+ * Fields that match a forbidden pattern but are legitimately portal-owned.
  *
  * Each entry is a deliberate, reviewed exception rather than a loosened rule.
  * The key is `EntityName.fieldName`.
  */
 const ALLOWED_EXCEPTIONS: ReadonlySet<string> = new Set([
-  // Dinkel's own name for a manager in a legacy season, typed in or imported
-  // from Dinkel's own spreadsheet. Yahoo never supplies this — the field exists
+  // The portal's own name for a manager in a legacy season, typed in or imported
+  // from the league's own spreadsheet. Yahoo never supplies this — the field exists
   // precisely so that pre-portal history needs no Yahoo data at all.
   'LeagueMember.legacyManagerName',
 ]);
@@ -162,7 +162,7 @@ export class PersistenceFirewallError extends Error {
         '(Yahoo API Terms of Use: 24-hour removal). Offending fields:\n' +
         violations.map((v) => `  - ${v.entity}.${v.path} (matched /${v.pattern}/)`).join('\n') +
         '\n\nFetch the value live and cache it under YAHOO_CACHE_MAX_TTL_SECONDS instead, ' +
-        'or add a reviewed exception in persistence-firewall.ts if the field is Dinkel-owned.',
+        'or add a reviewed exception in persistence-firewall.ts if the field is portal-owned.',
     );
     this.name = 'PersistenceFirewallError';
   }

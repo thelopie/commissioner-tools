@@ -1,5 +1,5 @@
 {
-  "name": "@dinkel/mock-yahoo",
+  "name": "@lopie/mock-yahoo",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "start": "node dist/server.js"
   },
   "dependencies": {
-    "@dinkel/shared": "*",
-    "@dinkel/yahoo-client": "*"
+    "@lopie/shared": "*",
+    "@lopie/yahoo-client": "*"
   }
 }

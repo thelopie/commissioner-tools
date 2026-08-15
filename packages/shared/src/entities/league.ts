@@ -14,11 +14,11 @@ import {
   moneySchema,
 } from './common.js';
 
-/** The league itself. One row for the Dinkel league; the model supports more. */
+/** The league itself. One row for the league; the model supports more. */
 export const leagueSchema = auditableSchema.extend({
   entity: z.literal('League'),
   leagueId: internalIdSchema,
-  /** Dinkel's own name for the league, not Yahoo's. */
+  /** The portal's own name for the league, not Yahoo's. */
   name: z.string().min(1).max(120),
   timezone: z.string().min(1).default('America/New_York'),
   /** Season the portal currently operates on. */
@@ -47,7 +47,7 @@ export const seasonSchema = auditableSchema.extend({
   /**
    * Final finish order for the season, best first, as league member IDs.
    *
-   * Dinkel-owned on purpose: the draft-order workflow breaks LLWS ties by prior
+   * portal-owned on purpose: the draft-order workflow breaks LLWS ties by prior
    * season finish, and Yahoo standings cannot be retained past 24 hours. A
    * commissioner records this at season close, or it arrives via CSV for legacy
    * seasons — so the tiebreaker still works in 2035 for a 2019 season.
@@ -102,10 +102,10 @@ export const yahooConnectionSchema = auditableSchema.extend({
 export type YahooConnection = z.infer<typeof yahooConnectionSchema>;
 
 /**
- * Links a Dinkel season to the Yahoo league that backs it.
+ * Links a portal season to the Yahoo league that backs it.
  *
  * Separate from `Season` so that re-linking a Yahoo league — or losing access to
- * it — never mutates Dinkel's own season record. Nothing here is hardcoded: the
+ * it — never mutates the portal's own season record. Nothing here is hardcoded: the
  * game key, league key, and season all come from the commissioner's selection.
  */
 export const yahooLeagueLinkSchema = auditableSchema.extend({
@@ -132,7 +132,7 @@ export const yahooLeagueLinkSchema = auditableSchema.extend({
 export type YahooLeagueLink = z.infer<typeof yahooLeagueLinkSchema>;
 
 /**
- * A league rule in Dinkel's own words.
+ * A league rule in the league's own words.
  *
  * Yahoo holds scoring settings; this holds the human agreements Yahoo cannot
  * express — keeper terms, trade etiquette, punishment for last place.

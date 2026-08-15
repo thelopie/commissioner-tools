@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadServerEnv } from '@dinkel/shared';
-import { setCapabilityMatrix, type CapabilityMatrix, type FetchLike } from '@dinkel/yahoo-client';
+import { loadServerEnv } from '@lopie/shared';
+import { setCapabilityMatrix, type CapabilityMatrix, type FetchLike } from '@lopie/yahoo-client';
 import type { AppConfig } from '../config.js';
 import { InMemoryTable } from '../testing/in-memory-table.js';
 import { createLogger } from '../lib/logger.js';

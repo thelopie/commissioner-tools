@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DraftOrderTieBreaker, InternalId } from '@dinkel/shared';
+import type { DraftOrderTieBreaker, InternalId } from '@lopie/shared';
 import {
   assertAssignmentsUnique,
   assertCanSelect,

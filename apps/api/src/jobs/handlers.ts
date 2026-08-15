@@ -1,4 +1,4 @@
-import { generateId, SYSTEM_ACTOR_ID } from '@dinkel/shared';
+import { generateId, SYSTEM_ACTOR_ID } from '@lopie/shared';
 import { calculateWeek } from '../services/challenge-calculation.js';
 import { currentLink } from '../routes/yahoo.js';
 import { buildRecap } from './recap.js';

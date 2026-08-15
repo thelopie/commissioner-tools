@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { AppError, isAppError, type InternalId } from '@dinkel/shared';
-import type { FetchLike } from '@dinkel/yahoo-client';
+import { AppError, isAppError, type InternalId } from '@lopie/shared';
+import type { FetchLike } from '@lopie/yahoo-client';
 import { loadConfig, type AppConfig } from './config.js';
 import type { AppEnv, RequestContext } from './context.js';
 import { createLogger, describeError, type Logger } from './lib/logger.js';

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { AppError, weekNumberSchema } from '@dinkel/shared';
-import type { YahooManager } from '@dinkel/yahoo-client';
+import { AppError, weekNumberSchema } from '@lopie/shared';
+import type { YahooManager } from '@lopie/yahoo-client';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
 import { requireAuthenticated } from '../lib/authorization.js';

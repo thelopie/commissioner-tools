@@ -1,9 +1,9 @@
 {
   "$comment": [
-    "Yahoo Fantasy Sports API capability matrix for the Dinkel Portal.",
+    "Yahoo Fantasy Sports API capability matrix for the La Liga de Lopie.",
     "",
     "This file is not documentation — it is read at runtime by",
-    "@dinkel/challenge-engine and the API to decide what the portal is allowed to",
+    "@lopie/challenge-engine and the API to decide what the portal is allowed to",
     "do. A challenge whose required capability is not 'verified' here stays",
     "BLOCKED and no math runs for it. That is the mechanism that prevents the",
     "portal from inventing Yahoo data.",
@@ -206,7 +206,7 @@
       "testStatus": "mock-only",
       "provides": ["player_week_points"],
       "limitations": [
-        "League-context scoring is required: game-context stats would not reflect Dinkel's scoring settings.",
+        "League-context scoring is required: game-context stats would not reflect the league's scoring settings.",
         "Whether points come back as a computed total or must be derived from raw stats and league scoring settings is unverified. The latter would be materially more work.",
         "Batch size limits for player_keys are undocumented; the client pages conservatively."
       ]
@@ -259,7 +259,7 @@
       "testStatus": "mock-only",
       "provides": [],
       "limitations": [
-        "Displayed live only. Not persisted — a Dinkel-owned final finish order is recorded at season close so draft-order tiebreakers survive without retained Yahoo data."
+        "Displayed live only. Not persisted — a portal-owned final finish order is recorded at season close so draft-order tiebreakers survive without retained Yahoo data."
       ]
     },
     {
@@ -295,7 +295,7 @@
       "provides": [],
       "limitations": [
         "Read-only. There is no documented way to WRITE a draft order, which is why the LLWS workflow ends in manual entry.",
-        "Displayed live only; Dinkel's own draft history comes from the CSV import instead."
+        "Displayed live only; the portal's own draft history comes from the CSV import instead."
       ]
     },
     {

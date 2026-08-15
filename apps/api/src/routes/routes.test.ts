@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { loadServerEnv } from '@dinkel/shared';
-import { setCapabilityMatrix, type CapabilityMatrix, type FetchLike } from '@dinkel/yahoo-client';
+import { loadServerEnv } from '@lopie/shared';
+import { setCapabilityMatrix, type CapabilityMatrix, type FetchLike } from '@lopie/yahoo-client';
 import { createApp } from '../app.js';
 import type { AppConfig } from '../config.js';
 import { InMemoryTable } from '../testing/in-memory-table.js';
@@ -608,7 +608,7 @@ describe('league discovery and linking', () => {
     expect(table.ofEntity('YahooLeagueLink')).toHaveLength(1);
     expect(table.ofEntity('Season')).toHaveLength(1);
 
-    // Yahoo identifiers are stored separately from Dinkel's own IDs.
+    // Yahoo identifiers are stored separately from the portal's own IDs.
     const [link] = table.ofEntity('YahooLeagueLink');
     expect(link!['yahooLeagueKey']).toBe('999.l.100001');
     expect(link!['yahooGameKey']).toBe('999');
@@ -870,7 +870,7 @@ describe('LLWS draft-order workflow', () => {
       }),
     });
 
-    // Two Dinkel members, mapped by hand as the commissioner would.
+    // Two portal members, mapped by hand as the commissioner would.
     for (const name of ['Alpha Manager', 'Beta Manager']) {
       await app.request('/api/league/members', {
         method: 'POST',

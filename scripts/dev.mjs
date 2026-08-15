@@ -77,7 +77,7 @@ const shutdown = () => {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-console.log('\nStarting the Dinkel Portal locally.');
+console.log('\nStarting the La Liga de Lopie locally.');
 console.log('  web         https://localhost:5173');
 console.log('  api         http://127.0.0.1:4300');
 console.log('  mock Yahoo  http://127.0.0.1:4310');

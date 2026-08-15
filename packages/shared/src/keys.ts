@@ -45,7 +45,7 @@ export const keys = {
   /**
    * Singleton pointer to the league this deployment serves.
    *
-   * The portal is single-league by design: one Dinkel league, one deployment.
+   * The portal is single-league by design: one league, one deployment.
    * Written once at bootstrap with `attribute_not_exists`, which is what makes
    * "the first authenticated user claims the league" safe against two people
    * running setup simultaneously.

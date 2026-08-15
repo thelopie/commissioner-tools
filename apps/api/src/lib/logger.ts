@@ -1,4 +1,4 @@
-import type { LogLevel } from '@dinkel/shared';
+import type { LogLevel } from '@lopie/shared';
 
 /**
  * Structured logging with redaction by default.

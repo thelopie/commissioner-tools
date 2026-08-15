@@ -131,7 +131,7 @@ describe('parseUserLeagues', () => {
     // Read from the game node, not split out of the league key — the
     // "{game_key}.l.{id}" format is a convention, not a documented guarantee.
     expect(first?.gameKey).toBe(fixtures.MOCK_GAME_KEY);
-    expect(first?.name).toBe('Mock Dinkel League');
+    expect(first?.name).toBe('Mock Lopie League');
     expect(first?.season).toBe(fixtures.MOCK_SEASON);
     expect(first?.teamCount).toBe(12);
     expect(first?.isCommissioner).toBe(true);
@@ -226,7 +226,7 @@ describe('parseLeagueTeams', () => {
 
     expect(second?.managers[0]?.nickname).toBe('mock_manager_2');
     // The portal never depends on other managers' GUIDs; the commissioner maps
-    // teams to Dinkel members by hand.
+    // teams to portal members by hand.
     expect(second?.managers[0]?.guid).toBeUndefined();
   });
 

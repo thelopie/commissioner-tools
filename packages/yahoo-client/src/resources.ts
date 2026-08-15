@@ -1,4 +1,4 @@
-import type { YahooGameKey, YahooGuid, YahooLeagueKey, YahooTeamKey } from '@dinkel/shared';
+import type { YahooGameKey, YahooGuid, YahooLeagueKey, YahooTeamKey } from '@lopie/shared';
 import {
   collect,
   descend,
@@ -51,7 +51,7 @@ export interface YahooManager {
   /**
    * Present only for some managers, commonly the signed-in user. The portal
    * never depends on other managers' GUIDs; when absent, the commissioner maps
-   * the team to a Dinkel member by hand.
+   * the team to a portal member by hand.
    */
   guid?: YahooGuid;
   /** Ephemeral display text. */
@@ -128,7 +128,7 @@ export interface YahooMatchup {
  * One row of the league standings.
  *
  * Ephemeral like everything else here. Displayed live and cached for minutes; a
- * season's final order is recorded separately as Dinkel's own data so that
+ * season's final order is recorded separately as the portal's own data so that
  * draft-order tiebreakers survive past Yahoo's 24-hour retention window.
  */
 export interface YahooStandingsRow {
@@ -596,7 +596,7 @@ function toSummary(
   assign(summary, 'url', optionalString(league, 'url'));
 
   // Yahoo's own commissioner flag. Recorded as a hint for the league-selection
-  // UI only — it grants nothing in this portal, where roles are Dinkel-owned.
+  // UI only — it grants nothing in this portal, where roles are portal-owned.
   const isCommissioner = optionalBoolean(league, 'is_commissioner');
   if (isCommissioner !== undefined) summary.isCommissioner = isCommissioner;
 

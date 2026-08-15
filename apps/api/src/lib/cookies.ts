@@ -1,4 +1,4 @@
-import { AppError } from '@dinkel/shared';
+import { AppError } from '@lopie/shared';
 import { safeCompare } from './crypto.js';
 
 /**
@@ -15,9 +15,9 @@ import { safeCompare } from './crypto.js';
  * populate the header.
  */
 
-export const SESSION_COOKIE = 'dinkel_session';
-export const CSRF_COOKIE = 'dinkel_csrf';
-export const CSRF_HEADER = 'x-dinkel-csrf';
+export const SESSION_COOKIE = 'lopie_session';
+export const CSRF_COOKIE = 'lopie_csrf';
+export const CSRF_HEADER = 'x-lopie-csrf';
 
 /** Session lifetime. Long enough to be convenient for a league that logs in weekly. */
 export const SESSION_TTL_SECONDS = 30 * 24 * 60 * 60;

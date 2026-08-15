@@ -113,7 +113,7 @@ export type LeagueRecap = z.infer<typeof leagueRecapSchema>;
 /**
  * A durable league record, e.g. "most points in a week".
  *
- * These are Dinkel's own history: derived once, stored as a number plus a label,
+ * These are the portal's own history: derived once, stored as a number plus a label,
  * with no Yahoo response retained. That is what lets the portal remember 2019
  * without keeping a warehouse of Yahoo data.
  */

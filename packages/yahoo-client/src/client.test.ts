@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AppError, YahooCapabilityKey } from '@dinkel/shared';
+import type { AppError, YahooCapabilityKey } from '@lopie/shared';
 import {
   createTokenProvider,
   parseRetryAfter,

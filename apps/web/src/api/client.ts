@@ -9,8 +9,8 @@
  * never leaves the backend, so the browser has nothing to store, refresh, or leak.
  */
 
-const CSRF_COOKIE = 'dinkel_csrf';
-const CSRF_HEADER = 'x-dinkel-csrf';
+const CSRF_COOKIE = 'lopie_csrf';
+const CSRF_HEADER = 'x-lopie-csrf';
 
 export interface ApiErrorBody {
   error: { code: string; message: string };
@@ -507,7 +507,7 @@ export interface DraftStatusResponse {
 }
 
 // --------------------------------------------------------------------------
-// League members — Dinkel's own roster of people, mapped to Yahoo teams
+// League members — the portal's own roster of people, mapped to Yahoo teams
 // --------------------------------------------------------------------------
 
 export interface LeagueMemberRecord {
@@ -515,7 +515,7 @@ export interface LeagueMemberRecord {
   seasonYear: number;
   userId: string | null;
   /**
-   * Dinkel's own name for this person: a portal user's confirmed display name, or
+   * The portal's own name for this person: a portal user's confirmed display name, or
    * a name the commissioner typed. Never a Yahoo nickname.
    */
   displayName: string;
@@ -759,7 +759,7 @@ export interface SeasonSummary {
   status: string;
   teamCount?: number;
   /**
-   * Best-first order of league member IDs. Dinkel's own record, so a draft
+   * Best-first order of league member IDs. the portal's own record, so a draft
    * tiebreaker still works years after Yahoo's data has expired.
    */
   finalFinishOrder: string[];

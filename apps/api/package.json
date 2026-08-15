@@ -1,5 +1,5 @@
 {
-  "name": "@dinkel/api",
+  "name": "@lopie/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -15,11 +15,11 @@
     "@aws-sdk/client-secrets-manager": "^3.716.0",
     "@aws-sdk/lib-dynamodb": "^3.716.0",
     "@aws-sdk/s3-request-presigner": "^3.716.0",
-    "@dinkel/challenge-engine": "*",
-    "@dinkel/csv-import": "*",
-    "@dinkel/draft-order": "*",
-    "@dinkel/shared": "*",
-    "@dinkel/yahoo-client": "*",
+    "@lopie/challenge-engine": "*",
+    "@lopie/csv-import": "*",
+    "@lopie/draft-order": "*",
+    "@lopie/shared": "*",
+    "@lopie/yahoo-client": "*",
     "@hono/node-server": "^2.0.12",
     "hono": "^4.6.14",
     "zod": "^3.24.1"

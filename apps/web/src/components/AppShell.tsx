@@ -412,11 +412,11 @@ function NavigationRail({ items, pathname }: { items: NavItem[]; pathname: strin
 
 function Crest(): JSX.Element {
   return (
-    <Tooltip title="Dinkel Portal">
+    <Tooltip title="La Liga de Lopie">
       <Box
         component={RouterLink}
         to="/"
-        aria-label="Dinkel Portal home"
+        aria-label="La Liga de Lopie home"
         sx={{
           width: 44,
           height: 44,
@@ -475,12 +475,12 @@ function Wordmark(): JSX.Element {
         sx={{
           fontWeight: 700,
           // Hidden on the narrowest screens, where the top bar also carries the
-          // mode chip, theme toggle, and avatar. A truncated "Dinkel…" is worse
+          // mode chip, theme toggle, and avatar. A truncated "La Liga…" is worse
           // than the crest alone.
           display: { xs: 'none', sm: 'block' },
         }}
       >
-        Dinkel Portal
+        La Liga de Lopie
       </Typography>
     </Stack>
   );

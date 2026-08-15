@@ -9,7 +9,7 @@ import {
   seasonYearSchema,
   weekNumberSchema,
   type InternalId,
-} from '@dinkel/shared';
+} from '@lopie/shared';
 import { z } from 'zod';
 import type { AppEnv, RequestContext } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -58,7 +58,7 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
         .optional(),
-      /** Best-first finish order, Dinkel-owned so draft tiebreaks survive. */
+      /** Best-first finish order, portal-owned so draft tiebreaks survive. */
       finalFinishOrder: z.array(z.string().length(26)).optional(),
     }),
   );
@@ -105,7 +105,7 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
 });
 
 /**
- * Resolves league members to Dinkel's own names.
+ * Resolves league members to The portal's own names.
  *
  * Money records store a portal member ID, which is what lets a 2019 dues row still
  * name someone who left the league in 2021. An ID is useless to a reader, and
