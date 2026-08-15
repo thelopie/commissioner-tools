@@ -473,7 +473,7 @@ function Wordmark(): JSX.Element {
           flexShrink: 0,
         }}
       >
-        D
+        LL
       </Box>
       <Typography
         variant="h3"
