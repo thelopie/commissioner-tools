@@ -151,3 +151,44 @@ describe('publicConfig', () => {
     expect(publicConfig(loadServerEnv(valid())).recapProseEnabled).toBe(false);
   });
 });
+
+describe('production refuses mock mode', () => {
+  /**
+   * The failure this prevents is a portal that looks healthy and is fiction.
+   *
+   * Mock mode answers every Yahoo read from synthetic fixtures. Deployed, the league
+   * would see a standings table of invented teams and believe it — so the app must
+   * refuse to start rather than serve it.
+   */
+  it('refuses to start in production with YAHOO_MODE=mock', () => {
+    expect(() =>
+      loadServerEnv({
+        ...valid(),
+        NODE_ENV: 'production',
+        YAHOO_MODE: 'mock',
+        APP_BASE_URL: 'https://lopieleague.com',
+        YAHOO_REDIRECT_URI: 'https://lopieleague.com/auth/yahoo/callback',
+        DYNAMODB_ENDPOINT: undefined,
+      }),
+    ).toThrow(/cannot be mock in production/);
+  });
+
+  it('accepts live mode in production', () => {
+    const env = loadServerEnv({
+      ...valid(),
+      NODE_ENV: 'production',
+      YAHOO_MODE: 'live',
+      YAHOO_CLIENT_ID: 'a-real-looking-client-id',
+      YAHOO_CLIENT_SECRET: 'a-real-looking-secret',
+      APP_BASE_URL: 'https://lopieleague.com',
+      YAHOO_REDIRECT_URI: 'https://lopieleague.com/auth/yahoo/callback',
+      DYNAMODB_ENDPOINT: undefined,
+    });
+
+    expect(env.YAHOO_MODE).toBe('live');
+  });
+
+  it('still allows mock in development, which is how the app is built', () => {
+    expect(loadServerEnv({ ...valid(), YAHOO_MODE: 'mock' }).YAHOO_MODE).toBe('mock');
+  });
+});

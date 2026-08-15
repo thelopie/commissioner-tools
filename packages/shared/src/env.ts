@@ -126,6 +126,24 @@ export const serverEnvSchema = z
           message: 'must be unset in production so the SDK resolves the real regional endpoint',
         });
       }
+      /**
+       * Mock mode must never reach the league.
+       *
+       * In mock mode every read is answered from synthetic fixtures — invented team
+       * names, invented scores. Deployed, that would show the league a standings
+       * table that looks entirely real and is entirely fictional, and nothing on the
+       * page says so except a small chip. Refusing to boot is the only safe failure:
+       * a portal that is obviously down is far better than one quietly lying.
+       */
+      if (env.YAHOO_MODE === 'mock') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['YAHOO_MODE'],
+          message:
+            'cannot be mock in production — it would serve synthetic teams and scores as if ' +
+            'they were real. Set YAHOO_MODE=live once Yahoo credentials are in place.',
+        });
+      }
     }
   });
 
