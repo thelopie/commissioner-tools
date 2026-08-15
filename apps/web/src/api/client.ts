@@ -140,6 +140,16 @@ export const api = {
 // Response shapes
 // --------------------------------------------------------------------------
 
+/** The signed-out view: a countdown, and the draft order once it is published. */
+export interface PublicHome {
+  leagueName: string | null;
+  seasonYear: number | null;
+  /** UTC instant the draft starts, or null if the commissioner has not set one. */
+  draftAt: string | null;
+  /** Null until the draw is published and every slot is settled. */
+  order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;
+}
+
 export interface SessionResponse {
   authenticated: boolean;
   needsBootstrap: boolean;

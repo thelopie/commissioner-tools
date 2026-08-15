@@ -10,6 +10,7 @@ import { MatchupsPage } from './pages/MatchupsPage.js';
 import { MyTeamPage } from './pages/MyTeamPage.js';
 import { DraftPage } from './pages/DraftPage.js';
 import { LlwsPage } from './pages/LlwsPage.js';
+import { PublicHomePage } from './pages/PublicHomePage.js';
 import { MoneyPage } from './pages/MoneyPage.js';
 import { AnnouncementsPage } from './pages/AnnouncementsPage.js';
 import { TasksPage } from './pages/TasksPage.js';
@@ -102,8 +103,14 @@ export function App(): JSX.Element {
           <Route
             path="/"
             element={
+              /*
+                Signed out lands on the public page, not the sign-in screen. The
+                countdown and the draft order are the reason most people open the
+                site, and putting a login in front of twelve people who already know
+                each other's names buys nothing.
+              */
               !authenticated ? (
-                <SignInPage />
+                <PublicHomePage />
               ) : data?.needsBootstrap ? (
                 <Navigate to="/setup" replace />
               ) : (

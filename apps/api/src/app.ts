@@ -17,6 +17,7 @@ import { draftRoutes } from './routes/draft.js';
 import { importRoutes } from './routes/imports.js';
 import { recapRoutes } from './routes/recaps.js';
 import { breakGlassRoutes } from './routes/break-glass.js';
+import { publicRoutes } from './routes/public.js';
 
 /**
  * Application assembly.
@@ -227,6 +228,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   app.route('/', importRoutes);
   app.route('/', recapRoutes);
   app.route('/', breakGlassRoutes);
+  app.route('/', publicRoutes);
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: 'No such endpoint.' } }, 404));
 

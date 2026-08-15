@@ -30,6 +30,7 @@ import {
   type VerifyDrawResponse,
   type StandingsResponse,
   type TransactionsResponse,
+  type PublicHome,
 } from './api/client.js';
 
 /** Query keys in one place, so invalidation cannot drift from fetching. */
@@ -61,7 +62,22 @@ export const queryKeys = {
   assignments: (seasonYear: number) => ['llws', 'assignments', seasonYear] as const,
   verifyDraw: (seasonYear: number) => ['llws', 'verify', seasonYear] as const,
   draftStatus: (seasonYear: number) => ['draft', 'status', seasonYear] as const,
+  publicHome: ['public', 'home'] as const,
 };
+
+/**
+ * The signed-out home page's data.
+ *
+ * Deliberately has no `enabled` guard and no session dependency: it is the one query
+ * that must work for someone who has never signed in.
+ */
+export function usePublicHome(): UseQueryResult<PublicHome> {
+  return useQuery({
+    queryKey: queryKeys.publicHome,
+    queryFn: () => api.get<PublicHome>('/api/public/home'),
+    staleTime: 60_000,
+  });
+}
 
 export function useSession(): UseQueryResult<SessionResponse> {
   return useQuery({

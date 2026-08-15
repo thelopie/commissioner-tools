@@ -15,7 +15,6 @@ import Grid from '@mui/material/Grid2';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import WhatshotIcon from '@mui/icons-material/WhatshotRounded';
 import CompressIcon from '@mui/icons-material/CompressRounded';
-import LinkOffIcon from '@mui/icons-material/LinkOffRounded';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounded';
 import CampaignIcon from '@mui/icons-material/CampaignRounded';
 import { Link as RouterLink } from 'react-router-dom';
@@ -25,9 +24,11 @@ import {
   useDraftStatus,
   useLeagueMe,
   useLeagueOverview,
+  usePublicHome,
   useSession,
 } from '../hooks.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
+import { DraftHighlights } from './PublicHomePage.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
 
 /**
@@ -42,6 +43,7 @@ import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/pr
 export function HomePage(): JSX.Element {
   const session = useSession();
   const connection = useConnection();
+  const publicHome = usePublicHome();
   const me = useLeagueMe(connection.data?.connected ?? false);
 
   const user = session.data?.user ?? null;
@@ -64,21 +66,25 @@ export function HomePage(): JSX.Element {
     );
   }
 
-  // Nothing is readable without a connection, so that is the only thing to say.
+  /*
+    Without a Yahoo connection the live pages have nothing to show, but the draft
+    countdown and order are the portal's own and work regardless — so lead with them
+    and make connecting an offer rather than a wall. Signing in should never show
+    somebody less than the signed-out page does.
+  */
   if (!connection.data?.connected) {
     return (
-      <Stack spacing={3}>
+      <Stack spacing={4}>
         <PageHeader title={`Hi, ${firstName}`} />
-        <EmptyState
-          icon={<LinkOffIcon />}
-          title="Connect Yahoo to see the league"
-          description="Scores, matchups, and standings are read live from Yahoo under read-only access. The portal can never change anything in your league."
-          action={
-            <Button variant="contained" size="large" href="/auth/yahoo/start">
-              Connect Yahoo
-            </Button>
-          }
+        <DraftHighlights
+          draftAt={publicHome.data?.draftAt ?? null}
+          order={publicHome.data?.order ?? null}
         />
+        <Box sx={{ textAlign: 'center' }}>
+          <Button variant="contained" href="/auth/yahoo/start">
+            Connect Yahoo for scores and standings
+          </Button>
+        </Box>
       </Stack>
     );
   }

@@ -58,6 +58,8 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
         .string()
         .regex(/^\d{4}-\d{2}-\d{2}$/)
         .optional(),
+      /** Absolute instant the draft starts, which is what the countdown reads. */
+      draftAt: z.string().datetime({ offset: false }).optional(),
       /** Best-first finish order, portal-owned so draft tiebreaks survive. */
       finalFinishOrder: z.array(z.string().length(26)).optional(),
     }),
@@ -67,6 +69,16 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
   const actorId = principal.userId as InternalId;
 
   const season = {
+    /*
+      Spread first so a partial update cannot delete a field it never mentions.
+
+      This object is rebuilt from scratch on every write, and it only ever named a
+      handful of columns — so setting `status` silently dropped regularSeasonWeeks,
+      playoffStartWeek, externalKey and importBatchId. Nothing in the interface edits
+      those together, which is exactly why it went unnoticed: the CSV import writes
+      them and the next status change threw them away.
+    */
+    ...existing,
     entity: 'Season' as const,
     seasonId: existing?.seasonId ?? generateId(),
     leagueId,
@@ -77,6 +89,7 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
       (body.finalFinishOrder as InternalId[] | undefined) ?? existing?.finalFinishOrder ?? [],
     ...(body.teamCount === undefined ? {} : { teamCount: body.teamCount }),
     ...(body.draftDate === undefined ? {} : { draftDate: body.draftDate }),
+    ...(body.draftAt === undefined ? {} : { draftAt: body.draftAt }),
     ...(existing
       ? {
           createdAt: existing.createdAt,

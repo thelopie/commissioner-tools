@@ -252,8 +252,14 @@ export function AppShell({
             color="text.secondary"
             sx={{ display: 'block', maxWidth: '80ch' }}
           >
-            A private, noncommercial league tool. Not affiliated with or endorsed by Yahoo. Yahoo
-            data is read live under read-only access and is not stored permanently.
+            {/*
+              Trimmed to the one line that is not ours to drop: Yahoo's API terms
+              require that nothing imply their endorsement. The rest of what used to
+              be here — read-only, read live, not stored — described how the portal
+              works rather than disclaiming anything, and it belongs on the screen
+              where somebody actually grants Yahoo access, not under every page.
+            */}
+            A private league tool. Not affiliated with or endorsed by Yahoo.
           </Typography>
         </Box>
       </Box>

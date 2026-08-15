@@ -1479,6 +1479,98 @@ describe('LLWS draft-order workflow', () => {
     expect(second.status).toBe(409);
     expect((await second.json()).error.message).toContain('confirm explicitly');
   });
+
+  /**
+   * The public endpoint is the only route that answers without a session, so the
+   * question these cover is not "does it work" but "what can a stranger get".
+   */
+  describe('the signed-out view', () => {
+    it('needs no session at all', async () => {
+      // No Cookie header anywhere: this is what someone opening the link sees.
+      const response = await app.request('/api/public/home');
+
+      expect(response.status).toBe(200);
+      expect((await response.json()).order).toBeNull();
+    });
+
+    it('withholds the order until the draw is published', async () => {
+      /**
+       * The guarantee that matters. A drawn-but-unpublished order is the
+       * commissioner's alone — publishing is the deliberate act of telling the
+       * league, and it must not be pre-empted by an unauthenticated URL.
+       */
+      const { auth } = await readyToSelect(4);
+
+      const drawn = await (await app.request('/api/public/home')).json();
+      expect(drawn.order).toBeNull();
+
+      await app.request('/api/llws/2026/publish', { method: 'POST', headers: auth });
+
+      // Published, but the picks are not in yet, so still nothing to show.
+      const published = await (await app.request('/api/public/home')).json();
+      expect(published.order).toBeNull();
+    });
+
+    it('shows the finished order, with names and teams but nothing else', async () => {
+      const { auth, order } = await readyToSelect(4);
+      await app.request('/api/llws/2026/publish', { method: 'POST', headers: auth });
+
+      // Linking the mock league set teamCount to its 12 teams; this league has four.
+      await app.request('/api/seasons/2026', {
+        method: 'PUT',
+        headers: auth,
+        body: JSON.stringify({ teamCount: 4 }),
+      });
+
+      // Everybody picks, so the order is complete.
+      const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+      for (const [index, selection] of sorted.entries()) {
+        await app.request('/api/draft/2026/select', {
+          method: 'POST',
+          headers: auth,
+          body: JSON.stringify({
+            draftPosition: index + 1,
+            leagueMemberId: selection.leagueMemberId,
+          }),
+        });
+      }
+
+      const body = await (await app.request('/api/public/home')).json();
+
+      expect(body.order).toHaveLength(4);
+      expect(body.order[0].draftPosition).toBe(1);
+      expect(body.order[0].manager).toBeTruthy();
+
+      /*
+        Names and positions are the point; identifiers are not. A member ID in this
+        payload would be a durable handle on a private record, handed to anyone who
+        loads the page.
+      */
+      const keys = Object.keys(body.order[0]).sort();
+      expect(keys).toEqual(['draftPosition', 'llwsTeam', 'manager']);
+
+      const serialized = JSON.stringify(body);
+      expect(serialized).not.toContain('leagueMemberId');
+      expect(serialized).not.toContain('userId');
+      expect(serialized).not.toContain('@');
+    });
+
+    it('carries the draft time so the countdown works before anything is drawn', async () => {
+      const jar = await signInAsCommissioner();
+      await app.request('/api/seasons/2026', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Cookie: cookieHeader(jar),
+          [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+        },
+        body: JSON.stringify({ draftAt: '2026-09-02T00:30:00Z' }),
+      });
+
+      const body = await (await app.request('/api/public/home')).json();
+      expect(body.draftAt).toBe('2026-09-02T00:30:00Z');
+    });
+  });
 });
 
 describe('challenge results', () => {

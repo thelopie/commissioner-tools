@@ -45,6 +45,15 @@ export const seasonSchema = auditableSchema.extend({
   draftDate: isoDateSchema.optional(),
 
   /**
+   * When the draft actually starts, as an absolute instant.
+   *
+   * Separate from `draftDate` because a countdown needs a time, and a date alone
+   * cannot express "5:30pm Pacific" without the reader guessing a timezone. Stored in
+   * UTC so the public page counts down correctly wherever it is opened.
+   */
+  draftAt: isoTimestampSchema.optional(),
+
+  /**
    * Final finish order for the season, best first, as league member IDs.
    *
    * portal-owned on purpose: the draft-order workflow breaks LLWS ties by prior
