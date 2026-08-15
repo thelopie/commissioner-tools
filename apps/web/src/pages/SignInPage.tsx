@@ -6,12 +6,15 @@ import {
   Card,
   CardContent,
   Chip,
+  Link,
   Stack,
+  TextField,
   Typography,
 } from '@mui/material';
 import LockIcon from '@mui/icons-material/LockRounded';
 import VisibilityIcon from '@mui/icons-material/VisibilityRounded';
 import BlockIcon from '@mui/icons-material/BlockRounded';
+import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSession } from '../hooks.js';
 
@@ -57,7 +60,7 @@ export function SignInPage(): JSX.Element {
               fontSize: '1.75rem',
             }}
           >
-            D
+            LL
           </Box>
           <Typography variant="h1" id="page-title" tabIndex={-1} sx={{ outline: 'none' }}>
             La Liga de Lopie
@@ -80,12 +83,15 @@ export function SignInPage(): JSX.Element {
                   button anyway would send people to a Yahoo error page that gives
                   them no way to tell whose fault it is.
                 */
-                <Alert severity="info">
-                  <AlertTitle>Not open just yet</AlertTitle>
-                  The portal is waiting on its Yahoo API credentials. Everything is built and ready
-                  — signing in opens as soon as Yahoo approves the connection, and your commissioner
-                  will let you know.
-                </Alert>
+                <Stack spacing={1.5}>
+                  <Alert severity="info">
+                    <AlertTitle>Not open just yet</AlertTitle>
+                    The portal is waiting on its Yahoo API credentials. Everything is built and
+                    ready — signing in opens as soon as Yahoo approves the connection, and your
+                    commissioner will let you know.
+                  </Alert>
+                  <SetupSignIn />
+                </Stack>
               ) : (
                 <Button variant="contained" size="large" href="/auth/yahoo/start" fullWidth>
                   Sign in with Yahoo
@@ -118,6 +124,79 @@ export function SignInPage(): JSX.Element {
           <Chip size="small" variant="outlined" label="No payments processed" />
           <Chip size="small" variant="outlined" label="Not affiliated with Yahoo" />
         </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+/**
+ * The commissioner's temporary way in, and the counterpart to `/auth/break-glass`.
+ *
+ * Deliberately small and folded away: the league should see the "not open yet" notice
+ * and nothing that looks like a second login. It only renders while Yahoo is
+ * unconfigured, and the endpoint behind it refuses once Yahoo works — so this
+ * disappears on its own rather than needing to be remembered.
+ */
+function SetupSignIn(): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: React.FormEvent): Promise<void> {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+
+    try {
+      const response = await fetch('/auth/break-glass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      });
+
+      if (!response.ok) {
+        setError('That token was not accepted.');
+        return;
+      }
+
+      // A full reload rather than a router navigation: the session cookie is new, and
+      // every cached query in memory was fetched as a signed-out user.
+      window.location.assign('/');
+    } catch {
+      setError('Could not reach the server. Try again.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!open) {
+    return (
+      <Box sx={{ textAlign: 'center' }}>
+        <Link component="button" type="button" variant="body2" onClick={() => setOpen(true)}>
+          Commissioner setup
+        </Link>
+      </Box>
+    );
+  }
+
+  return (
+    <Box component="form" onSubmit={submit}>
+      <Stack spacing={1.5}>
+        <TextField
+          label="Setup token"
+          type="password"
+          size="small"
+          value={token}
+          onChange={(event) => setToken(event.target.value)}
+          autoFocus
+          fullWidth
+          error={Boolean(error)}
+          helperText={error ?? 'Temporary, and only while Yahoo is unconfigured.'}
+        />
+        <Button type="submit" variant="outlined" disabled={busy || token.length === 0}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </Button>
       </Stack>
     </Box>
   );
