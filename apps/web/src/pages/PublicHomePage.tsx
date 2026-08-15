@@ -6,11 +6,15 @@ import {
   CardContent,
   Chip,
   Divider,
+  Link,
   Skeleton,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import SportsFootballIcon from '@mui/icons-material/SportsFootballRounded';
+import { Link as RouterLink } from 'react-router-dom';
+import type { PublicHome } from '../api/client.js';
 import { usePublicHome } from '../hooks.js';
 
 /**
@@ -131,10 +135,11 @@ function LlwsMapping({
   assignments,
   hasOrder,
 }: {
-  assignments: Array<{ manager: string; llwsTeam: string; region: string | null }> | null;
+  assignments: PublicHome['assignments'];
   hasOrder: boolean;
 }): JSX.Element | null {
-  if (!assignments || assignments.length === 0) return null;
+  const entries = assignments?.entries ?? [];
+  if (entries.length === 0) return null;
 
   return (
     <Card variant="filled">
@@ -142,7 +147,7 @@ function LlwsMapping({
         <Stack spacing={2}>
           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
             <Typography variant="h6">Little League draw</Typography>
-            <Chip size="small" label={`${assignments.length} managers`} />
+            <Chip size="small" label={`${entries.length} managers`} />
           </Stack>
 
           {!hasOrder && (
@@ -156,7 +161,7 @@ function LlwsMapping({
           <Divider />
 
           <Stack divider={<Divider flexItem />}>
-            {assignments.map((entry) => (
+            {entries.map((entry) => (
               <Stack
                 key={entry.manager}
                 direction="row"
@@ -179,6 +184,23 @@ function LlwsMapping({
               </Stack>
             ))}
           </Stack>
+
+          {/*
+            Small, last, and off to one side. The people who want to audit a random
+            draw are a minority of a twelve-person league, and the rest should not
+            have to scroll past cryptographic reassurance to reach the countdown.
+          */}
+          <Tooltip title="Every pairing came from one recorded random seed. Same seed, same draw — so it can be re-run and checked.">
+            <Link
+              component={RouterLink}
+              to="/draw"
+              variant="caption"
+              color="text.secondary"
+              sx={{ alignSelf: 'flex-start' }}
+            >
+              How this draw was made
+            </Link>
+          </Tooltip>
         </Stack>
       </CardContent>
     </Card>
@@ -198,7 +220,7 @@ export function DraftHighlights({
 }: {
   draftAt: string | null;
   order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;
-  assignments: Array<{ manager: string; llwsTeam: string; region: string | null }> | null;
+  assignments: PublicHome['assignments'];
 }): JSX.Element {
   return (
     <Stack spacing={4}>
@@ -206,7 +228,7 @@ export function DraftHighlights({
 
       {order ? (
         <DraftOrder order={order} />
-      ) : assignments && assignments.length > 0 ? (
+      ) : assignments && assignments.entries.length > 0 ? (
         /*
           The draw has happened but the tournament decides the order, so there is
           nothing to put here yet. The mapping below explains what everyone is

@@ -147,7 +147,12 @@ export interface PublicHome {
   /** UTC instant the draft starts, or null if the commissioner has not set one. */
   draftAt: string | null;
   /** Null until the commissioner publishes the draw. Available weeks before `order`. */
-  assignments: Array<{ manager: string; llwsTeam: string; region: string | null }> | null;
+  assignments: {
+    entries: Array<{ manager: string; llwsTeam: string; region: string | null }>;
+    /** Published on purpose: it is what makes the draw checkable. */
+    seed: string | null;
+    drawnAt: string | null;
+  } | null;
   /** Null until the draw is published and every slot is settled. */
   order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;
 }

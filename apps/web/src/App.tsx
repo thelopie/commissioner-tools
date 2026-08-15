@@ -11,6 +11,7 @@ import { MyTeamPage } from './pages/MyTeamPage.js';
 import { DraftPage } from './pages/DraftPage.js';
 import { LlwsPage } from './pages/LlwsPage.js';
 import { PublicHomePage } from './pages/PublicHomePage.js';
+import { DrawVerificationPage } from './pages/DrawVerificationPage.js';
 import { MoneyPage } from './pages/MoneyPage.js';
 import { AnnouncementsPage } from './pages/AnnouncementsPage.js';
 import { TasksPage } from './pages/TasksPage.js';
@@ -118,6 +119,8 @@ export function App(): JSX.Element {
               )
             }
           />
+          {/* Public: the answer to "was this rigged", reachable signed out. */}
+          <Route path="/draw" element={<DrawVerificationPage />} />
           <Route
             path="/matchups"
             element={authenticated ? <MatchupsPage /> : <Navigate to="/signin" replace />}

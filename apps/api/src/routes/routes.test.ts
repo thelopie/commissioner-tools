@@ -1511,9 +1511,16 @@ describe('LLWS draft-order workflow', () => {
       expect(published.order).toBeNull();
 
       // The mapping, though, is exactly what publishing releases.
-      expect(published.assignments).toHaveLength(4);
-      expect(published.assignments[0].manager).toBeTruthy();
-      expect(published.assignments[0].llwsTeam).toBeTruthy();
+      expect(published.assignments.entries).toHaveLength(4);
+      expect(published.assignments.entries[0].manager).toBeTruthy();
+      expect(published.assignments.entries[0].llwsTeam).toBeTruthy();
+
+      /*
+        The seed ships with it, deliberately. It is worthless as a secret once the
+        pairings are visible, and it is the only thing that turns "it was random"
+        into a claim a suspicious manager can actually test.
+      */
+      expect(published.assignments.seed).toBe('llws-2026:selection-test');
     });
 
     it('keeps the mapping private until it is published', async () => {

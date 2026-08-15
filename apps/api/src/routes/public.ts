@@ -84,7 +84,11 @@ async function publishedAssignments(
   ctx: AppEnv['Variables']['ctx'],
   leagueId: InternalId,
   seasonYear: SeasonYear,
-): Promise<Array<{ manager: string; llwsTeam: string; region: string | null }> | null> {
+): Promise<{
+  entries: Array<{ manager: string; llwsTeam: string; region: string | null }>;
+  seed: string | null;
+  drawnAt: string | null;
+} | null> {
   const assignments = await ctx.repositories.llws.listAssignments(leagueId, seasonYear);
 
   const published = assignments.length > 0 && assignments.every((a) => a.publishedAt);
@@ -94,7 +98,7 @@ async function publishedAssignments(
   const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
   const nameOf = await memberNamer(ctx, leagueId, seasonYear);
 
-  return assignments
+  const entries = assignments
     .map((assignment) => {
       const team = teamById.get(assignment.llwsTeamId);
       return {
@@ -104,6 +108,17 @@ async function publishedAssignments(
       };
     })
     .sort((a, b) => a.manager.localeCompare(b.manager));
+
+  /*
+    The seed is published deliberately. It is what turns "the commissioner says it
+    was random" into something a suspicious manager can check for themselves, and it
+    is worthless as a secret — the draw is already visible above it.
+  */
+  return {
+    entries,
+    seed: assignments[0]?.randomizationSeed ?? null,
+    drawnAt: assignments[0]?.assignedAt ?? null,
+  };
 }
 
 /**
