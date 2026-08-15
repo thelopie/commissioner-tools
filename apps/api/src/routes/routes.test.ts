@@ -2600,6 +2600,143 @@ describe('weekly recaps', () => {
   });
 });
 
+describe('break-glass sign-in', () => {
+  const TOKEN = 'a-token-long-enough-to-pass-validation';
+
+  /**
+   * A second authentication path earns close tests, because its guards are the only
+   * thing keeping it from being a permanent bypass of Yahoo sign-in.
+   */
+  function appWith(overrides: Record<string, string | undefined>) {
+    const base = config();
+    const env = loadServerEnv({
+      NODE_ENV: 'test',
+      YAHOO_CLIENT_ID: 'replace-me',
+      YAHOO_CLIENT_SECRET: 'replace-me',
+      YAHOO_REDIRECT_URI: 'https://localhost:5173/auth/yahoo/callback',
+      YAHOO_MODE: 'live',
+      APP_BASE_URL: 'https://localhost:5173',
+      AWS_REGION: 'us-east-1',
+      DYNAMODB_TABLE_NAME: 'test',
+      SESSION_SECRET: KEY,
+      TOKEN_ENCRYPTION_KEY: KEY,
+      ...overrides,
+    });
+
+    return createApp({
+      config: { ...base, env },
+      table: table.asTable(),
+      fetchImpl: mockFetch,
+      logger: createLogger({ correlationId: 'test', sink: () => {} }),
+    });
+  }
+
+  it('does not exist when no token is configured', async () => {
+    // The default for every normal deployment. Absent rather than refused, so probing
+    // cannot tell a disabled route from one that was never built.
+    const disabled = appWith({});
+
+    const response = await disabled.request('/auth/break-glass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: TOKEN }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('refuses once Yahoo is configured, even with the right token', async () => {
+    /**
+     * The guarantee that matters most. Deleting the route is the tidy-up, but until
+     * then this is what stops it becoming a permanent way around Yahoo sign-in.
+     */
+    const live = appWith({
+      BREAK_GLASS_TOKEN: TOKEN,
+      YAHOO_CLIENT_ID: 'a-real-client-id',
+      YAHOO_CLIENT_SECRET: 'a-real-secret',
+    });
+
+    const response = await live.request('/auth/break-glass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: TOKEN }),
+    });
+
+    expect(response.status).toBe(404);
+  });
+
+  it('refuses a wrong token and records the attempt', async () => {
+    const enabled = appWith({ BREAK_GLASS_TOKEN: TOKEN });
+
+    const response = await enabled.request('/auth/break-glass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'not-the-right-token-but-long-enough' }),
+    });
+
+    expect(response.status).toBe(401);
+
+    // A failed attempt here is one of the few genuinely interesting security events
+    // this application can produce, so it must not pass silently.
+    const refusal = table
+      .all()
+      .find(
+        (item) =>
+          item['entity'] === 'AuditLog' && String(item['summary']).includes('REFUSED'),
+      );
+    expect(refusal).toBeDefined();
+  });
+
+  it('signs in one commissioner and issues a short session', async () => {
+    const enabled = appWith({ BREAK_GLASS_TOKEN: TOKEN });
+
+    const response = await enabled.request('/auth/break-glass', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: TOKEN }),
+    });
+
+    expect(response.status).toBe(200);
+
+    const body = await response.json();
+    // Two hours: enough to set a season up, not enough to become how the league runs.
+    expect(body.expiresInSeconds).toBe(7200);
+
+    const users = table.ofEntity('PortalUser');
+    expect(users).toHaveLength(1);
+    expect(users[0]!['role']).toBe('commissioner');
+    // Never a Yahoo GUID, so the real account stays visibly separate later.
+    expect(users[0]!['yahooGuid']).toBe('break-glass-commissioner');
+
+    // The session cookie must actually work.
+    const jar: Record<string, string> = {};
+    for (const header of response.headers.getSetCookie()) {
+      const [pair] = header.split(';');
+      const index = pair!.indexOf('=');
+      jar[pair!.slice(0, index)] = decodeURIComponent(pair!.slice(index + 1));
+    }
+
+    const session = await enabled.request('/api/session', {
+      headers: { Cookie: cookieHeader(jar) },
+    });
+    expect((await session.json()).authenticated).toBe(true);
+  });
+
+  it('reuses the same account rather than creating one per sign-in', async () => {
+    const enabled = appWith({ BREAK_GLASS_TOKEN: TOKEN });
+
+    for (let i = 0; i < 3; i += 1) {
+      await enabled.request('/auth/break-glass', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: TOKEN }),
+      });
+    }
+
+    expect(table.ofEntity('PortalUser')).toHaveLength(1);
+  });
+});
+
 describe('CSV import', () => {
   it('previews without writing, and reports what would happen', async () => {
     const jar = await signInAsCommissioner();

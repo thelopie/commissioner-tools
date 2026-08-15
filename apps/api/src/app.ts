@@ -16,6 +16,7 @@ import { challengeRoutes } from './routes/challenges.js';
 import { draftRoutes } from './routes/draft.js';
 import { importRoutes } from './routes/imports.js';
 import { recapRoutes } from './routes/recaps.js';
+import { breakGlassRoutes } from './routes/break-glass.js';
 
 /**
  * Application assembly.
@@ -203,8 +204,15 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   app.use('*', async (c, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(c.req.method)) return next();
 
-    // Bootstrap and OAuth callbacks arrive before any CSRF cookie exists, and
-    // the callback is a GET anyway. Everything else that changes state is checked.
+    /*
+      Sign-in is the one thing that cannot carry a double-submit token, because it runs
+      before any session exists to issue one. OAuth's callback is a GET and so already
+      skipped above; break-glass is a POST and has to be named. It is not weakened by
+      the exemption: a forged cross-origin request would still need the break-glass
+      secret in its body, which is precisely the unguessable value CSRF would supply.
+    */
+    if (c.req.path === '/auth/break-glass') return next();
+
     assertCsrf(c.req.header('Cookie'), c.req.header(CSRF_HEADER) ?? null);
     return next();
   });
@@ -218,6 +226,7 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
   app.route('/', draftRoutes);
   app.route('/', importRoutes);
   app.route('/', recapRoutes);
+  app.route('/', breakGlassRoutes);
 
   app.notFound((c) => c.json({ error: { code: 'not_found', message: 'No such endpoint.' } }, 404));
 

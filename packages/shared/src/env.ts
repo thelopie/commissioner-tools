@@ -46,6 +46,15 @@ export const serverEnvSchema = z
     // HTTPS is required in live mode and checked below, once YAHOO_MODE is known.
     YAHOO_REDIRECT_URI: z.string().url(),
     YAHOO_MODE: yahooModeSchema.default('mock'),
+
+    /**
+     * Enables the temporary break-glass sign-in. Unset in any normal deployment.
+     *
+     * Exists only for the window before Yahoo credentials arrive, when the
+     * commissioner otherwise cannot get in to set the league up at all. The route
+     * refuses once Yahoo is configured, and is meant to be deleted after that.
+     */
+    BREAK_GLASS_TOKEN: z.string().min(24).optional(),
     YAHOO_MOCK_BASE_URL: z.string().url().default('http://127.0.0.1:4310'),
 
     // Application
