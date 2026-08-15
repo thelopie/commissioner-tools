@@ -1,10 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  fixtures,
-  parseUserLeagues,
-  parseLeagueTeams,
-  parseTeamRoster,
-} from '@lopie/yahoo-client';
+import { fixtures, parseUserLeagues, parseLeagueTeams, parseTeamRoster } from '@lopie/yahoo-client';
 import { handleFantasyRequest, handleTokenRequest } from './handlers.js';
 
 describe('mock token endpoint', () => {

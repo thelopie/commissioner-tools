@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { handle } from 'hono/aws-lambda';
 import { createApp, loadConfig } from './app.js';
 import { createLogger, describeError } from './lib/logger.js';
+import { loadSecretsIntoEnv } from './lib/secrets.js';
 import { runScheduledJob } from './jobs/runner.js';
 import { isScheduledJobEvent } from './jobs/types.js';
 
@@ -50,7 +51,31 @@ function build(): Hono {
   }
 }
 
-const httpHandler = handle(build());
+/**
+ * Built once per container, after secrets are in the environment.
+ *
+ * Configuration validation is synchronous and reads `process.env`, while fetching
+ * secrets is not — so the app cannot be constructed at module scope. The promise is
+ * cached, so a warm invocation pays nothing and two concurrent cold requests share
+ * one fetch rather than racing.
+ */
+let appPromise: Promise<Hono> | null = null;
+
+function getApp(): Promise<Hono> {
+  appPromise ??= (async () => {
+    try {
+      await loadSecretsIntoEnv();
+    } catch (error) {
+      createLogger({ correlationId: 'init' }).error(
+        'Could not read secrets; the service will report itself misconfigured',
+        describeError(error),
+      );
+    }
+    return build();
+  })();
+
+  return appPromise;
+}
 
 /**
  * The Lambda handler, for HTTP requests and for scheduled jobs.
@@ -64,11 +89,15 @@ const httpHandler = handle(build());
  * is what routes the invocation to the dead-letter queue.
  */
 export const handler = async (event: unknown, lambdaContext?: unknown): Promise<unknown> => {
+  // Awaited for both paths: a scheduled job loads its own configuration and needs the
+  // same secrets in place before it does.
+  const app = await getApp();
+
   if (isScheduledJobEvent(event)) {
     return runScheduledJob(event);
   }
 
-  return (httpHandler as (event: unknown, context?: unknown) => Promise<unknown>)(
+  return (handle(app) as (event: unknown, context?: unknown) => Promise<unknown>)(
     event,
     lambdaContext,
   );
