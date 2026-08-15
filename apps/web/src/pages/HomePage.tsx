@@ -79,6 +79,7 @@ export function HomePage(): JSX.Element {
         <DraftHighlights
           draftAt={publicHome.data?.draftAt ?? null}
           order={publicHome.data?.order ?? null}
+          assignments={publicHome.data?.assignments ?? null}
         />
         <Box sx={{ textAlign: 'center' }}>
           <Button variant="contained" href="/auth/yahoo/start">

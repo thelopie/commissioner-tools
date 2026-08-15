@@ -1506,9 +1506,21 @@ describe('LLWS draft-order workflow', () => {
 
       await app.request('/api/llws/2026/publish', { method: 'POST', headers: auth });
 
-      // Published, but the picks are not in yet, so still nothing to show.
+      // Published, but the picks are not in yet, so still no order.
       const published = await (await app.request('/api/public/home')).json();
       expect(published.order).toBeNull();
+
+      // The mapping, though, is exactly what publishing releases.
+      expect(published.assignments).toHaveLength(4);
+      expect(published.assignments[0].manager).toBeTruthy();
+      expect(published.assignments[0].llwsTeam).toBeTruthy();
+    });
+
+    it('keeps the mapping private until it is published', async () => {
+      await readyToSelect(4);
+
+      const body = await (await app.request('/api/public/home')).json();
+      expect(body.assignments).toBeNull();
     });
 
     it('shows the finished order, with names and teams but nothing else', async () => {

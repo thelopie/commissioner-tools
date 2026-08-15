@@ -59,15 +59,78 @@ publicRoutes.get('/api/public/home', async (c) => {
   const season = await ctx.repositories.leagues.findSeason(leagueId, seasonYear);
   const draftAt = season?.draftAt ?? null;
 
-  const order = await publishedOrder(ctx, leagueId, seasonYear, season?.teamCount);
+  const [assignments, order] = await Promise.all([
+    publishedAssignments(ctx, leagueId, seasonYear),
+    publishedOrder(ctx, leagueId, seasonYear, season?.teamCount),
+  ]);
 
   return c.json({
     leagueName: league.name,
     seasonYear,
     draftAt,
+    assignments,
     order,
   });
 });
+
+/**
+ * Who drew which Little League team, by owner.
+ *
+ * Available as soon as the draw is published, which is weeks before a draft order
+ * exists — the tournament has to be played first. This is the part the league wants
+ * to argue about in the meantime, so it is worth showing on its own.
+ */
+async function publishedAssignments(
+  ctx: AppEnv['Variables']['ctx'],
+  leagueId: InternalId,
+  seasonYear: SeasonYear,
+): Promise<Array<{ manager: string; llwsTeam: string; region: string | null }> | null> {
+  const assignments = await ctx.repositories.llws.listAssignments(leagueId, seasonYear);
+
+  const published = assignments.length > 0 && assignments.every((a) => a.publishedAt);
+  if (!published) return null;
+
+  const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
+  const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
+  const nameOf = await memberNamer(ctx, leagueId, seasonYear);
+
+  return assignments
+    .map((assignment) => {
+      const team = teamById.get(assignment.llwsTeamId);
+      return {
+        manager: nameOf(assignment.leagueMemberId),
+        llwsTeam: team?.name ?? 'Unknown team',
+        region: team?.region ?? null,
+      };
+    })
+    .sort((a, b) => a.manager.localeCompare(b.manager));
+}
+
+/**
+ * Resolves a member ID to the name the league would say out loud.
+ *
+ * Prefers a signed-in user's own confirmed display name, falling back to the name the
+ * commissioner entered — which is what exists before anybody has signed in.
+ */
+async function memberNamer(
+  ctx: AppEnv['Variables']['ctx'],
+  leagueId: InternalId,
+  seasonYear: SeasonYear,
+): Promise<(memberId: string) => string> {
+  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
+  const users = await ctx.repositories.users.listByLeague(leagueId);
+  const userById = new Map(users.map((user) => [user.userId, user]));
+
+  return (memberId: string): string => {
+    const member = members.find((candidate) => candidate.leagueMemberId === memberId);
+    if (!member) return 'Unknown manager';
+    return (
+      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
+      member.legacyManagerName ??
+      'Unnamed manager'
+    );
+  };
+}
 
 async function seasons(
   ctx: { repositories: { leagues: { listSeasons: (id: InternalId) => Promise<Array<{ seasonYear: number }>> } } },
@@ -115,25 +178,13 @@ async function publishedOrder(
   const final = finalDraftOrder(states, teamCount ?? selections.length);
   if (!final.complete) return null;
 
-  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
-  const users = await ctx.repositories.users.listByLeague(leagueId);
-  const userById = new Map(users.map((user) => [user.userId, user]));
-
   const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
   const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
   const teamByMember = new Map(
     assignments.map((assignment) => [assignment.leagueMemberId, teamById.get(assignment.llwsTeamId)]),
   );
 
-  const nameOf = (memberId: string): string => {
-    const member = members.find((candidate) => candidate.leagueMemberId === memberId);
-    if (!member) return 'Unknown manager';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      'Unnamed manager'
-    );
-  };
+  const nameOf = await memberNamer(ctx, leagueId, seasonYear);
 
   return final.order.flatMap((entry) => {
     if (!entry.leagueMemberId) return [];

@@ -39,18 +39,16 @@ export function PublicHomePage(): JSX.Element {
 
   return (
     <Stack spacing={4} sx={{ maxWidth: 760, mx: 'auto' }}>
-      <Stack spacing={1} alignItems="center" sx={{ textAlign: 'center' }}>
-        <Typography variant="h1" id="page-title" tabIndex={-1} sx={{ outline: 'none' }}>
-          {home.data?.leagueName ?? 'La Liga de Lopie'}
-        </Typography>
-        {home.data?.seasonYear !== null && home.data?.seasonYear !== undefined && (
-          <Typography variant="body1" color="text.secondary">
-            {home.data.seasonYear} season
-          </Typography>
-        )}
-      </Stack>
+      <Hero
+        leagueName={home.data?.leagueName ?? 'La Liga de Lopie'}
+        seasonYear={home.data?.seasonYear ?? null}
+      />
 
-      <DraftHighlights draftAt={home.data?.draftAt ?? null} order={order} />
+      <DraftHighlights
+        draftAt={home.data?.draftAt ?? null}
+        order={order}
+        assignments={home.data?.assignments ?? null}
+      />
 
       <Box sx={{ textAlign: 'center' }}>
         <Button variant="outlined" href="/signin">
@@ -58,6 +56,132 @@ export function PublicHomePage(): JSX.Element {
         </Button>
       </Box>
     </Stack>
+  );
+}
+
+/**
+ * The banner, with the league name over the artwork rather than beside it.
+ *
+ * Two widths so a phone does not pull down a desktop-sized image, and the text sits on
+ * a gradient scrim so it stays legible over the light and dark parts of the picture.
+ */
+function Hero({
+  leagueName,
+  seasonYear,
+}: {
+  leagueName: string;
+  seasonYear: number | null;
+}): JSX.Element {
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        borderRadius: 4,
+        overflow: 'hidden',
+        // Reserved up front so the countdown below does not jump when the image lands.
+        aspectRatio: '16 / 9',
+        bgcolor: 'action.hover',
+      }}
+    >
+      <Box
+        component="img"
+        src="/hero-1600.webp"
+        srcSet="/hero-960.webp 960w, /hero-1600.webp 1600w"
+        sizes="(max-width: 760px) 100vw, 760px"
+        alt=""
+        sx={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'flex-end',
+          p: { xs: 2, sm: 3 },
+          background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%)',
+        }}
+      >
+        <Typography
+          variant="h1"
+          id="page-title"
+          tabIndex={-1}
+          sx={{ outline: 'none', color: 'common.white', fontSize: { xs: '2rem', sm: '3rem' } }}
+        >
+          {leagueName}
+        </Typography>
+        {seasonYear !== null && (
+          <Typography variant="body1" sx={{ color: 'rgba(255,255,255,0.85)' }}>
+            {seasonYear} season
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  );
+}
+
+/**
+ * Who drew which Little League team.
+ *
+ * Listed by owner because that is how the league refers to each other, and because
+ * fantasy team names change on a whim while the person does not.
+ */
+function LlwsMapping({
+  assignments,
+  hasOrder,
+}: {
+  assignments: Array<{ manager: string; llwsTeam: string; region: string | null }> | null;
+  hasOrder: boolean;
+}): JSX.Element | null {
+  if (!assignments || assignments.length === 0) return null;
+
+  return (
+    <Card variant="filled">
+      <CardContent>
+        <Stack spacing={2}>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+            <Typography variant="h6">Little League draw</Typography>
+            <Chip size="small" label={`${assignments.length} managers`} />
+          </Stack>
+
+          {!hasOrder && (
+            <Typography variant="body2" color="text.secondary">
+              Each manager drew one team at random. When the tournament finishes, whoever&rsquo;s
+              team went furthest picks their draft slot first — ties go to the worse finisher last
+              season, then to the recorded random seed.
+            </Typography>
+          )}
+
+          <Divider />
+
+          <Stack divider={<Divider flexItem />}>
+            {assignments.map((entry) => (
+              <Stack
+                key={entry.manager}
+                direction="row"
+                spacing={2}
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ py: 1.25 }}
+              >
+                <Typography variant="body1" sx={{ fontWeight: 600 }}>
+                  {entry.manager}
+                </Typography>
+                <Stack sx={{ textAlign: 'right', minWidth: 0 }}>
+                  <Typography variant="body2">{entry.llwsTeam}</Typography>
+                  {entry.region && (
+                    <Typography variant="caption" color="text.secondary">
+                      {entry.region}
+                    </Typography>
+                  )}
+                </Stack>
+              </Stack>
+            ))}
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -70,9 +194,11 @@ export function PublicHomePage(): JSX.Element {
 export function DraftHighlights({
   draftAt,
   order,
+  assignments,
 }: {
   draftAt: string | null;
   order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;
+  assignments: Array<{ manager: string; llwsTeam: string; region: string | null }> | null;
 }): JSX.Element {
   return (
     <Stack spacing={4}>
@@ -80,6 +206,13 @@ export function DraftHighlights({
 
       {order ? (
         <DraftOrder order={order} />
+      ) : assignments && assignments.length > 0 ? (
+        /*
+          The draw has happened but the tournament decides the order, so there is
+          nothing to put here yet. The mapping below explains what everyone is
+          waiting on; a second card saying "not set yet" would just repeat it.
+        */
+        null
       ) : (
         <Card variant="filled">
           <CardContent>
@@ -94,6 +227,8 @@ export function DraftHighlights({
           </CardContent>
         </Card>
       )}
+
+      <LlwsMapping assignments={assignments} hasOrder={order !== null} />
     </Stack>
   );
 }
