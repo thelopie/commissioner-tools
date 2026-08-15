@@ -10,7 +10,7 @@ import {
   Stack,
   Typography,
 } from '@mui/material';
-import SportsBaseballIcon from '@mui/icons-material/SportsBaseballRounded';
+import SportsFootballIcon from '@mui/icons-material/SportsFootballRounded';
 import { usePublicHome } from '../hooks.js';
 
 /**
@@ -84,7 +84,7 @@ export function DraftHighlights({
         <Card variant="filled">
           <CardContent>
             <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center', py: 3 }}>
-              <SportsBaseballIcon color="disabled" sx={{ fontSize: 44 }} />
+              <SportsFootballIcon color="disabled" sx={{ fontSize: 44 }} />
               <Typography variant="h6">The draft order is not set yet</Typography>
               <Typography variant="body2" color="text.secondary" sx={{ maxWidth: '46ch' }}>
                 Every manager gets a Little League World Series team at random. How far your team

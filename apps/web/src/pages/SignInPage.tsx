@@ -5,15 +5,11 @@ import {
   Button,
   Card,
   CardContent,
-  Chip,
   Link,
   Stack,
   TextField,
   Typography,
 } from '@mui/material';
-import LockIcon from '@mui/icons-material/LockRounded';
-import VisibilityIcon from '@mui/icons-material/VisibilityRounded';
-import BlockIcon from '@mui/icons-material/BlockRounded';
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSession } from '../hooks.js';
@@ -66,9 +62,7 @@ export function SignInPage(): JSX.Element {
             La Liga de Lopie
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ maxWidth: '46ch' }}>
-            League operations for a long-running fantasy football league. Yahoo stays the source of
-            truth for scores and rosters; the portal owns dues, prizes, weekly challenges, and the
-            draft-order workflow.
+            Dues, prizes, weekly challenges, and the draft-order workflow, all in one place.
           </Typography>
         </Stack>
 
@@ -79,51 +73,28 @@ export function SignInPage(): JSX.Element {
             <Stack spacing={2.5}>
               {notOpenYet ? (
                 /*
-                  Waiting on Yahoo's approval of the API application. Offering the
-                  button anyway would send people to a Yahoo error page that gives
-                  them no way to tell whose fault it is.
+                  Sign-in is not wired up yet. The button is withheld rather than
+                  offered, because pressing it would land on somebody else's error
+                  page with no way to tell whose fault it was.
                 */
                 <Stack spacing={1.5}>
                   <Alert severity="info">
                     <AlertTitle>Not open just yet</AlertTitle>
-                    The portal is waiting on its Yahoo API credentials. Everything is built and
-                    ready — signing in opens as soon as Yahoo approves the connection, and your
-                    commissioner will let you know.
+                    Signing in is almost ready. Your commissioner will let you know the moment it
+                    opens.
                   </Alert>
                   <SetupSignIn />
                 </Stack>
               ) : (
                 <Button variant="contained" size="large" href="/auth/yahoo/start" fullWidth>
-                  Sign in with Yahoo
+                  Sign in
                 </Button>
               )}
 
-              <Stack spacing={1.5}>
-                <Guarantee
-                  icon={<VisibilityIcon />}
-                  title="Read-only access"
-                  body="The portal requests read-only Fantasy permission. It cannot change your lineup, make transactions, or act as commissioner in Yahoo."
-                />
-                <Guarantee
-                  icon={<BlockIcon />}
-                  title="Nothing is warehoused"
-                  body="Scores, rosters, and names are read live and cached for minutes. Yahoo's terms allow keeping only your account ID and access tokens."
-                />
-                <Guarantee
-                  icon={<LockIcon />}
-                  title="Revocable at any time"
-                  body="Removing the connection deletes the stored credentials and every cached Yahoo response immediately."
-                />
-              </Stack>
             </Stack>
           </CardContent>
         </Card>
 
-        <Stack direction="row" spacing={1} justifyContent="center" flexWrap="wrap" useFlexGap>
-          <Chip size="small" variant="outlined" label="No passwords stored" />
-          <Chip size="small" variant="outlined" label="No payments processed" />
-          <Chip size="small" variant="outlined" label="Not affiliated with Yahoo" />
-        </Stack>
       </Stack>
     </Box>
   );
@@ -192,7 +163,7 @@ function SetupSignIn(): JSX.Element {
           autoFocus
           fullWidth
           error={Boolean(error)}
-          helperText={error ?? 'Temporary, and only while Yahoo is unconfigured.'}
+          helperText={error ?? 'Temporary, and only until sign-in opens.'}
         />
         <Button type="submit" variant="outlined" disabled={busy || token.length === 0}>
           {busy ? 'Signing in…' : 'Sign in'}
@@ -202,44 +173,6 @@ function SetupSignIn(): JSX.Element {
   );
 }
 
-function Guarantee({
-  icon,
-  title,
-  body,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  body: string;
-}): JSX.Element {
-  return (
-    <Stack direction="row" spacing={1.5} alignItems="flex-start">
-      <Box
-        sx={{
-          mt: 0.25,
-          width: 36,
-          height: 36,
-          flexShrink: 0,
-          borderRadius: 999,
-          display: 'grid',
-          placeItems: 'center',
-          bgcolor: 'background.surfaceContainerLowest',
-          color: 'primary.main',
-          '& svg': { fontSize: 20 },
-        }}
-      >
-        {icon}
-      </Box>
-      <Box>
-        <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-          {title}
-        </Typography>
-        <Typography variant="body2" color="text.secondary">
-          {body}
-        </Typography>
-      </Box>
-    </Stack>
-  );
-}
 
 function YahooErrorAlert({ code }: { code: string }): JSX.Element {
   const { severity, message } = describeOAuthError(code);
