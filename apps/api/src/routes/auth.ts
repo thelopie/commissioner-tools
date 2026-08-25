@@ -179,6 +179,16 @@ authRoutes.get('/auth/yahoo/callback', async (c) => {
       ctx.yahooFetch,
     );
 
+    /*
+      Recorded before the next step, because the next step is the one that fails
+      when the Yahoo application lacks Fantasy access — and for a while both were
+      inside one try block logging "exchange failed", which sent two separate
+      investigations after a token exchange that had actually succeeded.
+    */
+    ctx.logger.info('Yahoo token exchange succeeded', {
+      grantedScope: tokens.scope ?? '(none returned)',
+    });
+
     const { userId, isNewUser, prefillDisplayName } = await establishIdentity(ctx, tokens);
 
     const sessionId = generateSessionId();
@@ -219,10 +229,18 @@ authRoutes.get('/auth/yahoo/callback', async (c) => {
     return c.redirect(destination.toString(), 302);
   } catch (error) {
     const errorCode = error instanceof AppError ? error.code : 'oauth_exchange_failed';
-    ctx.logger.error('Yahoo OAuth exchange failed', {
+
+    /*
+      Yahoo's own error text, when there is any. It is the difference between
+      "something went wrong signing in" and knowing the application was never
+      granted Fantasy access — and this goes to CloudWatch through the redacting
+      logger, never to a browser.
+    */
+    const detail = error instanceof AppError ? error.detail : undefined;
+
+    ctx.logger.error('Yahoo sign-in failed', {
       reason: errorCode,
-      // Yahoo's error body is deliberately not attached: it can echo request
-      // parameters, and this line goes to CloudWatch.
+      ...(detail ? { yahooDetail: detail } : {}),
     });
     return c.redirect(frontendUrl(env.APP_BASE_URL, returnTo, errorCode), 302);
   }

@@ -118,7 +118,17 @@ export class YahooClient {
         return this.parseJson(raw);
       }
 
-      lastError = this.errorForStatus(response.status);
+      /*
+        Yahoo's own words, kept.
+
+        These used to be discarded, and the cost was real: a 401 on the very first
+        call after a successful sign-in was reported as "the grant is gone,
+        reconnect", which is exactly wrong for a grant issued nine seconds earlier.
+        Yahoo's body says which it is. Truncated because it can be verbose, and it
+        goes to the redacting logger rather than to any browser.
+      */
+      const failureBody = await response.text().catch(() => '');
+      lastError = this.errorForStatus(response.status, failureBody.slice(0, 300));
 
       if (RETRYABLE_STATUSES.has(response.status) && attempt < this.maxAttempts) {
         const retryAfter = parseRetryAfter(response.headers.get('Retry-After'));
@@ -282,16 +292,20 @@ export class YahooClient {
     }
   }
 
-  private errorForStatus(status: number): AppError {
+  private errorForStatus(status: number, body = ''): AppError {
     if (status === 401) {
-      // The access token was rejected. The token provider refreshes proactively,
-      // so a 401 here means the grant itself is gone — reconnect, do not retry.
-      return new AppError('yahoo_needs_reconnect', { detail: { status } });
+      /*
+        The access token was rejected. Tokens are refreshed proactively, so this is
+        not staleness — either the grant was revoked, or the Yahoo application is
+        not authorized for the Fantasy API at all, which fails identically on every
+        call from the very first one. The body distinguishes them; the caller logs it.
+      */
+      return new AppError('yahoo_needs_reconnect', { detail: { status, yahooError: body } });
     }
     if (status === 403) {
       return new AppError('forbidden', {
         publicMessage: 'Yahoo refused access to that league for this account.',
-        detail: { status },
+        detail: { status, yahooError: body },
       });
     }
     if (status === 404) {
