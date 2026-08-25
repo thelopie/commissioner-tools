@@ -17,6 +17,19 @@ export const YAHOO_AUTHORIZE_URL = 'https://api.login.yahoo.com/oauth2/request_a
 export const YAHOO_TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token';
 
 /**
+ * OpenID Connect user info.
+ *
+ * Identity used to come from the Fantasy API's own `users;use_login=1`, which was
+ * elegant — one API, one credential — right up until a Yahoo application without
+ * Fantasy authorization made signing in impossible. Nobody could reach the dues
+ * page because the scoreboard was not switched on.
+ *
+ * This endpoint answers "who is this" from the `openid` scope alone, so identity no
+ * longer depends on a permission that identity has nothing to do with.
+ */
+export const YAHOO_USERINFO_URL = 'https://api.login.yahoo.com/openid/v1/userinfo';
+
+/**
  * Lifetime of an OAuth state value.
  *
  * Long enough for a person to read Yahoo's consent screen and decide, short
@@ -176,6 +189,78 @@ export interface TokenSet {
   scope?: string;
   /** True when Yahoo returned a different refresh token than the one we sent. */
   refreshTokenRotated: boolean;
+}
+
+/**
+ * The OpenID Connect subject, plus whatever is offered for a display-name prefill.
+ *
+ * `sub` is Yahoo's stable identifier for the account and the only required field.
+ * Everything else is a convenience: the user confirms or edits their name anyway,
+ * at which point it becomes the portal's own data.
+ */
+const userInfoSchema = z.object({
+  sub: z.string().min(1),
+  nickname: z.string().optional(),
+  given_name: z.string().optional(),
+  name: z.string().optional(),
+  email: z.string().optional(),
+});
+
+export interface YahooOpenIdIdentity {
+  sub: string;
+  displayNameHint: string | null;
+  email: string | null;
+}
+
+/**
+ * Identifies the signed-in Yahoo account.
+ *
+ * @throws {AppError} `oauth_exchange_failed` when Yahoo will not say who this is.
+ */
+export async function fetchOpenIdIdentity(
+  accessToken: string,
+  fetchImpl: FetchLike,
+): Promise<YahooOpenIdIdentity> {
+  let response: Awaited<ReturnType<FetchLike>>;
+  try {
+    response = await fetchImpl(YAHOO_USERINFO_URL, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+  } catch (cause) {
+    throw new AppError('yahoo_unavailable', {
+      publicMessage: 'Could not reach Yahoo. Try again shortly.',
+      cause,
+    });
+  }
+
+  const raw = await response.text();
+
+  if (!response.ok) {
+    throw new AppError('oauth_exchange_failed', {
+      publicMessage: 'Yahoo could not confirm your account. Try signing in again.',
+      // Yahoo's wording, kept: discarding it is what made the Fantasy 401 take
+      // three attempts to identify.
+      detail: { status: response.status, yahooError: raw.slice(0, 300) },
+    });
+  }
+
+  let parsed: z.infer<typeof userInfoSchema>;
+  try {
+    parsed = userInfoSchema.parse(JSON.parse(raw));
+  } catch (cause) {
+    throw new AppError('oauth_exchange_failed', {
+      publicMessage: 'Yahoo could not confirm your account. Try signing in again.',
+      detail: { reason: 'userinfo_unparseable' },
+      cause,
+    });
+  }
+
+  return {
+    sub: parsed.sub,
+    displayNameHint: parsed.nickname ?? parsed.given_name ?? parsed.name ?? null,
+    email: parsed.email ?? null,
+  };
 }
 
 /** Minimal fetch shape, so tests inject a transport without touching the network. */

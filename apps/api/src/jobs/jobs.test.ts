@@ -74,6 +74,12 @@ const mockFetch: FetchLike = async (url, init) => {
     const result = handleTokenRequest(init.body ?? '');
     return respond(result.status, result.body);
   }
+  // Sign-in identifies the user through OpenID Connect, so bootstrapping a league
+  // in a test needs this endpoint as much as production does.
+  if (parsed.pathname === '/openid/v1/userinfo') {
+    return respond(200, { sub: 'mock-openid-subject', nickname: 'mock_commissioner' });
+  }
+
   if (parsed.pathname.startsWith('/fantasy/v2/')) {
     const result = handleFantasyRequest(parsed.pathname.slice('/fantasy/v2/'.length));
     return respond(result.status, result.body);

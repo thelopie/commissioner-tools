@@ -55,6 +55,16 @@ const handleRequest = (request: IncomingMessage, response: ServerResponse): void
       return;
     }
 
+    // OpenID Connect user info, which is how the portal identifies a signer-in.
+    if (path === '/openid/v1/userinfo') {
+      send(response, 200, {
+        sub: 'mock-openid-subject',
+        nickname: 'mock_commissioner',
+        email: 'mock_commissioner@example.invalid',
+      });
+      return;
+    }
+
     /**
      * The consent screen. A real browser redirect flow, so the portal's state
      * validation and callback handling are genuinely exercised: it immediately

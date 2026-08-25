@@ -74,6 +74,16 @@ const mockFetch: FetchLike = async (url, init) => {
     return respond(result.status, result.body);
   }
 
+  // Identity comes from OpenID Connect rather than the Fantasy API, so sign-in in
+  // tests exercises the same endpoint production does.
+  if (parsed.pathname === '/openid/v1/userinfo') {
+    return respond(200, {
+      sub: 'mock-openid-subject',
+      nickname: 'mock_commissioner',
+      email: 'mock_commissioner@example.invalid',
+    });
+  }
+
   if (parsed.pathname.startsWith('/fantasy/v2/')) {
     const result = handleFantasyRequest(parsed.pathname.slice('/fantasy/v2/'.length));
     return respond(result.status, result.body);
@@ -272,7 +282,12 @@ describe('Yahoo OAuth flow', () => {
       invalid_scope, which broke every sign-in; asserting its absence keeps someone
       from helpfully restoring it after reading the old OAuth 1.0a docs.
     */
-    expect(url.searchParams.has('scope')).toBe(false);
+    /*
+      `openid` and only that. Identity comes from OpenID Connect, so Fantasy
+      permission is not a prerequisite for signing in. Never `fspt-r`: the live
+      endpoint rejects it with invalid_scope, which broke every sign-in.
+    */
+    expect(url.searchParams.get('scope')).toBe('openid');
     expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     // The client secret must never appear in a browser-visible URL.
     expect(response.headers.get('Location')).not.toContain('test-secret');

@@ -72,7 +72,16 @@ authRoutes.get('/auth/yahoo/start', async (c) => {
     redirectUri: env.YAHOO_REDIRECT_URI,
     state: state.state,
     /*
-      No scope parameter, deliberately.
+      `openid` and nothing else.
+
+      Identity comes from OpenID Connect, not from the Fantasy API, so this is the
+      only scope sign-in needs. What the token may read of the league is decided by
+      the permissions on the Yahoo application itself.
+
+      Not `fspt-r`: that is the Fantasy read scope from Yahoo's OAuth 1.0a
+      documentation, still repeated all over the internet, and the current
+      authorization endpoint rejects it outright with `invalid_scope` — verified
+      against the live endpoint, where `fspt-r` is refused and `openid` is accepted.
 
       This sent `fspt-r` — the Fantasy read scope from Yahoo's older OAuth 1.0a
       documentation, which is still repeated all over the internet. Yahoo's current
@@ -80,10 +89,10 @@ authRoutes.get('/auth/yahoo/start', async (c) => {
       sign-in failed before the user ever saw a consent screen. Verified against the
       live endpoint: `fspt-r` is refused, omitting scope is accepted.
 
-      What the token can read is decided by the permissions on the Yahoo application
-      itself, not by anything asked for here. The portal calls no write endpoint —
-      Yahoo documents none — so nothing is given up by staying silent.
+      The portal calls no write endpoint — Yahoo documents none — so nothing is
+      given up by asking for no more than this.
     */
+    scope: 'openid',
   });
 
   const target =
@@ -612,24 +621,25 @@ async function establishIdentity(
   const { encryptToken } = await import('../lib/crypto.js');
   const { env } = ctx.config;
 
-  // A temporary client, because identity is needed before a connection exists.
-  const { YahooClient } = await import('@lopie/yahoo-client');
+  /**
+   * Who is signing in, from OpenID Connect.
+   *
+   * This used to read the Fantasy API's own `users;use_login=1`, which meant a Yahoo
+   * application without Fantasy authorization could not sign anybody in at all —
+   * the dues page was unreachable because the scoreboard was not switched on. The
+   * two concerns are now separate: `sub` identifies the account, and Fantasy
+   * permission governs only league data.
+   */
+  const { fetchOpenIdIdentity } = await import('@lopie/yahoo-client');
+  const identity = await fetchOpenIdIdentity(tokens.accessToken, ctx.yahooFetch);
 
-  const probe = new YahooClient({
-    fetchImpl: ctx.yahooFetch,
-    baseUrl: ctx.config.yahooApiBaseUrl,
-    getAccessToken: async () => tokens.accessToken,
-  });
-
-  const profile = await probe.getUserProfile();
-  if (!profile.guid) {
-    throw new AppError('oauth_exchange_failed', {
-      publicMessage: 'Yahoo did not identify your account. Try connecting again.',
-      detail: { reason: 'missing_guid' },
-    });
-  }
-
-  const existing = await ctx.repositories.users.findByYahooGuid(profile.guid as YahooGuid);
+  /*
+    `sub` is stored in the same field the Fantasy GUID used to occupy. Both are
+    stable opaque Yahoo account identifiers, and Yahoo's terms permit keeping either
+    indefinitely. If Fantasy access is granted later and reports a different value
+    for an existing user, that is a one-time reconciliation, not a redesign.
+  */
+  const existing = await ctx.repositories.users.findByYahooGuid(identity.sub as YahooGuid);
   const userId = existing?.userId ?? generateId();
   const isNewUser = existing === null;
 
@@ -637,16 +647,16 @@ async function establishIdentity(
     await ctx.repositories.users.create({
       entity: 'PortalUser',
       userId,
-      yahooGuid: profile.guid as YahooGuid,
+      yahooGuid: identity.sub as YahooGuid,
       // Prefilled from Yahoo, unconfirmed until the user accepts or edits it.
-      displayName: profile.nickname ?? 'New manager',
+      displayName: identity.displayNameHint ?? 'New manager',
       displayNameConfirmed: false,
       // A brand-new user gets the least privilege. The bootstrap endpoint is the
       // only way to become commissioner, and only while no league exists.
       role: 'readonly',
       isPrimaryCommissioner: false,
       status: 'active',
-      ...(profile.email ? { email: profile.email } : {}),
+      ...(identity.email ? { email: identity.email } : {}),
     });
   }
 
@@ -656,7 +666,7 @@ async function establishIdentity(
     entity: 'YahooConnection',
     connectionId: existingConnection?.connectionId ?? generateId(),
     userId,
-    yahooGuid: profile.guid as YahooGuid,
+    yahooGuid: identity.sub as YahooGuid,
     encryptedAccessToken: encryptToken(tokens.accessToken, env.TOKEN_ENCRYPTION_KEY),
     encryptedRefreshToken: encryptToken(tokens.refreshToken, env.TOKEN_ENCRYPTION_KEY),
     accessTokenExpiresAt: new Date(tokens.expiresAtEpochSeconds * 1000)
@@ -690,7 +700,7 @@ async function establishIdentity(
     });
   }
 
-  return { userId, isNewUser, prefillDisplayName: profile.nickname ?? null };
+  return { userId, isNewUser, prefillDisplayName: identity.displayNameHint };
 }
 
 /** The user shape sent to the browser. Never includes the Yahoo GUID. */

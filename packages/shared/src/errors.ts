@@ -29,6 +29,7 @@ export type AppErrorCode =
   | 'yahoo_not_configured'
   | 'yahoo_not_connected'
   | 'yahoo_needs_reconnect'
+  | 'yahoo_fantasy_not_authorized'
   | 'yahoo_rate_limited'
   | 'yahoo_unavailable'
   | 'yahoo_unexpected_response'
@@ -77,6 +78,7 @@ const STATUS_BY_CODE: Record<AppErrorCode, number> = {
   yahoo_not_configured: 503,
   yahoo_not_connected: 409,
   yahoo_needs_reconnect: 409,
+  yahoo_fantasy_not_authorized: 403,
   yahoo_rate_limited: 429,
   yahoo_unavailable: 503,
   yahoo_unexpected_response: 502,
@@ -124,6 +126,14 @@ const DEFAULT_MESSAGES: Partial<Record<AppErrorCode, string>> = {
   yahoo_not_connected: 'Connect your Yahoo account to load league data.',
   yahoo_needs_reconnect:
     'Your Yahoo connection needs to be renewed. Reconnect to continue loading league data.',
+  /*
+    Distinct from needing a reconnect, because reconnecting cannot fix it. Yahoo
+    answers additional_authorization_required when the application itself has no
+    Fantasy permission — identical for every user, on every call, from the first
+    one. Telling people to reconnect would have twelve of them retrying forever.
+  */
+  yahoo_fantasy_not_authorized:
+    'Live league data is not switched on yet. Everything the portal owns still works; scores and standings need Yahoo to enable Fantasy access for this app.',
   yahoo_rate_limited: 'Yahoo is rate limiting requests. Try again shortly.',
   yahoo_unavailable: 'Yahoo is not responding right now. Try again shortly.',
   yahoo_unexpected_response: 'Yahoo returned something unexpected. Nothing was changed.',

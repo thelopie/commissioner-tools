@@ -300,6 +300,17 @@ export class YahooClient {
         not authorized for the Fantasy API at all, which fails identically on every
         call from the very first one. The body distinguishes them; the caller logs it.
       */
+      /*
+        Yahoo distinguishes these two in the body, so we do too. A revoked grant is
+        fixed by reconnecting; an unauthorized application is not fixed by anything
+        the user can do, and saying "reconnect" to that is a treadmill.
+      */
+      if (body.includes('additional_authorization_required')) {
+        return new AppError('yahoo_fantasy_not_authorized', {
+          detail: { status, yahooError: body },
+        });
+      }
+
       return new AppError('yahoo_needs_reconnect', { detail: { status, yahooError: body } });
     }
     if (status === 403) {
