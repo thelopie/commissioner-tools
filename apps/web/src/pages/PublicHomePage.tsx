@@ -254,14 +254,12 @@ export function DraftHighlights({
 
       {order ? (
         <DraftOrder order={order} />
-      ) : assignments && assignments.entries.length > 0 ? (
-        /*
+      ) : assignments && assignments.entries.length > 0 ? /*
           The draw has happened but the tournament decides the order, so there is
           nothing to put here yet. The mapping below explains what everyone is
           waiting on; a second card saying "not set yet" would just repeat it.
         */
-        null
-      ) : (
+      null : (
         <Card variant="filled">
           <CardContent>
             <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center', py: 3 }}>
@@ -443,7 +441,7 @@ function DraftOrder({
 function StandingBadge({
   standing,
 }: {
-  standing: { locked: boolean; best: number; worst: number } | null;
+  standing: NonNullable<PublicHome['assignments']>['entries'][number]['standing'];
 }): JSX.Element | null {
   if (standing === null) return null;
 
@@ -455,35 +453,47 @@ function StandingBadge({
     return `${value}${last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th'}`;
   };
 
-  const label = standing.locked
-    ? ordinal(standing.best)
-    : `${standing.best}–${standing.worst}`;
+  const label = standing.locked ? ordinal(standing.best) : `${standing.best}–${standing.worst}`;
+
+  /*
+    A tie is not the same as an open question. Teams knocked out together will never
+    narrow — who picks first among them comes from prior-season finish and the seed —
+    so it is worth saying rather than leaving a range that looks like it might move.
+  */
+  const hint =
+    standing.pending === 'tied'
+      ? 'Out together with others — the tiebreakers decide the order within this range.'
+      : standing.pending === 'playing'
+        ? 'Still playing, so this narrows as other teams go out.'
+        : 'Settled.';
 
   return (
-    <Box
-      sx={{
-        minWidth: 52,
-        px: 0.75,
-        py: 0.25,
-        borderRadius: 1.5,
-        textAlign: 'center',
-        flexShrink: 0,
-        bgcolor: standing.locked ? 'action.selected' : 'transparent',
-        border: 1,
-        borderColor: standing.locked ? 'transparent' : 'divider',
-        borderStyle: standing.locked ? 'solid' : 'dashed',
-      }}
-    >
-      <Typography
-        variant="caption"
+    <Tooltip title={hint}>
+      <Box
         sx={{
-          fontWeight: 700,
-          fontVariantNumeric: 'tabular-nums',
-          color: standing.locked ? 'text.primary' : 'text.secondary',
+          minWidth: 52,
+          px: 0.75,
+          py: 0.25,
+          borderRadius: 1.5,
+          textAlign: 'center',
+          flexShrink: 0,
+          bgcolor: standing.locked ? 'action.selected' : 'transparent',
+          border: 1,
+          borderColor: standing.locked ? 'transparent' : 'divider',
+          borderStyle: standing.locked ? 'solid' : 'dashed',
         }}
       >
-        {label}
-      </Typography>
-    </Box>
+        <Typography
+          variant="caption"
+          sx={{
+            fontWeight: 700,
+            fontVariantNumeric: 'tabular-nums',
+            color: standing.locked ? 'text.primary' : 'text.secondary',
+          }}
+        >
+          {label}
+        </Typography>
+      </Box>
+    </Tooltip>
   );
 }

@@ -17,7 +17,7 @@ import {
   verifyDraw,
   type SelectionState,
 
-  nextEliminationRank,
+  eliminationRankForGroup,
 } from '@lopie/draft-order';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
@@ -106,61 +106,88 @@ draftRoutes.post('/api/llws/:seasonYear/teams', async (c) => {
 
 /** Records how far a team advanced. This is what drives selection order. */
 /**
- * Marks a team out of the tournament.
+ * Marks teams out of the tournament, a whole round at a time.
  *
- * The rank is worked out here rather than asked for. Ranks fill from the bottom as
- * teams go out, which is the order the news actually arrives in — and expecting a
- * commissioner to determine that the fourteenth team eliminated from a twenty-team
- * field finished seventeenth is how a draft order acquires an off-by-one nobody
- * notices until somebody picks in the wrong place.
+ * Takes a list rather than one team, and gives every team in it the same rank,
+ * because they got equally far. The first version took one team and handed out a
+ * unique descending rank per call, which meant five teams knocked out in the same
+ * round were ordered by whichever the commissioner happened to click first — an
+ * ordering invented here that would then have silently decided five managers' draft
+ * slots, bypassing the tiebreakers that exist to decide exactly that.
+ *
+ * The rank itself is still worked out here. Expecting somebody to determine that the
+ * fourteenth team out of a field of twenty finished seventeenth is how a draft order
+ * acquires an off-by-one nobody notices until a person picks in the wrong place.
  */
-draftRoutes.post('/api/llws/:seasonYear/teams/:llwsTeamId/eliminate', async (c) => {
+draftRoutes.post('/api/llws/:seasonYear/eliminate', async (c) => {
   const ctx = c.get('ctx');
   const principal = requireCommissioner(ctx.principal);
   const leagueId = requireLeagueId(ctx);
   const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
-  const llwsTeamId = c.req.param('llwsTeamId');
+
+  const body = await parseJson(
+    c,
+    z.object({
+      /** Every team knocked out in the same round, together. */
+      llwsTeamIds: z.array(z.string().length(26)).min(1).max(64),
+    }),
+  );
 
   const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
-  const team = teams.find((candidate) => candidate.llwsTeamId === llwsTeamId);
-  if (!team) throw new AppError('not_found', { publicMessage: 'No such LLWS team.' });
+  const byId = new Map(teams.map((team) => [team.llwsTeamId, team]));
 
-  if (team.finishRank !== undefined) {
+  const chosen = body.llwsTeamIds.map((id) => byId.get(id as InternalId));
+  if (chosen.some((team) => team === undefined)) {
+    throw new AppError('not_found', { publicMessage: 'One of those teams is not in the field.' });
+  }
+
+  const already = chosen.filter((team) => team!.finishRank !== undefined);
+  if (already.length > 0) {
     throw new AppError('conflict', {
-      publicMessage: 'That team is already out. Edit its finish directly to change the rank.',
+      publicMessage: `${already[0]!.name} is already out. Edit its finish directly to change the rank.`,
     });
   }
 
-  const alreadyOut = teams.filter((candidate) => candidate.finishRank !== undefined).length;
-  const finishRank = nextEliminationRank(teams.length, alreadyOut);
+  const alreadyOut = teams.filter((team) => team.finishRank !== undefined).length;
+  const finishRank = eliminationRankForGroup(teams.length, alreadyOut, chosen.length);
 
   const actorId = principal.userId as InternalId;
   const now = isoNow();
 
-  await ctx.repositories.llws.saveTeam(
-    {
-      ...team,
-      finishRank,
-      updatedAt: now,
-      updatedBy: actorId,
-      version: team.version + 1,
-    },
-    team.version,
-  );
+  for (const team of chosen) {
+    await ctx.repositories.llws.saveTeam(
+      {
+        ...team!,
+        finishRank,
+        updatedAt: now,
+        updatedBy: actorId,
+        version: team!.version + 1,
+      },
+      team!.version,
+    );
+  }
 
   await ctx.repositories.audit.record({
     leagueId,
     action: 'llws.finish_recorded',
     actorUserId: actorId,
     actorRole: principal.role,
-    summary: `${team.name} is out of the ${seasonYear} tournament, finishing ${finishRank} of ${teams.length}.`,
+    summary:
+      chosen.length === 1
+        ? `${chosen[0]!.name} is out of the ${seasonYear} tournament, finishing ${finishRank} of ${teams.length}.`
+        : `${chosen.length} teams are out of the ${seasonYear} tournament together, tied at ${finishRank} of ${teams.length}: ${chosen.map((team) => team!.name).join(', ')}.`,
     correlationId: ctx.correlationId,
     targetEntity: 'LLWSTeam',
-    targetId: llwsTeamId,
-    detail: { finishRank },
+    targetId: String(finishRank),
+    detail: { finishRank, teams: chosen.length },
   });
 
-  return c.json({ ok: true, finishRank, teamsRemaining: teams.length - alreadyOut - 1 });
+  return c.json({
+    ok: true,
+    finishRank,
+    marked: chosen.length,
+    teamsRemaining: teams.length - alreadyOut - chosen.length,
+  });
 });
 
 draftRoutes.put('/api/llws/:seasonYear/teams/:llwsTeamId/finish', async (c) => {

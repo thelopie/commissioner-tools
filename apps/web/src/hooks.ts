@@ -571,19 +571,20 @@ export function useFinalizeChallenge(seasonYear: number | null, week: number | n
  * out of a spreadsheet for years should not lose them to an API permission.
  */
 /**
- * Marks an LLWS team out of the tournament.
+ * Marks a whole round of LLWS teams out at once.
  *
- * No rank is sent: the server works it out from how many are already out, because
- * expecting a commissioner to know that the fourteenth team eliminated finished
- * seventeenth is how an off-by-one gets into a draft order.
+ * A list rather than one team, because teams knocked out together got equally far
+ * and must share a rank — otherwise the order they were clicked in decides draft
+ * slots. No rank is sent: the server derives it.
  */
-export function useEliminateTeam(seasonYear: number | null) {
+export function useEliminateTeams(seasonYear: number | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (llwsTeamId: string) =>
-      api.post<{ ok: boolean; finishRank: number; teamsRemaining: number }>(
-        `/api/llws/${seasonYear}/teams/${llwsTeamId}/eliminate`,
+    mutationFn: (llwsTeamIds: string[]) =>
+      api.post<{ ok: boolean; finishRank: number; marked: number; teamsRemaining: number }>(
+        `/api/llws/${seasonYear}/eliminate`,
+        { llwsTeamIds },
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.llwsTeams(seasonYear ?? 0) });

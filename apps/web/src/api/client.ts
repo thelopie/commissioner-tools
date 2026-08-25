@@ -164,7 +164,13 @@ export interface PublicHome {
       llwsTeam: string;
       region: string | null;
       /** A settled position, or the range still in play. Derived, never stored. */
-      standing: { locked: boolean; best: number; worst: number } | null;
+      standing: {
+        locked: boolean;
+        best: number;
+        worst: number;
+        /** 'playing' narrows over time; 'tied' is settled by the tiebreakers. */
+        pending: 'playing' | 'tied' | null;
+      } | null;
     }>;
     /** Published on purpose: it is what makes the draw checkable. */
     seed: string | null;

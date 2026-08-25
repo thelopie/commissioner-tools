@@ -26,12 +26,20 @@ export interface StandingInput {
 
 export interface Standing {
   leagueMemberId: string;
-  /** True once the team is out and the position cannot move. */
+  /** True only when the position is a single number that cannot move. */
   locked: boolean;
   /** Best position still reachable. Equals `worst` when locked. */
   best: number;
   /** Worst position still possible. Equals `best` when locked. */
   worst: number;
+  /**
+   * Why the position is still a range.
+   *
+   * `playing` narrows as other teams are knocked out. `tied` will not narrow at all
+   * — those teams went out together, and which of them picks first is settled by the
+   * league's tiebreakers rather than by anything else happening on the field.
+   */
+  pending: 'playing' | 'tied' | null;
 }
 
 /**
@@ -60,39 +68,70 @@ export function currentStandings(teams: StandingInput[]): Standing[] {
     locked: stillPlaying.length === 1,
     best: 1,
     worst: stillPlaying.length,
+    pending: stillPlaying.length === 1 ? null : 'playing',
   }));
 
-  outSorted.forEach((team, index) => {
-    /*
-      Everyone still playing finishes above this team, and so does every eliminated
-      team with a better rank. `index` is exactly that second count, because the
-      list is sorted best-first.
-    */
-    const position = stillPlaying.length + index + 1;
-    standings.push({
-      leagueMemberId: team.leagueMemberId,
-      locked: true,
-      best: position,
-      worst: position,
-    });
-  });
+  /*
+    Teams knocked out in the same round share a finish rank, and therefore share a
+    band of positions rather than being ordered by whatever sequence somebody
+    recorded them in. Which of them picks first is decided by the league's
+    tiebreakers — prior-season finish, then the recorded seed — and pretending
+    otherwise would let the order of a few button presses choose draft slots.
+  */
+  const groups = new Map<number, StandingInput[]>();
+  for (const team of outSorted) {
+    groups.set(team.finishRank!, [...(groups.get(team.finishRank!) ?? []), team]);
+  }
+
+  let position = stillPlaying.length + 1;
+
+  for (const rank of [...groups.keys()].sort((a, b) => a - b)) {
+    const group = groups.get(rank)!;
+    const best = position;
+    const worst = position + group.length - 1;
+
+    for (const team of group) {
+      standings.push({
+        leagueMemberId: team.leagueMemberId,
+        locked: group.length === 1,
+        best,
+        worst,
+        pending: group.length === 1 ? null : 'tied',
+      });
+    }
+
+    position = worst + 1;
+  }
 
   return standings;
 }
 
 /**
- * The rank to give a team being knocked out now.
+ * The rank to give a group of teams knocked out together.
  *
- * Saves the commissioner working out that the fourteenth team to go in a
- * twenty-team field finished seventeenth. Ranks fill from the bottom as teams go
- * out, which is the order the information actually arrives in.
+ * Every team in the group gets the same rank, because they got equally far. Five
+ * teams going out of a field of twenty in the same round are jointly sixteenth, not
+ * sixteenth through twentieth in the order somebody clicked them — that ordering
+ * would be invented here and would silently decide draft slots, which is exactly
+ * what the league's tiebreakers exist to decide instead.
+ *
+ * Ranks fill from the bottom as rounds conclude, which is the order the news
+ * arrives in.
  */
-export function nextEliminationRank(totalTeams: number, alreadyEliminated: number): number {
-  if (alreadyEliminated >= totalTeams) {
+export function eliminationRankForGroup(
+  totalTeams: number,
+  alreadyEliminated: number,
+  groupSize: number,
+): number {
+  if (groupSize < 1) {
+    throw new AppError('validation_failed', { publicMessage: 'No teams to mark out.' });
+  }
+
+  if (alreadyEliminated + groupSize > totalTeams) {
     throw new AppError('precondition_failed', {
-      publicMessage: 'Every team in the field is already out.',
+      publicMessage: 'That is more teams than are left in the field.',
     });
   }
 
-  return totalTeams - alreadyEliminated;
+  return totalTeams - alreadyEliminated - (groupSize - 1);
 }

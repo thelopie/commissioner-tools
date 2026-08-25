@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentStandings, nextEliminationRank } from './standing.js';
+import { currentStandings, eliminationRankForGroup } from './standing.js';
 
 const alive = (id: string) => ({ leagueMemberId: id });
 const out = (id: string, finishRank: number) => ({ leagueMemberId: id, finishRank });
@@ -86,14 +86,74 @@ describe('currentStandings', () => {
   });
 });
 
-describe('nextEliminationRank', () => {
+describe('eliminationRankForGroup', () => {
   it('fills ranks from the bottom, which is the order the news arrives in', () => {
-    expect(nextEliminationRank(20, 0)).toBe(20);
-    expect(nextEliminationRank(20, 1)).toBe(19);
-    expect(nextEliminationRank(20, 19)).toBe(1);
+    expect(eliminationRankForGroup(20, 0, 1)).toBe(20);
+    expect(eliminationRankForGroup(20, 1, 1)).toBe(19);
+    expect(eliminationRankForGroup(20, 19, 1)).toBe(1);
   });
 
-  it('refuses once the field is exhausted', () => {
-    expect(() => nextEliminationRank(20, 20)).toThrow();
+  it('gives a whole round the same rank, not a made-up order within it', () => {
+    /*
+      Five teams out of twenty in one round are jointly sixteenth. Handing them
+      16, 17, 18, 19 and 20 would invent an order here and let it decide five
+      managers' draft slots.
+    */
+    expect(eliminationRankForGroup(20, 0, 5)).toBe(16);
+    expect(eliminationRankForGroup(20, 5, 3)).toBe(13);
+  });
+
+  it('refuses more teams than are left', () => {
+    expect(() => eliminationRankForGroup(20, 19, 2)).toThrow();
+    expect(() => eliminationRankForGroup(20, 20, 1)).toThrow();
+  });
+
+  it('refuses an empty group', () => {
+    expect(() => eliminationRankForGroup(20, 0, 0)).toThrow();
+  });
+});
+
+describe('currentStandings with tied eliminations', () => {
+  it('gives teams knocked out together a shared band, not an invented order', () => {
+    // Three out together sit jointly 2nd-4th; the tiebreakers settle the rest.
+    const standings = currentStandings([
+      alive('winner'),
+      out('a', 17),
+      out('b', 17),
+      out('c', 17),
+    ]);
+
+    for (const id of ['a', 'b', 'c']) {
+      expect(standings.find((s) => s.leagueMemberId === id)).toMatchObject({
+        locked: false,
+        best: 2,
+        worst: 4,
+        pending: 'tied',
+      });
+    }
+  });
+
+  it('distinguishes a range that will narrow from one that will not', () => {
+    /*
+      Two very different things. A team still playing moves as others go out; a tied
+      team never will, and its place is decided by prior-season finish and the seed.
+    */
+    const standings = currentStandings([alive('a'), alive('b'), out('c', 19), out('d', 19)]);
+
+    expect(standings.find((s) => s.leagueMemberId === 'a')?.pending).toBe('playing');
+    expect(standings.find((s) => s.leagueMemberId === 'c')?.pending).toBe('tied');
+  });
+
+  it('stacks bands in finish order', () => {
+    const standings = currentStandings([
+      out('best', 1),
+      out('midA', 5),
+      out('midB', 5),
+      out('worst', 9),
+    ]);
+
+    expect(standings.find((s) => s.leagueMemberId === 'best')).toMatchObject({ best: 1, worst: 1 });
+    expect(standings.find((s) => s.leagueMemberId === 'midA')).toMatchObject({ best: 2, worst: 3 });
+    expect(standings.find((s) => s.leagueMemberId === 'worst')).toMatchObject({ best: 4, worst: 4 });
   });
 });

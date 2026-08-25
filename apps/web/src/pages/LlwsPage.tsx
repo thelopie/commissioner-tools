@@ -19,6 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
+import Checkbox from '@mui/material/Checkbox';
 import CasinoIcon from '@mui/icons-material/CasinoRounded';
 import VerifiedIcon from '@mui/icons-material/VerifiedRounded';
 import PublishIcon from '@mui/icons-material/PublishRounded';
@@ -37,7 +38,7 @@ import {
   useLeagueOverview,
   useLlwsTeams,
   usePublishAssignments,
-  useEliminateTeam,
+  useEliminateTeams,
   useRecordFinish,
   useRemindCurrentTurn,
   useVerifyDraw,
@@ -517,7 +518,8 @@ function StepDraw({
 function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
   const teams = useLlwsTeams(seasonYear);
   const recordFinish = useRecordFinish(seasonYear);
-  const eliminate = useEliminateTeam(seasonYear);
+  const eliminate = useEliminateTeams(seasonYear);
+  const [outThisRound, setOutThisRound] = useState<string[]>([]);
 
   const list = teams.data?.teams ?? [];
   const recorded = list.filter((team) => team.finishRank !== undefined);
@@ -541,11 +543,12 @@ function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              Press <strong>Out</strong> as each team is knocked out and the rank fills itself in
-              from the bottom — the fourteenth team to go in a field of twenty finished
-              seventeenth, and nobody should have to work that out. Rank 1 is the winner, and the
-              manager whose team lasts longest chooses their draft slot first. The boxes are there
-              for corrections.
+              Tick every team knocked out in the <strong>same round</strong>, then mark them out
+              together — they got equally far, so they share a rank and your tiebreakers decide who
+              picks first among them. Marking them one at a time would let the order you clicked
+              decide it instead. The rank fills itself in from the bottom; rank 1 is the winner,
+              and the manager whose team lasts longest chooses first. The boxes are for
+              corrections.
             </Typography>
 
             {list.length === 0 ? (
@@ -558,8 +561,14 @@ function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
                     name={team.region ? `${team.name} · ${team.region}` : team.name}
                     finishRank={team.finishRank ?? null}
                     pending={recordFinish.isPending}
-                    onEliminate={() => eliminate.mutate(team.llwsTeamId)}
-                    eliminating={eliminate.isPending}
+                    selected={outThisRound.includes(team.llwsTeamId)}
+                    onToggle={() =>
+                      setOutThisRound((current) =>
+                        current.includes(team.llwsTeamId)
+                          ? current.filter((id) => id !== team.llwsTeamId)
+                          : [...current, team.llwsTeamId],
+                      )
+                    }
                     onSave={(rank, label) =>
                       recordFinish.mutate({
                         llwsTeamId: team.llwsTeamId,
@@ -572,6 +581,29 @@ function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
               </Stack>
             )}
 
+            {outThisRound.length > 0 && (
+              <Alert
+                severity="info"
+                action={
+                  <Button
+                    size="small"
+                    variant="contained"
+                    disabled={eliminate.isPending}
+                    onClick={() =>
+                      eliminate.mutate(outThisRound, { onSuccess: () => setOutThisRound([]) })
+                    }
+                  >
+                    {eliminate.isPending ? 'Saving…' : 'Mark out'}
+                  </Button>
+                }
+              >
+                {outThisRound.length === 1
+                  ? '1 team selected — it will get a rank of its own.'
+                  : `${outThisRound.length} teams selected — they will share one rank, tied.`}
+              </Alert>
+            )}
+
+            {eliminate.isError && <ErrorNotice error={eliminate.error} hideRetry />}
             {recordFinish.isError && <ErrorNotice error={recordFinish.error} />}
           </Stack>
         </CardContent>
@@ -585,15 +617,15 @@ function FinishRow({
   finishRank,
   pending,
   onSave,
-  onEliminate,
-  eliminating,
+  selected,
+  onToggle,
 }: {
   name: string;
   finishRank: number | null;
   pending: boolean;
   onSave: (rank: number, label: string) => void;
-  onEliminate: () => void;
-  eliminating: boolean;
+  selected: boolean;
+  onToggle: () => void;
 }): JSX.Element {
   const [rank, setRank] = useState(finishRank === null ? '' : String(finishRank));
   const [label, setLabel] = useState('');
@@ -607,9 +639,7 @@ function FinishRow({
       <Grid size={{ xs: 12, sm: 5 }}>
         <Stack direction="row" spacing={1} alignItems="center">
           {finishRank === null ? (
-            <Button size="small" variant="outlined" disabled={eliminating} onClick={onEliminate}>
-              Out
-            </Button>
+            <Checkbox size="small" checked={selected} onChange={onToggle} sx={{ p: 0.5 }} />
           ) : (
             <Chip size="small" label={`#${finishRank}`} />
           )}
