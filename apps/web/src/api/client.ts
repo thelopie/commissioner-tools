@@ -159,10 +159,17 @@ export interface PublicHome {
   draftAt: string | null;
   /** Null until the commissioner publishes the draw. Available weeks before `order`. */
   assignments: {
-    entries: Array<{ manager: string; llwsTeam: string; region: string | null }>;
+    entries: Array<{
+      manager: string;
+      llwsTeam: string;
+      region: string | null;
+      /** A settled position, or the range still in play. Derived, never stored. */
+      standing: { locked: boolean; best: number; worst: number } | null;
+    }>;
     /** Published on purpose: it is what makes the draw checkable. */
     seed: string | null;
     drawnAt: string | null;
+    stillPlaying: number;
   } | null;
   /** Null until the draw is published and every slot is settled. */
   order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;

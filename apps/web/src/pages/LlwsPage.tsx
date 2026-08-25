@@ -37,6 +37,7 @@ import {
   useLeagueOverview,
   useLlwsTeams,
   usePublishAssignments,
+  useEliminateTeam,
   useRecordFinish,
   useRemindCurrentTurn,
   useVerifyDraw,
@@ -516,6 +517,7 @@ function StepDraw({
 function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
   const teams = useLlwsTeams(seasonYear);
   const recordFinish = useRecordFinish(seasonYear);
+  const eliminate = useEliminateTeam(seasonYear);
 
   const list = teams.data?.teams ?? [];
   const recorded = list.filter((team) => team.finishRank !== undefined);
@@ -539,8 +541,11 @@ function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
         <CardContent>
           <Stack spacing={2}>
             <Typography variant="body2" color="text.secondary">
-              Rank 1 is the tournament winner. The manager holding the highest-finishing team
-              chooses their draft slot first.
+              Press <strong>Out</strong> as each team is knocked out and the rank fills itself in
+              from the bottom — the fourteenth team to go in a field of twenty finished
+              seventeenth, and nobody should have to work that out. Rank 1 is the winner, and the
+              manager whose team lasts longest chooses their draft slot first. The boxes are there
+              for corrections.
             </Typography>
 
             {list.length === 0 ? (
@@ -553,6 +558,8 @@ function StepFinishes({ seasonYear }: { seasonYear: number }): JSX.Element {
                     name={team.region ? `${team.name} · ${team.region}` : team.name}
                     finishRank={team.finishRank ?? null}
                     pending={recordFinish.isPending}
+                    onEliminate={() => eliminate.mutate(team.llwsTeamId)}
+                    eliminating={eliminate.isPending}
                     onSave={(rank, label) =>
                       recordFinish.mutate({
                         llwsTeamId: team.llwsTeamId,
@@ -578,11 +585,15 @@ function FinishRow({
   finishRank,
   pending,
   onSave,
+  onEliminate,
+  eliminating,
 }: {
   name: string;
   finishRank: number | null;
   pending: boolean;
   onSave: (rank: number, label: string) => void;
+  onEliminate: () => void;
+  eliminating: boolean;
 }): JSX.Element {
   const [rank, setRank] = useState(finishRank === null ? '' : String(finishRank));
   const [label, setLabel] = useState('');
@@ -595,7 +606,22 @@ function FinishRow({
     <Grid container spacing={1.5} alignItems="center" sx={{ py: 1.25 }}>
       <Grid size={{ xs: 12, sm: 5 }}>
         <Stack direction="row" spacing={1} alignItems="center">
-          <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+          {finishRank === null ? (
+            <Button size="small" variant="outlined" disabled={eliminating} onClick={onEliminate}>
+              Out
+            </Button>
+          ) : (
+            <Chip size="small" label={`#${finishRank}`} />
+          )}
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 600,
+              color: finishRank === null ? 'text.primary' : 'text.disabled',
+              textDecoration: finishRank === null ? 'none' : 'line-through',
+            }}
+            noWrap
+          >
             {name}
           </Typography>
           {finishRank !== null && (

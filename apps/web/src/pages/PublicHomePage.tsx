@@ -152,9 +152,17 @@ function LlwsMapping({
 
           {!hasOrder && (
             <Typography variant="body2" color="text.secondary">
-              Each manager drew one team at random. When the tournament finishes, whoever&rsquo;s
-              team went furthest picks their draft slot first — ties go to the worse finisher last
-              season, then to the recorded random seed.
+              Each manager drew one team at random. Whoever&rsquo;s team lasts longest picks their
+              draft slot first — ties go to the worse finisher last season, then to the recorded
+              random seed.
+              {assignments && assignments.stillPlaying > 0 && (
+                <>
+                  {' '}
+                  <strong>
+                    {assignments.stillPlaying} still playing, so those places can still move.
+                  </strong>
+                </>
+              )}
             </Typography>
           )}
 
@@ -170,11 +178,29 @@ function LlwsMapping({
                 justifyContent="space-between"
                 sx={{ py: 1.25 }}
               >
-                <Typography variant="body1" sx={{ fontWeight: 600 }}>
-                  {entry.manager}
-                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  alignItems="center"
+                  sx={{ minWidth: 0, flex: 1 }}
+                >
+                  <StandingBadge standing={entry.standing} />
+                  <Typography variant="body1" noWrap sx={{ fontWeight: 600 }}>
+                    {entry.manager}
+                  </Typography>
+                </Stack>
                 <Stack sx={{ textAlign: 'right', minWidth: 0 }}>
-                  <Typography variant="body2">{entry.llwsTeam}</Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      // Struck through once they are out: the team stops mattering,
+                      // the position it earned does not.
+                      textDecoration: entry.standing?.locked ? 'line-through' : 'none',
+                      color: entry.standing?.locked ? 'text.disabled' : 'text.primary',
+                    }}
+                  >
+                    {entry.llwsTeam}
+                  </Typography>
                   {entry.region && (
                     <Typography variant="caption" color="text.secondary">
                       {entry.region}
@@ -404,5 +430,60 @@ function DraftOrder({
         </Stack>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Where a manager stands: a settled position, or the range still in play.
+ *
+ * A locked position and a range are visually distinct on purpose. "2nd" and
+ * "1st–6th" mean very different things to somebody deciding whether to care yet,
+ * and a single number for both would read as settled when it is not.
+ */
+function StandingBadge({
+  standing,
+}: {
+  standing: { locked: boolean; best: number; worst: number } | null;
+}): JSX.Element | null {
+  if (standing === null) return null;
+
+  const ordinal = (value: number): string => {
+    // 11th, 12th and 13th break the naive rule, so they are handled first.
+    const teen = value % 100;
+    if (teen >= 11 && teen <= 13) return `${value}th`;
+    const last = value % 10;
+    return `${value}${last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th'}`;
+  };
+
+  const label = standing.locked
+    ? ordinal(standing.best)
+    : `${standing.best}–${standing.worst}`;
+
+  return (
+    <Box
+      sx={{
+        minWidth: 52,
+        px: 0.75,
+        py: 0.25,
+        borderRadius: 1.5,
+        textAlign: 'center',
+        flexShrink: 0,
+        bgcolor: standing.locked ? 'action.selected' : 'transparent',
+        border: 1,
+        borderColor: standing.locked ? 'transparent' : 'divider',
+        borderStyle: standing.locked ? 'solid' : 'dashed',
+      }}
+    >
+      <Typography
+        variant="caption"
+        sx={{
+          fontWeight: 700,
+          fontVariantNumeric: 'tabular-nums',
+          color: standing.locked ? 'text.primary' : 'text.secondary',
+        }}
+      >
+        {label}
+      </Typography>
+    </Box>
   );
 }

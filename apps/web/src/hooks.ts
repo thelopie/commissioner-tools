@@ -570,6 +570,29 @@ export function useFinalizeChallenge(seasonYear: number | null, week: number | n
  * Needed because `calculate` reads Yahoo, and a league that has run these challenges
  * out of a spreadsheet for years should not lose them to an API permission.
  */
+/**
+ * Marks an LLWS team out of the tournament.
+ *
+ * No rank is sent: the server works it out from how many are already out, because
+ * expecting a commissioner to know that the fourteenth team eliminated finished
+ * seventeenth is how an off-by-one gets into a draft order.
+ */
+export function useEliminateTeam(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (llwsTeamId: string) =>
+      api.post<{ ok: boolean; finishRank: number; teamsRemaining: number }>(
+        `/api/llws/${seasonYear}/teams/${llwsTeamId}/eliminate`,
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.llwsTeams(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.assignments(seasonYear ?? 0) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.publicHome });
+    },
+  });
+}
+
 export function useRecordChallenge(seasonYear: number | null, week: number | null) {
   const queryClient = useQueryClient();
 

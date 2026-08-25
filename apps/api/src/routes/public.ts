@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { seasonYearSchema, type InternalId, type SeasonYear } from '@lopie/shared';
-import { finalDraftOrder, type SelectionState } from '@lopie/draft-order';
+import { currentStandings, finalDraftOrder, type SelectionState } from '@lopie/draft-order';
 import type { AppEnv } from '../context.js';
 
 /**
@@ -85,9 +85,17 @@ async function publishedAssignments(
   leagueId: InternalId,
   seasonYear: SeasonYear,
 ): Promise<{
-  entries: Array<{ manager: string; llwsTeam: string; region: string | null }>;
+  entries: Array<{
+    manager: string;
+    llwsTeam: string;
+    region: string | null;
+    /** Where this manager stands: a settled position, or a range still in play. */
+    standing: { locked: boolean; best: number; worst: number } | null;
+  }>;
   seed: string | null;
   drawnAt: string | null;
+  /** How many drawn teams are still in the tournament. */
+  stillPlaying: number;
 } | null> {
   const assignments = await ctx.repositories.llws.listAssignments(leagueId, seasonYear);
 
@@ -98,16 +106,35 @@ async function publishedAssignments(
   const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
   const nameOf = await memberNamer(ctx, leagueId, seasonYear);
 
+  /*
+    Positions are derived, never stored. A team still playing finishes above every
+    team already out, which settles an eliminated manager's position the moment they
+    go out and narrows everyone else's range by itself.
+  */
+  const standings = new Map(
+    currentStandings(
+      assignments.map((assignment) => ({
+        leagueMemberId: assignment.leagueMemberId,
+        finishRank: teamById.get(assignment.llwsTeamId)?.finishRank,
+      })),
+    ).map((standing) => [standing.leagueMemberId, standing]),
+  );
+
   const entries = assignments
     .map((assignment) => {
       const team = teamById.get(assignment.llwsTeamId);
+      const standing = standings.get(assignment.leagueMemberId) ?? null;
       return {
         manager: nameOf(assignment.leagueMemberId),
         llwsTeam: team?.name ?? 'Unknown team',
         region: team?.region ?? null,
+        standing: standing
+          ? { locked: standing.locked, best: standing.best, worst: standing.worst }
+          : null,
       };
     })
-    .sort((a, b) => a.manager.localeCompare(b.manager));
+    // Best position first once the tournament is under way; it is the running order.
+    .sort((a, b) => (a.standing?.best ?? 0) - (b.standing?.best ?? 0) || a.manager.localeCompare(b.manager));
 
   /*
     The seed is published deliberately. It is what turns "the commissioner says it
@@ -118,6 +145,7 @@ async function publishedAssignments(
     entries,
     seed: assignments[0]?.randomizationSeed ?? null,
     drawnAt: assignments[0]?.assignedAt ?? null,
+    stillPlaying: [...standings.values()].filter((standing) => !standing.locked).length,
   };
 }
 

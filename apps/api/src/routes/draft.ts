@@ -16,6 +16,8 @@ import {
   nextTurn,
   verifyDraw,
   type SelectionState,
+
+  nextEliminationRank,
 } from '@lopie/draft-order';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
@@ -103,6 +105,64 @@ draftRoutes.post('/api/llws/:seasonYear/teams', async (c) => {
 });
 
 /** Records how far a team advanced. This is what drives selection order. */
+/**
+ * Marks a team out of the tournament.
+ *
+ * The rank is worked out here rather than asked for. Ranks fill from the bottom as
+ * teams go out, which is the order the news actually arrives in — and expecting a
+ * commissioner to determine that the fourteenth team eliminated from a twenty-team
+ * field finished seventeenth is how a draft order acquires an off-by-one nobody
+ * notices until somebody picks in the wrong place.
+ */
+draftRoutes.post('/api/llws/:seasonYear/teams/:llwsTeamId/eliminate', async (c) => {
+  const ctx = c.get('ctx');
+  const principal = requireCommissioner(ctx.principal);
+  const leagueId = requireLeagueId(ctx);
+  const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
+  const llwsTeamId = c.req.param('llwsTeamId');
+
+  const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
+  const team = teams.find((candidate) => candidate.llwsTeamId === llwsTeamId);
+  if (!team) throw new AppError('not_found', { publicMessage: 'No such LLWS team.' });
+
+  if (team.finishRank !== undefined) {
+    throw new AppError('conflict', {
+      publicMessage: 'That team is already out. Edit its finish directly to change the rank.',
+    });
+  }
+
+  const alreadyOut = teams.filter((candidate) => candidate.finishRank !== undefined).length;
+  const finishRank = nextEliminationRank(teams.length, alreadyOut);
+
+  const actorId = principal.userId as InternalId;
+  const now = isoNow();
+
+  await ctx.repositories.llws.saveTeam(
+    {
+      ...team,
+      finishRank,
+      updatedAt: now,
+      updatedBy: actorId,
+      version: team.version + 1,
+    },
+    team.version,
+  );
+
+  await ctx.repositories.audit.record({
+    leagueId,
+    action: 'llws.finish_recorded',
+    actorUserId: actorId,
+    actorRole: principal.role,
+    summary: `${team.name} is out of the ${seasonYear} tournament, finishing ${finishRank} of ${teams.length}.`,
+    correlationId: ctx.correlationId,
+    targetEntity: 'LLWSTeam',
+    targetId: llwsTeamId,
+    detail: { finishRank },
+  });
+
+  return c.json({ ok: true, finishRank, teamsRemaining: teams.length - alreadyOut - 1 });
+});
+
 draftRoutes.put('/api/llws/:seasonYear/teams/:llwsTeamId/finish', async (c) => {
   const ctx = c.get('ctx');
   const principal = requireCommissioner(ctx.principal);
