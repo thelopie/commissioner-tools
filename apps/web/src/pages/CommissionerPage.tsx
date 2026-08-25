@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
 import { ApiError } from '../api/client.js';
+import { parseYahooLeagueId, yahooLeagueKeyFor } from '../lib/yahoo-league-url.js';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -884,10 +885,10 @@ function ManualLeagueKey({
   const [leagueId, setLeagueId] = useState('');
   const [seasonYear, setSeasonYear] = useState(String(new Date().getFullYear()));
 
-  const trimmed = leagueId.trim();
-  // Accept a bare id or a whole pasted URL, since the URL is where people find it.
-  const digits = trimmed.match(/(\d{4,})\s*$/)?.[1] ?? trimmed;
-  const valid = /^\d{4,}$/.test(digits) && /^\d{4}$/.test(seasonYear);
+  // Extraction lives in its own tested module: the first version read the team
+  // number out of `/f1/17255/10` and would have linked the wrong league.
+  const parsedId = parseYahooLeagueId(leagueId);
+  const valid = parsedId !== null && /^\d{4}$/.test(seasonYear);
 
   return (
     <Card sx={{ bgcolor: 'background.surfaceContainerLowest' }}>
@@ -921,6 +922,13 @@ function ManualLeagueKey({
             />
           </Stack>
 
+          {parsedId !== null && (
+            <Typography variant="caption" color="text.secondary">
+              Will link <code>{yahooLeagueKeyFor(parsedId)}</code> — check that is your league
+              before continuing, since it cannot be verified until Yahoo opens up.
+            </Typography>
+          )}
+
           {error instanceof ApiError && <Alert severity="error">{error.message}</Alert>}
 
           <Box>
@@ -929,9 +937,7 @@ function ManualLeagueKey({
               disabled={!valid || pending}
               onClick={() =>
                 onSubmit({
-                  // `nfl` is accepted in place of the numeric season game key, which
-                  // saves asking for a value nobody has to hand.
-                  yahooLeagueKey: `nfl.l.${digits}`,
+    yahooLeagueKey: yahooLeagueKeyFor(parsedId!),
                   yahooGameKey: 'nfl',
                   seasonYear: Number(seasonYear),
                 })
