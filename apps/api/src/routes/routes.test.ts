@@ -1738,6 +1738,23 @@ describe('LLWS draft-order workflow', () => {
 
       // The mapping, though, is exactly what publishing releases.
       expect(published.assignments.entries).toHaveLength(4);
+
+      /*
+        Every entry carries why its position is unsettled. The route builds this
+        object field by field and once omitted `pending` entirely, which left the
+        page unable to tell a range that narrows from one the tiebreakers decide —
+        and made the "still playing" count include managers already knocked out.
+      */
+      for (const entry of published.assignments.entries) {
+        // Every team here has a distinct finish recorded, so each position is settled.
+        expect(entry.standing.locked).toBe(true);
+        expect(entry.standing.pending).toBeNull();
+      }
+
+      // And nobody is counted as still playing, which is the bug this guards: the
+      // count used to include anyone whose position was unsettled, tied-and-out
+      // included.
+      expect(published.assignments.stillPlaying).toBe(0);
       expect(published.assignments.entries[0].manager).toBeTruthy();
       expect(published.assignments.entries[0].llwsTeam).toBeTruthy();
 

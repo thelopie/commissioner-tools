@@ -129,7 +129,14 @@ async function publishedAssignments(
         llwsTeam: team?.name ?? 'Unknown team',
         region: team?.region ?? null,
         standing: standing
-          ? { locked: standing.locked, best: standing.best, worst: standing.worst }
+          ? {
+              locked: standing.locked,
+              best: standing.best,
+              worst: standing.worst,
+              // Dropped here once, which silently cost the page its only way to tell a
+              // range that will narrow from one the tiebreakers settle.
+              pending: standing.pending,
+            }
           : null,
       };
     })
@@ -145,7 +152,13 @@ async function publishedAssignments(
     entries,
     seed: assignments[0]?.randomizationSeed ?? null,
     drawnAt: assignments[0]?.assignedAt ?? null,
-    stillPlaying: [...standings.values()].filter((standing) => !standing.locked).length,
+    /*
+      Teams actually still in the tournament — not merely those without a settled
+      position. Counting everything unlocked included managers whose team is out but
+      tied with another, so the page reported ten still playing when eight were.
+    */
+    stillPlaying: [...standings.values()].filter((standing) => standing.pending === 'playing')
+      .length,
   };
 }
 
