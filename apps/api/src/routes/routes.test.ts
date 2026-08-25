@@ -1981,7 +1981,7 @@ describe('challenge results', () => {
     expect((await response.json()).error.code).toBe('yahoo_capability_unverified');
   });
 
-  it('calculates the eight buildable challenges once their data is verified', async () => {
+  it('calculates the nine buildable challenges once their data is verified', async () => {
     const { jar, auth } = await seededLeague();
     verifyCapabilities();
 
@@ -2001,8 +2001,13 @@ describe('challenge results', () => {
       if (response.status === 200) activated += 1;
     }
 
-    // Exactly the eight buildable on documented fields; five stay refused.
-    expect(activated).toBe(8);
+    /*
+      Nine buildable on documented fields; four stay refused. Air Raid joined them
+      when its rule was corrected to the league's own — the starting quarterback
+      with the most fantasy points, rather than the most passing yards, which needed
+      a raw stat id.
+    */
+    expect(activated).toBe(9);
 
     /*
       One challenge a week, on the league's fixed schedule, so calculating a week
@@ -2016,7 +2021,7 @@ describe('challenge results', () => {
     expect(week3.note).toContain('provisional');
 
     /*
-      All eight buildable ones, each in its own week. Running the whole calendar is
+      All nine buildable ones, each in its own week. Running the whole calendar is
       what proves the schedule and the arithmetic agree — calculating one week eight
       times would have proved neither.
     */
@@ -2026,6 +2031,7 @@ describe('challenge results', () => {
       [3, 'bench-mob'],
       [4, 'ground-and-pound'],
       [5, 'bad-beat'],
+      [7, 'air-raid'],
       [8, 'tight-end-day'],
       [9, 'defense-wins-championships'],
       [12, 'blackjack'],

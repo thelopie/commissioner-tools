@@ -39,7 +39,17 @@ export type YahooCapabilityKey = z.infer<typeof yahooCapabilityKeySchema>;
  */
 export const calculationSchema = z.discriminatedUnion('type', [
   /** Highest-scoring individual starter on any roster. */
-  z.object({ type: z.literal('highest_single_starter_score') }),
+  z.object({
+    type: z.literal('highest_single_starter_score'),
+    /**
+     * Restricts the comparison to starters at these positions.
+     *
+     * Omitted means any position, which is One Man Army. Set to `['RB']` it is
+     * Ground and Pound: the best individual running back, which is a different
+     * question from the best combined total of a team's running backs.
+     */
+    positions: z.array(z.string().min(1).max(8)).min(1).optional(),
+  }),
 
   /** Narrowest winning margin among the week's matchups. */
   z.object({ type: z.literal('smallest_margin_of_victory') }),
@@ -76,11 +86,24 @@ export const calculationSchema = z.discriminatedUnion('type', [
     subject: z.enum(['team', 'starter']),
   }),
 
-  /** Highest total of one raw Yahoo stat across starters. */
+  /** Highest total of one or more raw Yahoo stats. */
   z.object({
     type: z.literal('highest_stat_total'),
-    yahooStatId: z.number().int().min(0),
+    /**
+     * Summed together. A plural because "offensive touchdowns" is three separate
+     * Yahoo stats — passing, rushing and receiving — and asking for the most
+     * touchdowns means adding them up, not picking one.
+     */
+    yahooStatIds: z.array(z.number().int().min(0)).min(1),
     statLabel: z.string().min(1).max(60),
+    /**
+     * `team` totals the stat across the roster; `starter` finds the single best
+     * individual. "The most receptions across starters" and "the starting receiver
+     * with the most receptions" are different competitions with different winners.
+     */
+    subject: z.enum(['team', 'starter']),
+    /** Restricts which starters count, e.g. `['WR']`. */
+    positions: z.array(z.string().min(1).max(8)).min(1).optional(),
   }),
 
   /** Largest share of a team's points coming from one stat, e.g. touchdowns. */

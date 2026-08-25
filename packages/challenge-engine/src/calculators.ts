@@ -45,6 +45,17 @@ function scoringPlayers(team: TeamWeek, definition: WeeklyChallengeDefinition): 
   return definition.benchCounts ? team.players : starters(team);
 }
 
+/**
+ * Narrows a pool to the given positions.
+ *
+ * Yahoo spells a defence several ways depending on the endpoint, so comparison is
+ * case-insensitive and the caller lists the spellings it expects.
+ */
+function atPositions(players: readonly PlayerWeek[], positions: readonly string[]): PlayerWeek[] {
+  const wanted = new Set(positions.map((position) => position.toUpperCase()));
+  return players.filter((player) => wanted.has(player.position.toUpperCase()));
+}
+
 function highestScorer(
   players: readonly PlayerWeek[],
   definition: WeeklyChallengeDefinition,
@@ -65,14 +76,33 @@ function highestScorer(
 const CALCULATORS: Record<Calculation['type'], Calculator> = {
   /** One Man Army — the single biggest individual performance. */
   highest_single_starter_score: (team, definition) => {
-    const pool = scoringPlayers(team, definition);
+    const positions =
+      definition.calculation.type === 'highest_single_starter_score'
+        ? definition.calculation.positions
+        : undefined;
+
+    const all = scoringPlayers(team, definition);
+    const pool = positions ? atPositions(all, positions) : all;
+
+    if (positions && pool.length === 0) {
+      return {
+        explanation: `No ${positions.join('/')} counted.`,
+        unavailableReason: 'no_players_at_position',
+      };
+    }
+
     const best = highestScorer(pool, definition);
 
     if (!best) {
       return { explanation: 'No player recorded points.', unavailableReason: 'no_player_points' };
     }
 
-    const scope = definition.benchCounts ? 'any rostered player' : 'starter';
+    const scope = positions
+      ? `${positions[0]}`
+      : definition.benchCounts
+        ? 'any rostered player'
+        : 'starter';
+
     return {
       value: best.points,
       explanation: `Top ${scope}: ${best.player.playerName} scored ${formatValue(best.points)}.`,
@@ -314,15 +344,60 @@ const CALCULATORS: Record<Calculation['type'], Calculator> = {
       return { explanation: '', unavailableReason: 'calculator_mismatch' };
     }
 
-    const { yahooStatId, statLabel } = definition.calculation;
-    const pool = scoringPlayers(team, definition);
+    const { yahooStatIds, statLabel, subject, positions } = definition.calculation;
+
+    const all = scoringPlayers(team, definition);
+    const pool = positions ? atPositions(all, positions) : all;
+
+    if (positions && pool.length === 0) {
+      return {
+        explanation: `No ${positions.join('/')} counted.`,
+        unavailableReason: 'no_players_at_position',
+      };
+    }
+
+    /** One player's total across every stat asked for — three kinds of touchdown, say. */
+    const forPlayer = (player: PlayerWeek): number | undefined => {
+      let sum = 0;
+      let sawAny = false;
+
+      for (const statId of yahooStatIds) {
+        const value = player.statsByYahooId?.[statId];
+        if (value === undefined) continue;
+        if (!definition.negativesCount && value < 0) continue;
+        sum += value;
+        sawAny = true;
+      }
+
+      return sawAny ? sum : undefined;
+    };
+
+    if (subject === 'starter') {
+      // The best individual, not the roster's total: a different competition.
+      let best: { player: PlayerWeek; value: number } | null = null;
+
+      for (const player of pool) {
+        const value = forPlayer(player);
+        if (value === undefined) continue;
+        if (!best || value > best.value) best = { player, value };
+      }
+
+      if (!best) {
+        return { explanation: `No ${statLabel} data available.`, unavailableReason: 'no_stat_data' };
+      }
+
+      const value = roundValue(best.value, definition.decimalsCount);
+      return {
+        value,
+        explanation: `${best.player.playerName}: ${formatValue(value)} ${statLabel}.`,
+      };
+    }
 
     let total = 0;
     let counted = 0;
     for (const player of pool) {
-      const value = player.statsByYahooId?.[yahooStatId];
+      const value = forPlayer(player);
       if (value === undefined) continue;
-      if (!definition.negativesCount && value < 0) continue;
       total += value;
       counted += 1;
     }

@@ -385,14 +385,15 @@ describe('Bad Beat', () => {
   });
 });
 
-describe('Ground and Pound and other position groups', () => {
-  it('sums only the requested position, including flex slots', () => {
+describe('Ground and Pound and the other single-position rules', () => {
+  it('takes the best individual at the position, not the team total there', () => {
     const result = calculateChallenge(
       definition('ground-and-pound'),
       week([
         team('M1', {
           players: [
             player({ playerName: 'RB1', position: 'RB', selectedPosition: 'RB', points: 14 }),
+            // A flex-slotted back still counts as a back.
             player({ playerName: 'FlexRB', position: 'RB', selectedPosition: 'W/R/T', points: 11 }),
             player({ playerName: 'WR1', position: 'WR', selectedPosition: 'WR', points: 30 }),
           ],
@@ -407,9 +408,14 @@ describe('Ground and Pound and other position groups', () => {
     );
 
     if (result.blocked) return;
-    // 14 + 11 = 25 from running backs; the 30-point receiver does not count.
-    expect(result.winningLeagueMemberIds).toEqual([id('M1')]);
-    expect(result.winningValue).toBe(25);
+    /*
+      The league's rule is the starting running back with the most points, so M2's
+      single 24-point back beats M1's best of 14 — even though M1's two backs total
+      25 between them, and even though M1's receiver scored 30. Summing the position
+      would have handed this to M1, which is a different competition entirely.
+    */
+    expect(result.winningLeagueMemberIds).toEqual([id('M2')]);
+    expect(result.winningValue).toBe(24);
   });
 
   it('accepts several defense position codes, since Yahoo’s exact code is unverified', () => {
@@ -877,7 +883,13 @@ describe('challenge proposals', () => {
     }
   });
 
-  it('activates the eight challenges that need no projections or raw stat ids', () => {
+  it('activates the nine challenges that need no projections or raw stat ids', () => {
+    /*
+      Nine, not eight. Air Raid is the league's own rule — the starting quarterback
+      with the most fantasy points — and points are a documented field. It was
+      blocked only while the code had it as passing yards, which is a raw stat id.
+      Reading the rule correctly made it computable.
+    */
     const verified = (capability: YahooCapabilityKey): boolean =>
       !['player_projected_points', 'team_projected_points', 'player_stat_by_id'].includes(
         capability,
@@ -890,6 +902,7 @@ describe('challenge proposals', () => {
 
     expect(active.sort()).toEqual(
       [
+        'air-raid',
         'bad-beat',
         'bench-mob',
         'blackjack',

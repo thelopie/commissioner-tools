@@ -23,6 +23,7 @@ import {
   useActivateChallenges,
   useCapabilities,
   useChallenges,
+  usePublicHome,
   useConnection,
   useLeagueOverview,
   useSeedChallenges,
@@ -42,9 +43,18 @@ import { ChallengeResultsPanel } from './ChallengeResultsPanel.js';
  */
 export function ChallengesPage(): JSX.Element {
   const connection = useConnection();
-  const overview = useLeagueOverview(connection.data?.connected ?? false);
+  /*
+    Asked for unconditionally. The overview answers with the portal's own season even
+    when Yahoo cannot be read, and the rules are the league's own — so the rulebook
+    must not be hidden behind a connection it does not depend on.
+  */
+  const overview = useLeagueOverview(true);
+  const publicHome = usePublicHome();
   const seasonYear =
-    overview.data?.yahoo?.seasonYear ?? overview.data?.league.currentSeasonYear ?? null;
+    overview.data?.yahoo?.seasonYear ??
+    overview.data?.league.currentSeasonYear ??
+    publicHome.data?.seasonYear ??
+    null;
 
   const challenges = useChallenges(seasonYear);
   const session = useSession();
@@ -68,23 +78,17 @@ export function ChallengesPage(): JSX.Element {
     if (seed.isSuccess) notify(`Added ${seed.data.seeded.length} challenge definitions.`);
   }, [seed.isSuccess, seed.data, notify]);
 
-  if (!connection.data?.connected) {
-    return (
-      <Stack spacing={3}>
-        <PageHeader title="Weekly challenges" />
-        <EmptyState
-          icon={<EmojiEventsIcon />}
-          title="Connect Yahoo first"
-          description="Challenges are calculated from live Yahoo data, so the portal needs a connection before it can show them."
-          action={
-            <Button variant="contained" href="/auth/yahoo/start">
-              Connect Yahoo
-            </Button>
-          }
-        />
-      </Stack>
-    );
-  }
+  /*
+    No Yahoo gate.
+
+    This page used to refuse outright without a connection, on the grounds that
+    challenges are calculated from Yahoo data. Calculating them is; the rules are
+    not. They are the league's own thirteen, one a week, and they were unreadable
+    here for want of a scoreboard — while the spreadsheet they came from had shown
+    them for years. Results need Yahoo, or a commissioner entering them by hand;
+    the rulebook needs nothing.
+  */
+  const yahooUnavailable = !connection.data?.connected;
 
   if (seasonYear === null) {
     return (
@@ -187,6 +191,15 @@ export function ChallengesPage(): JSX.Element {
         <Tab value="results" label="Results" />
         <Tab value="rules" label={`Rules (${definitions.length})`} />
       </Tabs>
+
+      {tab === 'results' && yahooUnavailable && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <AlertTitle>Winners have to be entered by hand for now</AlertTitle>
+          Calculating a week needs live Yahoo data, which is not available yet. The rules are all
+          here, and a commissioner can record each week&rsquo;s winner directly — exactly as the
+          spreadsheet did.
+        </Alert>
+      )}
 
       {tab === 'results' && <ChallengeResultsPanel seasonYear={seasonYear} />}
 
