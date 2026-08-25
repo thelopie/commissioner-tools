@@ -147,11 +147,32 @@ yahooRoutes.post('/api/yahoo/league-link', async (c) => {
 
   const userId = principal.userId as InternalId;
 
-  // Confirm the selection is actually readable before recording it, so a broken
-  // link is caught here rather than on every later dashboard load.
-  const metadata = await ctx.yahoo.getLeagueMetadata(userId, body.yahooLeagueKey, {
-    refresh: true,
-  });
+  /**
+   * Read the league back before recording it, so a broken link is caught once here
+   * rather than failing on every later dashboard load.
+   *
+   * One exception, and only one. When the Yahoo application itself has no Fantasy
+   * authorization, this check cannot tell a wrong key from a closed API — every key
+   * fails identically — so refusing would make the portal impossible to finish
+   * setting up for as long as Yahoo takes, which is not in the commissioner's hands.
+   * The link is recorded unverified instead, and says so.
+   *
+   * Any other failure still refuses. A typo must not become a stored link.
+   */
+  let metadata: Awaited<ReturnType<typeof ctx.yahoo.getLeagueMetadata>> | null = null;
+  let verified = true;
+
+  try {
+    metadata = await ctx.yahoo.getLeagueMetadata(userId, body.yahooLeagueKey, { refresh: true });
+  } catch (error) {
+    if (!(error instanceof AppError) || error.code !== 'yahoo_fantasy_not_authorized') throw error;
+
+    verified = false;
+    ctx.logger.warn('Recording an unverified Yahoo league link', {
+      reason: 'the Yahoo application has no Fantasy authorization yet',
+      yahooLeagueKey: body.yahooLeagueKey,
+    });
+  }
 
   const existing = await ctx.repositories.leagues.findYahooLink(leagueId, body.seasonYear);
 
@@ -164,11 +185,11 @@ yahooRoutes.post('/api/yahoo/league-link', async (c) => {
       yahooGameKey: body.yahooGameKey,
       yahooLeagueKey: body.yahooLeagueKey,
       connectionUserId: userId,
-      ...(metadata.isCommissioner === undefined
+      ...(metadata?.isCommissioner === undefined
         ? {}
         : { yahooCommissionerHint: metadata.isCommissioner }),
       linkedAt: new Date().toISOString().replace(/\.\d{3}Z$/, ''),
-      status: 'active',
+      status: verified ? 'active' : 'pending_verification',
       ...(existing
         ? {
             createdAt: existing.createdAt,
@@ -194,8 +215,10 @@ yahooRoutes.post('/api/yahoo/league-link', async (c) => {
       status: 'in_progress',
       buyIn: { amountCents: 0, currency: 'USD' },
       finalFinishOrder: [],
-      ...(metadata.teamCount === undefined ? {} : { teamCount: metadata.teamCount }),
-      ...(metadata.playoffStartWeek === undefined
+      // Absent when the league could not be read; the season is still created so
+      // dues, challenges and the draft order have something to hang from.
+      ...(metadata?.teamCount === undefined ? {} : { teamCount: metadata.teamCount }),
+      ...(metadata?.playoffStartWeek === undefined
         ? {}
         : { playoffStartWeek: metadata.playoffStartWeek }),
       ...created(userId),

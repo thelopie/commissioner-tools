@@ -136,7 +136,12 @@ export const yahooLeagueLinkSchema = auditableSchema.extend({
   yahooCommissionerHint: z.boolean().optional(),
 
   linkedAt: isoTimestampSchema,
-  status: z.enum(['active', 'inactive']),
+  /**
+   * `pending_verification` means the key was recorded without ever being read
+   * back, because the Yahoo application had no Fantasy access at the time. It is
+   * promoted to `active` by the first successful read.
+   */
+  status: z.enum(['active', 'inactive', 'pending_verification']),
 });
 export type YahooLeagueLink = z.infer<typeof yahooLeagueLinkSchema>;
 

@@ -899,6 +899,140 @@ describe('dues and payouts', () => {
   });
 });
 
+describe('linking a league the API cannot read', () => {
+  /**
+   * The verification step exists so a broken key is caught once rather than failing
+   * on every dashboard load. These cover the single deliberate hole in it, and the
+   * fact that it is only that one.
+   */
+  function appWithFantasy(status: number, body: unknown) {
+    const failing: FetchLike = async (url, init) => {
+      const parsed = new URL(url);
+
+      if (parsed.pathname === '/oauth2/get_token') {
+        const result = handleTokenRequest(init.body ?? '');
+        return {
+          status: result.status,
+          ok: true,
+          text: async () => JSON.stringify(result.body),
+          headers: { get: () => null },
+        };
+      }
+
+      if (parsed.pathname === '/openid/v1/userinfo') {
+        return {
+          status: 200,
+          ok: true,
+          text: async () => JSON.stringify({ sub: 'mock-openid-subject' }),
+          headers: { get: () => null },
+        };
+      }
+
+      return {
+        status,
+        ok: false,
+        text: async () => JSON.stringify(body),
+        headers: { get: () => null },
+      };
+    };
+
+    return createApp({
+      config: config(),
+      table: table.asTable(),
+      fetchImpl: failing,
+      logger: createLogger({ correlationId: 'test', sink: () => {} }),
+    });
+  }
+
+  const FANTASY_CLOSED = {
+    error: {
+      lang: 'en-US',
+      description: 'Please provide valid credentials. OAuth oauth_problem="additional_authorization_required"',
+    },
+  };
+
+  async function commissionerJar(local: ReturnType<typeof createApp>) {
+    const start = await local.request('/auth/yahoo/start');
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state')!;
+    const callback = await local.request(
+      `/auth/yahoo/callback?code=mock-authorization-code&state=${encodeURIComponent(state)}`,
+    );
+
+    const jar: Record<string, string> = {};
+    for (const header of callback.headers.getSetCookie()) {
+      const [pair] = header.split(';');
+      const index = pair!.indexOf('=');
+      jar[pair!.slice(0, index)] = decodeURIComponent(pair!.slice(index + 1));
+    }
+
+    await local.request('/api/setup/bootstrap', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeader(jar),
+        [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+      },
+      body: JSON.stringify({ leagueName: 'La Liga de Lopie' }),
+    });
+
+    return jar;
+  }
+
+  it('records the link unverified when the application has no Fantasy access', async () => {
+    /*
+      With the API closed every key fails identically, so refusing would leave the
+      portal unfinishable for as long as Yahoo takes — which is not the
+      commissioner's to fix.
+    */
+    const local = appWithFantasy(401, FANTASY_CLOSED);
+    const jar = await commissionerJar(local);
+
+    const response = await local.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeader(jar),
+        [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+      },
+      body: JSON.stringify({
+        yahooLeagueKey: 'nfl.l.123456',
+        yahooGameKey: 'nfl',
+        seasonYear: 2026,
+      }),
+    });
+
+    expect(response.status).toBe(201);
+
+    const link = table.all().find((item) => item['entity'] === 'YahooLeagueLink');
+    // Recorded, and visibly not proven.
+    expect(link?.['status']).toBe('pending_verification');
+    expect(link?.['yahooLeagueKey']).toBe('nfl.l.123456');
+  });
+
+  it('still refuses a key Yahoo says does not exist', async () => {
+    // The hole is exactly one failure wide. A typo must not become a stored link.
+    const local = appWithFantasy(404, { error: { description: 'League not found' } });
+    const jar = await commissionerJar(local);
+
+    const response = await local.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Cookie: cookieHeader(jar),
+        [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+      },
+      body: JSON.stringify({
+        yahooLeagueKey: 'nfl.l.999999',
+        yahooGameKey: 'nfl',
+        seasonYear: 2026,
+      }),
+    });
+
+    expect(response.status).toBe(404);
+    expect(table.all().find((item) => item['entity'] === 'YahooLeagueLink')).toBeUndefined();
+  });
+});
+
 describe('LLWS draft-order workflow', () => {
   it('produces a reproducible draw and never claims Yahoo can be written', async () => {
     const jar = await signInAsCommissioner();

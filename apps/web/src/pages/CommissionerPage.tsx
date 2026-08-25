@@ -19,6 +19,7 @@ import {
   Typography,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
+import { ApiError } from '../api/client.js';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -394,7 +395,22 @@ function LeaguePicker(): JSX.Element {
           )}
 
           {leagues.isError && (
-            <ErrorNotice error={leagues.error} onRetry={() => void leagues.refetch()} />
+            <Stack spacing={2}>
+              <ErrorNotice error={leagues.error} onRetry={() => void leagues.refetch()} />
+              {/*
+                The list cannot load, but the key is knowable: it is in the URL of
+                the league on Yahoo's own site. Offering manual entry here means
+                setup is not held hostage to a permission the commissioner does not
+                control.
+              */}
+              {leagues.error instanceof ApiError && leagues.error.isFantasyUnauthorized && (
+                <ManualLeagueKey
+                  onSubmit={(input) => select.mutate(input)}
+                  pending={select.isPending}
+                  error={select.error}
+                />
+              )}
+            </Stack>
           )}
 
           {leagues.data?.leagues.length === 0 && (
@@ -841,5 +857,91 @@ function StatTile({
         </CardContent>
       </Card>
     </Grid>
+  );
+}
+
+/**
+ * Manual entry of a Yahoo league key.
+ *
+ * Only shown when the league list cannot be read. The key is visible in the URL of
+ * the league on Yahoo's site, so a commissioner can supply it themselves rather than
+ * waiting on an API permission — and `nfl` works as the game key, meaning the season
+ * number does not have to be hunted down as well.
+ *
+ * The link is recorded unverified in this state, because with the API closed nothing
+ * can tell a correct key from an incorrect one. It is checked on the first read that
+ * succeeds.
+ */
+function ManualLeagueKey({
+  onSubmit,
+  pending,
+  error,
+}: {
+  onSubmit: (input: { yahooLeagueKey: string; yahooGameKey: string; seasonYear: number }) => void;
+  pending: boolean;
+  error: unknown;
+}): JSX.Element {
+  const [leagueId, setLeagueId] = useState('');
+  const [seasonYear, setSeasonYear] = useState(String(new Date().getFullYear()));
+
+  const trimmed = leagueId.trim();
+  // Accept a bare id or a whole pasted URL, since the URL is where people find it.
+  const digits = trimmed.match(/(\d{4,})\s*$/)?.[1] ?? trimmed;
+  const valid = /^\d{4,}$/.test(digits) && /^\d{4}$/.test(seasonYear);
+
+  return (
+    <Card sx={{ bgcolor: 'background.surfaceContainerLowest' }}>
+      <CardContent>
+        <Stack spacing={2}>
+          <Box>
+            <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+              Enter the league yourself
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              Open the league on Yahoo and copy the number from the address bar — in
+              <code> football.fantasysports.yahoo.com/f1/123456</code> it is <code>123456</code>.
+              Pasting the whole address works too.
+            </Typography>
+          </Box>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+            <TextField
+              label="League ID or URL"
+              size="small"
+              fullWidth
+              value={leagueId}
+              onChange={(event) => setLeagueId(event.target.value)}
+            />
+            <TextField
+              label="Season"
+              size="small"
+              sx={{ width: { sm: 120 } }}
+              value={seasonYear}
+              onChange={(event) => setSeasonYear(event.target.value)}
+            />
+          </Stack>
+
+          {error instanceof ApiError && <Alert severity="error">{error.message}</Alert>}
+
+          <Box>
+            <Button
+              variant="contained"
+              disabled={!valid || pending}
+              onClick={() =>
+                onSubmit({
+                  // `nfl` is accepted in place of the numeric season game key, which
+                  // saves asking for a value nobody has to hand.
+                  yahooLeagueKey: `nfl.l.${digits}`,
+                  yahooGameKey: 'nfl',
+                  seasonYear: Number(seasonYear),
+                })
+              }
+            >
+              {pending ? 'Linking…' : 'Link this league'}
+            </Button>
+          </Box>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }
