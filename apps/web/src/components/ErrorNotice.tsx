@@ -180,6 +180,21 @@ function describe(error: unknown): Described {
         action: 'none',
       };
 
+    case 'yahoo_fantasy_not_authorized':
+      /*
+        Not a failed request and not the reader's problem. It falls to the default
+        case otherwise and renders as a red "Request failed" with the implication
+        that something went wrong just now — when in fact nothing has ever worked,
+        it is the same for everyone, and no action here will change it.
+      */
+      return {
+        ...base,
+        title: 'Live league data is not switched on',
+        message: error.message,
+        severity: 'info',
+        action: 'none',
+      };
+
     case 'version_conflict':
       return {
         ...base,
