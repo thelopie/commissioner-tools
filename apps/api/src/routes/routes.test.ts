@@ -267,7 +267,12 @@ describe('Yahoo OAuth flow', () => {
     expect(url.searchParams.get('response_type')).toBe('code');
     expect(url.searchParams.get('redirect_uri')).toBe('https://localhost:5173/auth/yahoo/callback');
     // Read-only Fantasy scope. The portal never requests write access.
-    expect(url.searchParams.get('scope')).toBe('fspt-r');
+    /*
+      No scope at all. Yahoo's current authorize endpoint rejects `fspt-r` with
+      invalid_scope, which broke every sign-in; asserting its absence keeps someone
+      from helpfully restoring it after reading the old OAuth 1.0a docs.
+    */
+    expect(url.searchParams.has('scope')).toBe(false);
     expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     // The client secret must never appear in a browser-visible URL.
     expect(response.headers.get('Location')).not.toContain('test-secret');

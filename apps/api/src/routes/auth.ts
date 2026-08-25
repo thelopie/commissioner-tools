@@ -71,9 +71,19 @@ authRoutes.get('/auth/yahoo/start', async (c) => {
     clientId: env.YAHOO_CLIENT_ID,
     redirectUri: env.YAHOO_REDIRECT_URI,
     state: state.state,
-    // Read-only Fantasy scope. The portal never requests write access; no Yahoo
-    // write endpoint is documented, and read/write would not prove otherwise.
-    scope: 'fspt-r',
+    /*
+      No scope parameter, deliberately.
+
+      This sent `fspt-r` — the Fantasy read scope from Yahoo's older OAuth 1.0a
+      documentation, which is still repeated all over the internet. Yahoo's current
+      authorization endpoint rejects it outright with `invalid_scope`, so every
+      sign-in failed before the user ever saw a consent screen. Verified against the
+      live endpoint: `fspt-r` is refused, omitting scope is accepted.
+
+      What the token can read is decided by the permissions on the Yahoo application
+      itself, not by anything asked for here. The portal calls no write endpoint —
+      Yahoo documents none — so nothing is given up by staying silent.
+    */
   });
 
   const target =
