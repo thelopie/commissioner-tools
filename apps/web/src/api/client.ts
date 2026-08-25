@@ -40,6 +40,17 @@ export class ApiError extends Error {
     return this.code === 'yahoo_needs_reconnect' || this.code === 'yahoo_not_connected';
   }
 
+  /**
+   * True when the Yahoo application itself has no Fantasy access.
+   *
+   * Deliberately not folded into `needsYahooReconnect`: reconnecting cannot fix it,
+   * it is identical for every user, and the pages that own their own data should
+   * carry on rather than showing an error somebody is invited to retry.
+   */
+  get isFantasyUnauthorized(): boolean {
+    return this.code === 'yahoo_fantasy_not_authorized';
+  }
+
   get isUnauthenticated(): boolean {
     return this.code === 'unauthenticated' || this.code === 'session_expired';
   }

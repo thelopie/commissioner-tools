@@ -27,6 +27,7 @@ import {
   usePublicHome,
   useSession,
 } from '../hooks.js';
+import { ApiError } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { DraftHighlights } from './PublicHomePage.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
@@ -86,6 +87,30 @@ export function HomePage(): JSX.Element {
             Connect Yahoo for scores and standings
           </Button>
         </Box>
+      </Stack>
+    );
+  }
+
+  /*
+    Yahoo is connected but the application has no Fantasy access, so nothing live can
+    load. That is not a reason to show this person an error and a retry button: the
+    countdown and the draw are the portal's own and work perfectly. Same content as
+    the signed-out page, plus one honest line about what is missing.
+  */
+  if (me.error instanceof ApiError && me.error.isFantasyUnauthorized) {
+    return (
+      <Stack spacing={4}>
+        <PageHeader title={`Hi, ${firstName}`} />
+        <Alert severity="info">
+          <AlertTitle>Live scores are not switched on yet</AlertTitle>
+          Standings, matchups and rosters need Yahoo to enable Fantasy access for this app.
+          Everything below is the portal&rsquo;s own and unaffected.
+        </Alert>
+        <DraftHighlights
+          draftAt={publicHome.data?.draftAt ?? null}
+          order={publicHome.data?.order ?? null}
+          assignments={publicHome.data?.assignments ?? null}
+        />
       </Stack>
     );
   }
