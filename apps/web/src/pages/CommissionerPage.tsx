@@ -21,6 +21,7 @@ import {
 import Grid from '@mui/material/Grid2';
 import { ApiError } from '../api/client.js';
 import { parseYahooLeagueId, yahooLeagueKeyFor } from '../lib/yahoo-league-url.js';
+import { matchMembersToTeams } from '../lib/match-members.js';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -590,6 +591,8 @@ function LeagueSection(): JSX.Element {
           </Alert>
         )}
 
+        {unmapped > 0 && <MatchAllTeams teams={yahoo.teams} seasonYear={yahoo.seasonYear} />}
+
         <Box>
           <SectionHeader title="Teams and managers" count={yahoo.teams.length} />
           <Grid container spacing={1.5}>
@@ -949,5 +952,109 @@ function ManualLeagueKey({
         </Stack>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * Maps every Yahoo team the portal can work out by itself.
+ *
+ * Twelve dropdowns filled in by hand was work for its own sake: Yahoo reports each
+ * team's manager nickname, and those are the names the commissioner already entered.
+ * Only the genuinely ambiguous ones should reach a person.
+ *
+ * Shown as a proposal rather than done silently — it decides which manager owns which
+ * scores for a season, so it is worth a glance before it is applied.
+ */
+function MatchAllTeams({
+  teams,
+  seasonYear,
+}: {
+  seasonYear: number;
+  teams: Array<{
+    yahooTeamKey: string;
+    name: string;
+    leagueMemberId: string | null;
+    managers: Array<{ nickname: string }>;
+  }>;
+}): JSX.Element | null {
+  const members = useLeagueMembers(seasonYear);
+  const map = useMapLeagueMember(seasonYear);
+  const notify = useNotify();
+  const [applying, setApplying] = useState(false);
+
+  const result = matchMembersToTeams(
+    teams.map((team) => ({
+      yahooTeamKey: team.yahooTeamKey,
+      name: team.name,
+      managerNames: team.managers.map((manager) => manager.nickname),
+      leagueMemberId: team.leagueMemberId,
+    })),
+    (members.data?.members ?? []).map((member) => ({
+      leagueMemberId: member.leagueMemberId,
+      displayName: member.displayName,
+      yahooTeamKey: member.yahooTeamKey,
+    })),
+  );
+
+  if (result.matches.length === 0) return null;
+
+  const apply = async (): Promise<void> => {
+    setApplying(true);
+    let done = 0;
+
+    // Sequential on purpose: each write reads the member list to check for a clash,
+    // and firing twelve at once would have them racing each other.
+    for (const match of result.matches) {
+      try {
+        await map.mutateAsync({
+          yahooTeamKey: match.yahooTeamKey,
+          leagueMemberId: match.leagueMemberId,
+          legacyManagerName: match.memberName,
+        });
+        done += 1;
+      } catch {
+        // Reported below rather than thrown: one clash should not abandon the rest.
+      }
+    }
+
+    setApplying(false);
+    notify(
+      done === result.matches.length
+        ? `Mapped ${done} teams.`
+        : `Mapped ${done} of ${result.matches.length}. Map the rest by hand.`,
+      done === result.matches.length ? 'success' : 'warning',
+    );
+  };
+
+  return (
+    <Alert severity="success" icon={<HowToRegIcon />}>
+      <AlertTitle>
+        {result.matches.length} {result.matches.length === 1 ? 'team' : 'teams'} can be mapped
+        automatically
+      </AlertTitle>
+
+      <Typography variant="body2" sx={{ mb: 1 }}>
+        Matched on manager name, never on the fantasy team name — those change mid-season and
+        agreeing with a person&rsquo;s name would be coincidence.
+      </Typography>
+
+      <Stack spacing={0.25} sx={{ mb: 1.5 }}>
+        {result.matches.map((match) => (
+          <Typography key={match.yahooTeamKey} variant="caption" color="text.secondary">
+            {match.yahooTeamName} → <strong>{match.memberName}</strong>
+          </Typography>
+        ))}
+      </Stack>
+
+      {result.unmatchedTeams.length > 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+          {result.unmatchedTeams.length} still need doing by hand.
+        </Typography>
+      )}
+
+      <Button variant="contained" size="small" disabled={applying} onClick={() => void apply()}>
+        {applying ? 'Mapping…' : 'Map these'}
+      </Button>
+    </Alert>
   );
 }
