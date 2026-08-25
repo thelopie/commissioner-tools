@@ -72,12 +72,21 @@ authRoutes.get('/auth/yahoo/start', async (c) => {
     redirectUri: env.YAHOO_REDIRECT_URI,
     state: state.state,
     /*
-      OpenID Connect only.
+      Identity plus read-only Fantasy.
 
-      Identity comes from OpenID Connect, not from the Fantasy API, so this is all
-      sign-in needs. `profile` and `email` are what carry a name to prefill — without
-      them Yahoo returns a subject and nothing else, and every manager arrives called
-      "New manager", which is how the first Yahoo application behaved. What the token may read of the league is decided by
+      `openid` identifies the account and `profile`/`email` carry a name to prefill —
+      without them Yahoo returns a subject and nothing else, and every manager arrives
+      called "New manager".
+
+      `fspt-r` is Fantasy read. Two earlier Yahoo applications rejected it outright as
+      an invalid scope, which is what kept every league read answering 401
+      additional_authorization_required; this one accepts it, verified against the live
+      authorization endpoint before it was deployed.
+
+      Never `fspt-w`. The application will grant it and the portal will not ask: Yahoo
+      documents no write endpoint, nothing here calls one, and requesting permission to
+      change somebody's lineup in order to read their scores is not a trade the league
+      needs to make. What the token may read of the league is decided by
       the permissions on the Yahoo application itself.
 
       Not `fspt-r`: that is the Fantasy read scope from Yahoo's OAuth 1.0a
@@ -94,7 +103,7 @@ authRoutes.get('/auth/yahoo/start', async (c) => {
       The portal calls no write endpoint — Yahoo documents none — so nothing is
       given up by asking for no more than this.
     */
-    scope: 'openid profile email',
+    scope: env.YAHOO_SCOPE,
   });
 
   const target =

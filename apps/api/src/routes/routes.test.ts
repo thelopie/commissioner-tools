@@ -288,7 +288,10 @@ describe('Yahoo OAuth flow', () => {
       name to prefill. Never `fspt-r`: the live endpoint rejects it with
       invalid_scope, which broke every sign-in.
     */
-    expect(url.searchParams.get('scope')).toBe('openid profile email');
+    // The default: identity plus read-only Fantasy.
+    expect(url.searchParams.get('scope')).toBe('openid profile email fspt-r');
+    // Read, never write: Yahoo will grant fspt-w and the portal must not ask.
+    expect(url.searchParams.get('scope')).not.toContain('fspt-w');
     expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     // The client secret must never appear in a browser-visible URL.
     expect(response.headers.get('Location')).not.toContain('test-secret');
