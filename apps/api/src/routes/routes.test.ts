@@ -1810,6 +1810,150 @@ describe('challenge results', () => {
     return { jar, auth };
   }
 
+  /**
+   * Recording a winner by hand.
+   *
+   * The interesting cases are not that it stores a name — it is that it stays
+   * distinguishable from a computed result, and that it cannot be used to quietly
+   * rewrite one that is already settled.
+   */
+  describe('recording a winner by hand', () => {
+    async function members(jar: Record<string, string>): Promise<Array<{ leagueMemberId: string }>> {
+      const response = await app.request('/api/league/members?seasonYear=2026', {
+        headers: { Cookie: cookieHeader(jar) },
+      });
+      return (await response.json()).members;
+    }
+
+    it('records a winner for a challenge the portal cannot calculate at all', async () => {
+      /*
+        The whole point. Every capability is unverified, so `calculate` refuses all
+        thirteen — and this league still ran these challenges every week out of a
+        spreadsheet.
+      */
+      const { jar, auth } = await seededLeague();
+      const [winner] = await members(jar);
+
+      const response = await app.request('/api/challenges/2026/record/3/bench-mob', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          winningLeagueMemberIds: [winner!.leagueMemberId],
+          winningValue: 41.5,
+          note: 'Read off Yahoo by hand while the API is unavailable.',
+        }),
+      });
+
+      expect(response.status).toBe(201);
+
+      const results = await (
+        await app.request('/api/challenges/2026/results/3', { headers: { Cookie: cookieHeader(jar) } })
+      ).json();
+
+      const recorded = results.results.find(
+        (entry: { challengeSlug: string }) => entry.challengeSlug === 'bench-mob',
+      );
+
+      expect(recorded.status).toBe('manual');
+      expect(recorded.winningValue).toBe(41.5);
+      // Never dressed up as arithmetic the portal did.
+      expect(recorded.explanation).toContain('rather than calculated');
+    });
+
+    it('can be finalized like any other result, so it is payable', async () => {
+      const { jar, auth } = await seededLeague();
+      const [winner] = await members(jar);
+
+      await app.request('/api/challenges/2026/record/4/blackjack', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          winningLeagueMemberIds: [winner!.leagueMemberId],
+          note: 'Agreed on the group chat.',
+        }),
+      });
+
+      const finalize = await app.request('/api/challenges/2026/finalize/4/blackjack', {
+        method: 'POST',
+        headers: auth,
+      });
+
+      expect(finalize.status).toBe(200);
+    });
+
+    it('will not overwrite a finalized result', async () => {
+      /*
+        The guard that matters. A settled outcome may have been paid out, so changing
+        it has to go through override and leave a reason — this path must not become
+        a way around that.
+      */
+      const { jar, auth } = await seededLeague();
+      const all = await members(jar);
+
+      await app.request('/api/challenges/2026/record/5/bad-beat', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          winningLeagueMemberIds: [all[0]!.leagueMemberId],
+          note: 'First entry.',
+        }),
+      });
+      await app.request('/api/challenges/2026/finalize/5/bad-beat', {
+        method: 'POST',
+        headers: auth,
+      });
+
+      const second = await app.request('/api/challenges/2026/record/5/bad-beat', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          winningLeagueMemberIds: [all[1]!.leagueMemberId],
+          note: 'Changed my mind.',
+        }),
+      });
+
+      expect(second.status).toBe(409);
+
+      // The refusal is itself worth a record.
+      const blocked = table
+        .all()
+        .find((item) => item['action'] === 'challenge.settled_result_change_blocked');
+      expect(blocked).toBeDefined();
+    });
+
+    it('refuses a manager who is not in the season', async () => {
+      // Otherwise a mistyped id becomes a payable result pointing at nobody.
+      const { auth } = await seededLeague();
+
+      const response = await app.request('/api/challenges/2026/record/6/photo-finish', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          winningLeagueMemberIds: ['01M0000000000000000000000X'],
+          note: 'Typo.',
+        }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('requires a note', async () => {
+      const { jar, auth } = await seededLeague();
+      const [winner] = await members(jar);
+
+      const response = await app.request('/api/challenges/2026/record/7/one-man-army', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          winningLeagueMemberIds: [winner!.leagueMemberId],
+          note: '',
+        }),
+      });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
   it('refuses to calculate anything while no capability is verified', async () => {
     // The shipped state. Thirteen rules, nothing computed, and a reason for each.
     const { auth } = await seededLeague();

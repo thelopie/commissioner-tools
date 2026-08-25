@@ -29,6 +29,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRightRounded';
 import IconButton from '@mui/material/IconButton';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import CalculateIcon from '@mui/icons-material/CalculateRounded';
+import EditNoteIcon from '@mui/icons-material/EditNoteRounded';
 import GavelIcon from '@mui/icons-material/GavelRounded';
 import LockIcon from '@mui/icons-material/LockRounded';
 import PaidIcon from '@mui/icons-material/PaidRounded';
@@ -41,6 +42,7 @@ import {
   useFinalizeChallenge,
   useLeagueOverview,
   useOverrideChallenge,
+  useRecordChallenge,
   usePayouts,
   usePrizeRules,
   useSavePayout,
@@ -302,6 +304,11 @@ const STATUS_META: Record<
     color: 'warning',
     hint: 'A commissioner replaced the computed outcome. The original is kept in the audit log.',
   },
+  manual: {
+    label: 'entered by hand',
+    color: 'warning',
+    hint: 'A commissioner recorded this result themselves. The portal did not compute it.',
+  },
   not_calculable: {
     label: 'no winner',
     color: 'default',
@@ -335,6 +342,7 @@ function ResultCard({
   existingPrize: boolean;
 }): JSX.Element {
   const finalize = useFinalizeChallenge(seasonYear, week);
+  const [recording, setRecording] = useState(false);
   const savePayout = useSavePayout(seasonYear);
   const [overriding, setOverriding] = useState(false);
   const notify = useNotify();
@@ -369,7 +377,18 @@ function ResultCard({
   };
 
   const meta = STATUS_META[result.status];
-  const canFinalize = result.status === 'provisional' && result.winners.length > 0;
+  // A manual result is a commissioner's determination, so it finalizes like a
+  // computed one. Only a settled result is off limits.
+  const canFinalize =
+    (result.status === 'provisional' || result.status === 'manual') && result.winners.length > 0;
+
+  /*
+    Offered whenever the portal has not settled the week itself. This is the only
+    route to a result while Yahoo is unavailable, and the ordinary route for a
+    challenge the portal can never compute.
+  */
+  const canRecordByHand =
+    isCommissioner && week !== null && result.status !== 'finalized' && result.status !== 'overridden';
 
   return (
     <>
@@ -567,6 +586,20 @@ function ResultCard({
                   >
                     Override
                   </Button>
+
+                  {canRecordByHand && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      startIcon={<EditNoteIcon />}
+                      onClick={(event) => {
+                        event.currentTarget.blur();
+                        setRecording(true);
+                      }}
+                    >
+                      {result.winners.length > 0 ? 'Change by hand' : 'Enter winner'}
+                    </Button>
+                  )}
                 </Stack>
               )}
             </Stack>
@@ -575,6 +608,16 @@ function ResultCard({
           </Stack>
         </CardContent>
       </Card>
+
+      <RecordByHandDialog
+        open={recording}
+        onClose={() => setRecording(false)}
+        challengeSlug={result.challengeSlug}
+        name={name}
+        seasonYear={seasonYear}
+        week={week}
+        members={members}
+      />
 
       <OverrideDialog
         open={overriding}
@@ -737,6 +780,141 @@ function OverrideDialog({
           }}
         >
           {override.isPending ? 'Recording…' : 'Record override'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/**
+ * Records a winner the commissioner worked out themselves.
+ *
+ * The note is required and the label says why: this result carries the
+ * commissioner's name rather than the portal's arithmetic, so whoever reads it in
+ * three years deserves to know where the number came from.
+ */
+function RecordByHandDialog({
+  open,
+  onClose,
+  challengeSlug,
+  name,
+  seasonYear,
+  week,
+  members,
+}: {
+  open: boolean;
+  onClose: () => void;
+  challengeSlug: string;
+  name: string;
+  seasonYear: number | null;
+  week: number | null;
+  members: Array<{ leagueMemberId: string; displayName: string }>;
+}): JSX.Element {
+  const record = useRecordChallenge(seasonYear, week);
+  const notify = useNotify();
+
+  const [winners, setWinners] = useState<string[]>([]);
+  const [value, setValue] = useState('');
+  const [note, setNote] = useState('');
+
+  const parsedValue = value.trim() === '' ? undefined : Number(value);
+  const valueValid = parsedValue === undefined || Number.isFinite(parsedValue);
+  const canSubmit = winners.length > 0 && note.trim().length > 0 && valueValid;
+
+  return (
+    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+      <DialogTitle>Enter the winner of {name}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          <Alert severity="info">
+            This is recorded as entered by hand, not calculated, and it says so wherever it
+            appears. Pick more than one manager if the week was tied.
+          </Alert>
+
+          <FormControl fullWidth size="small">
+            <InputLabel id={`winners-${challengeSlug}`}>Winner or winners</InputLabel>
+            <Select
+              multiple
+              labelId={`winners-${challengeSlug}`}
+              label="Winner or winners"
+              value={winners}
+              onChange={(event) =>
+                setWinners(
+                  typeof event.target.value === 'string'
+                    ? [event.target.value]
+                    : event.target.value,
+                )
+              }
+              renderValue={(selected) =>
+                selected
+                  .map(
+                    (id) =>
+                      members.find((member) => member.leagueMemberId === id)?.displayName ?? id,
+                  )
+                  .join(', ')
+              }
+            >
+              {members.map((member) => (
+                <MenuItem key={member.leagueMemberId} value={member.leagueMemberId}>
+                  {member.displayName}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            label="Winning value"
+            size="small"
+            fullWidth
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            error={!valueValid}
+            helperText={
+              valueValid
+                ? 'Optional — the points or count that won it, if the challenge has one.'
+                : 'Numbers only.'
+            }
+          />
+
+          <TextField
+            label="Where this came from"
+            size="small"
+            fullWidth
+            multiline
+            minRows={2}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+            helperText="Required. Kept with the result so it can be defended later."
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          disabled={!canSubmit || record.isPending}
+          onClick={() =>
+            record.mutate(
+              {
+                slug: challengeSlug,
+                winningLeagueMemberIds: winners,
+                ...(parsedValue === undefined ? {} : { winningValue: parsedValue }),
+                note: note.trim(),
+              },
+              {
+                onSuccess: () => {
+                  notify(`Recorded ${name}.`, 'success');
+                  setWinners([]);
+                  setValue('');
+                  setNote('');
+                  onClose();
+                },
+                onError: (error) => notify(error.message, 'error'),
+              },
+            )
+          }
+        >
+          {record.isPending ? 'Saving…' : 'Record it'}
         </Button>
       </DialogActions>
     </Dialog>

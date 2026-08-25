@@ -54,6 +54,7 @@ export const auditActionSchema = z.enum([
   'challenge.calculated',
   'recap.drafted',
   'challenge.recalculated',
+  'challenge.recorded_manually',
   'challenge.finalized',
   'challenge.overridden',
   'challenge.settled_result_change_blocked',

@@ -564,6 +564,36 @@ export function useFinalizeChallenge(seasonYear: number | null, week: number | n
  * A reason is required by the API, not merely encouraged: the computed outcome is
  * kept alongside the override so the arithmetic is never just erased.
  */
+/**
+ * Records a winner the commissioner worked out themselves.
+ *
+ * Needed because `calculate` reads Yahoo, and a league that has run these challenges
+ * out of a spreadsheet for years should not lose them to an API permission.
+ */
+export function useRecordChallenge(seasonYear: number | null, week: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (input: {
+      slug: string;
+      winningLeagueMemberIds: string[];
+      winningValue?: number;
+      note: string;
+    }) =>
+      api.post<{ ok: boolean }>(
+        `/api/challenges/${seasonYear}/record/${week}/${input.slug}`,
+        {
+          winningLeagueMemberIds: input.winningLeagueMemberIds,
+          ...(input.winningValue === undefined ? {} : { winningValue: input.winningValue }),
+          note: input.note,
+        },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.challengeResults(seasonYear ?? 0, week ?? 0) });
+    },
+  });
+}
+
 export function useOverrideChallenge(seasonYear: number | null, week: number | null) {
   const invalidate = useResultInvalidation(seasonYear, week);
 

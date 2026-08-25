@@ -236,6 +236,15 @@ export const challengeResultStatusSchema = z.enum([
   'overridden',
   /** Blocked challenge: recorded so the gap is visible, with no winner. */
   'not_calculable',
+  /**
+   * Entered by a person, with nothing computed behind it.
+   *
+   * Distinct from `overridden`, which replaces a computed winner: here there was no
+   * computation to replace. Kept separate so a reader can always tell which numbers
+   * the portal worked out and which a commissioner typed in — the two carry very
+   * different weight in an argument.
+   */
+  'manual',
 ]);
 export type ChallengeResultStatus = z.infer<typeof challengeResultStatusSchema>;
 

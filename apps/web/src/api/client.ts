@@ -578,7 +578,13 @@ export interface PortalUsersResponse {
 // --------------------------------------------------------------------------
 
 export type ChallengeResultStatus =
-  'provisional' | 'finalized' | 'overridden' | 'not_calculable' | 'conflict';
+  | 'provisional'
+  | 'finalized'
+  | 'overridden'
+  | 'not_calculable'
+  | 'conflict'
+  /** Entered by a commissioner with nothing computed behind it. */
+  | 'manual';
 
 export interface ChallengeResult {
   challengeResultId: string;

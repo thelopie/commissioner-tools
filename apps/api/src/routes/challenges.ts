@@ -6,6 +6,8 @@ import {
   weekNumberSchema,
   type InternalId,
   type WeeklyChallengeDefinition,
+
+  type WeeklyChallengeResult,
 } from '@lopie/shared';
 import {
   assertCanFinalize,
@@ -338,6 +340,135 @@ challengeRoutes.post('/api/challenges/:seasonYear/finalize/:week/:slug', async (
  * The computed outcome is preserved in a permanent override record alongside the
  * commissioner's decision and reason, so the arithmetic is never simply erased.
  */
+/**
+ * Records a winner the commissioner worked out themselves.
+ *
+ * Every other path to a result runs through `calculate`, which reads Yahoo. That is
+ * the right default — the portal should do the arithmetic so nobody has to trust the
+ * commissioner's — but it made the whole feature unusable when the Yahoo application
+ * had no Fantasy access, for challenges this league has been running out of a
+ * spreadsheet for years.
+ *
+ * Three things keep it honest:
+ *
+ *   - the result is stored as `manual`, never as computed, so a reader can always
+ *     tell which numbers the portal derived and which a person typed
+ *   - it will not touch a finalized result; changing a settled outcome still has to
+ *     go through override, with a reason
+ *   - it deliberately skips the capability gate, because that gate exists to stop
+ *     the portal publishing a computed number it cannot defend, and nothing is being
+ *     computed here
+ *
+ * A note is required. "Because I say so" is a valid note; silence is not.
+ */
+challengeRoutes.post('/api/challenges/:seasonYear/record/:week/:slug', async (c) => {
+  const ctx = c.get('ctx');
+  const principal = requireCommissioner(ctx.principal);
+  const leagueId = requireLeagueId(ctx);
+  const seasonYear = seasonYearSchema.parse(Number(c.req.param('seasonYear')));
+  const week = weekNumberSchema.parse(Number(c.req.param('week')));
+  const slug = c.req.param('slug');
+
+  const body = await parseJson(
+    c,
+    z.object({
+      winningLeagueMemberIds: z.array(z.string().length(26)).min(1).max(12),
+      winningValue: z.number().optional(),
+      note: z.string().min(1).max(2000),
+    }),
+  );
+
+  const definition = await ctx.repositories.challenges.findDefinition(leagueId, seasonYear, slug);
+  if (!definition) throw new AppError('not_found', { publicMessage: 'No such challenge.' });
+
+  if (definition.status === 'retired') {
+    throw new AppError('precondition_failed', {
+      publicMessage: 'That challenge is retired for this season.',
+    });
+  }
+
+  // Winners must be members of this season, or a typo becomes a payable result
+  // pointing at nobody.
+  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
+  const known = new Set(members.map((member) => member.leagueMemberId));
+  const unknown = body.winningLeagueMemberIds.filter((id) => !known.has(id as InternalId));
+  if (unknown.length > 0) {
+    throw new AppError('validation_failed', {
+      publicMessage: 'One of those managers is not in this season.',
+    });
+  }
+
+  const existing = await ctx.repositories.challenges.findResult(leagueId, seasonYear, week, slug);
+
+  if (existing?.status === 'finalized') {
+    await ctx.repositories.audit.record({
+      leagueId,
+      action: 'challenge.settled_result_change_blocked',
+      actorUserId: principal.userId as InternalId,
+      actorRole: principal.role,
+      summary: `Refused to overwrite the finalized ${slug} result for ${seasonYear} week ${week}.`,
+      correlationId: ctx.correlationId,
+      targetEntity: 'WeeklyChallengeResult',
+      targetId: existing.challengeResultId,
+    });
+
+    throw new AppError('challenge_already_finalized', {
+      publicMessage:
+        'That result is finalized. Use override, which records a reason, rather than replacing it.',
+    });
+  }
+
+  const actorId = principal.userId as InternalId;
+  const now = isoNow();
+
+  await ctx.repositories.challenges.saveResult(
+    {
+      entity: 'WeeklyChallengeResult',
+      challengeResultId: existing?.challengeResultId ?? generateId(),
+      leagueId,
+      seasonYear,
+      week,
+      challengeSlug: slug,
+      status: 'manual',
+      winningLeagueMemberIds: body.winningLeagueMemberIds as InternalId[],
+      ...(body.winningValue === undefined ? {} : { winningValue: body.winningValue }),
+      // Stated plainly, because this string is what a reader sees next to the name.
+      explanation: `Entered by the commissioner rather than calculated. ${body.note}`,
+      competitorCount: members.length,
+      wasTied: body.winningLeagueMemberIds.length > 1,
+      calculatedAt: now,
+      calculationCount: existing?.calculationCount ?? 1,
+      ...(existing
+        ? {
+            createdAt: existing.createdAt,
+            createdBy: existing.createdBy,
+            updatedAt: now,
+            updatedBy: actorId,
+            version: existing.version + 1,
+          }
+        : created(actorId)),
+    } as WeeklyChallengeResult,
+    existing?.version,
+  );
+
+  await ctx.repositories.audit.record({
+    leagueId,
+    action: 'challenge.recorded_manually',
+    actorUserId: actorId,
+    actorRole: principal.role,
+    summary: `Recorded ${slug} for ${seasonYear} week ${week} by hand: ${body.note}`,
+    correlationId: ctx.correlationId,
+    targetEntity: 'WeeklyChallengeResult',
+    targetId: slug,
+    detail: {
+      winners: body.winningLeagueMemberIds.length,
+      winningValue: body.winningValue ?? null,
+    },
+  });
+
+  return c.json({ ok: true, status: 'manual' }, existing ? 200 : 201);
+});
+
 challengeRoutes.post('/api/challenges/:seasonYear/override/:week/:slug', async (c) => {
   const ctx = c.get('ctx');
   const principal = requireCommissioner(ctx.principal);
