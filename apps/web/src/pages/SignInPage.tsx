@@ -202,6 +202,18 @@ export function describeOAuthError(code: string): {
           'You declined access on Yahoo’s screen, so nothing was connected. Sign in again if that was not intended.',
       };
 
+    case 'yahoo_scope_denied':
+      /*
+        A configuration fault, not the reader's mistake. Saying so plainly stops
+        twelve people retrying a button that cannot work, and tells the one person
+        who can fix it what to fix.
+      */
+      return {
+        severity: 'error',
+        message:
+          'Sign-in is not finished being set up — the connection is missing a permission it needs. Nothing you did caused this; your commissioner has been told.',
+      };
+
     case 'oauth_state_expired':
       return {
         severity: 'warning',

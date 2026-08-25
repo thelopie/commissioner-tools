@@ -118,10 +118,26 @@ authRoutes.get('/auth/yahoo/callback', async (c) => {
   const stored = stateParam ? await ctx.repositories.oauthStates.find(stateParam) : null;
   const returnTo = sanitizeReturnTo(stored?.returnTo);
 
-  // The user declined on Yahoo's screen. Not an error worth alarming about.
   if (errorParam) {
-    ctx.logger.info('Yahoo OAuth denied by user', { reason: errorParam.slice(0, 60) });
     if (stateParam) await ctx.repositories.oauthStates.consume(stateParam);
+
+    /*
+      Not everything Yahoo sends back here is a person clicking "no".
+
+      `invalid_scope` means the Yahoo application has not been granted the Fantasy
+      read permission, so every single sign-in fails identically — and reporting that
+      as "you declined access" sends whoever is debugging to argue with the user
+      instead of fixing the app registration. This cost real time once already.
+    */
+    if (errorParam === 'invalid_scope') {
+      ctx.logger.error('Yahoo rejected the requested scope', {
+        reason: 'the Yahoo app is missing Fantasy Sports read permission',
+      });
+      return c.redirect(frontendUrl(env.APP_BASE_URL, returnTo, 'yahoo_scope_denied'), 302);
+    }
+
+    // Anything else here is the user declining, which is not worth alarming about.
+    ctx.logger.info('Yahoo OAuth denied by user', { reason: errorParam.slice(0, 60) });
     return c.redirect(frontendUrl(env.APP_BASE_URL, returnTo, 'oauth_denied'), 302);
   }
 
