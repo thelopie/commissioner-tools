@@ -633,16 +633,52 @@ async function establishIdentity(
   const { env } = ctx.config;
 
   /**
-   * Who is signing in, from OpenID Connect.
+   * Who is signing in — from whichever source this deployment's scopes allow.
    *
-   * This used to read the Fantasy API's own `users;use_login=1`, which meant a Yahoo
-   * application without Fantasy authorization could not sign anybody in at all —
-   * the dues page was unreachable because the scoreboard was not switched on. The
-   * two concerns are now separate: `sub` identifies the account, and Fantasy
-   * permission governs only league data.
+   * Neither source can be relied on alone, and the reason is Yahoo's:
+   *
+   * - OpenID Connect works without Fantasy permission, which is what let people sign
+   *   in and reach dues and the draft board while the league data was unavailable.
+   * - But Yahoo will not grant the OIDC scopes together with `fspt-r` at the consent
+   *   step. Asking for both is refused outright with invalid_scope, so a deployment
+   *   that can read the league cannot use OpenID Connect at all.
+   *
+   * So try OpenID Connect, and fall back to the Fantasy API's own `users;use_login=1`.
+   * Both return the same value — Yahoo's GUID for the account — which is why the
+   * fallback is safe: a user who signed in one way and returns the other way is
+   * recognised as the same person rather than duplicated.
    */
-  const { fetchOpenIdIdentity } = await import('@lopie/yahoo-client');
-  const identity = await fetchOpenIdIdentity(tokens.accessToken, ctx.yahooFetch);
+  const { fetchOpenIdIdentity, YahooClient } = await import('@lopie/yahoo-client');
+
+  let identity: { sub: string; displayNameHint: string | null; email: string | null };
+
+  try {
+    identity = await fetchOpenIdIdentity(tokens.accessToken, ctx.yahooFetch);
+  } catch (error) {
+    ctx.logger.info('OpenID Connect identity unavailable, using the Fantasy API', {
+      reason: error instanceof AppError ? error.code : 'unknown',
+    });
+
+    const probe = new YahooClient({
+      fetchImpl: ctx.yahooFetch,
+      baseUrl: ctx.config.yahooApiBaseUrl,
+      getAccessToken: async () => tokens.accessToken,
+    });
+
+    const profile = await probe.getUserProfile();
+    if (!profile.guid) {
+      throw new AppError('oauth_exchange_failed', {
+        publicMessage: 'Yahoo did not identify your account. Try signing in again.',
+        detail: { reason: 'missing_guid' },
+      });
+    }
+
+    identity = {
+      sub: profile.guid,
+      displayNameHint: profile.nickname ?? null,
+      email: profile.email ?? null,
+    };
+  }
 
   /*
     `sub` is stored in the same field the Fantasy GUID used to occupy. Both are

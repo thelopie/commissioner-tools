@@ -411,6 +411,74 @@ describe('Yahoo OAuth flow', () => {
   });
 });
 
+describe('identifying a signer-in when OpenID Connect is unavailable', () => {
+  /**
+   * Yahoo refuses the OIDC scopes together with `fspt-r`, so a deployment that can
+   * read the league cannot use OpenID Connect. Identity falls back to the Fantasy
+   * API, and the two must agree on who the person is.
+   */
+  it('uses the Fantasy API and lands on the same account', async () => {
+    const noOidc: FetchLike = async (url, init) => {
+      const parsed = new URL(url);
+
+      if (parsed.pathname === '/oauth2/get_token') {
+        const result = handleTokenRequest(init.body ?? '');
+        return {
+          status: result.status,
+          ok: true,
+          text: async () => JSON.stringify(result.body),
+          headers: { get: () => null },
+        };
+      }
+
+      // Exactly what a token without the openid scope gets back.
+      if (parsed.pathname === '/openid/v1/userinfo') {
+        return {
+          status: 401,
+          ok: false,
+          text: async () => JSON.stringify({ error: 'insufficient_scope' }),
+          headers: { get: () => null },
+        };
+      }
+
+      if (parsed.pathname.startsWith('/fantasy/v2/')) {
+        const result = handleFantasyRequest(parsed.pathname.slice('/fantasy/v2/'.length));
+        return {
+          status: result.status,
+          ok: result.status < 300,
+          text: async () => JSON.stringify(result.body),
+          headers: { get: () => null },
+        };
+      }
+
+      return { status: 404, ok: false, text: async () => '{}', headers: { get: () => null } };
+    };
+
+    const local = createApp({
+      config: config(),
+      table: table.asTable(),
+      fetchImpl: noOidc,
+      logger: createLogger({ correlationId: 'test', sink: () => {} }),
+    });
+
+    const start = await local.request('/auth/yahoo/start');
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state')!;
+    const callback = await local.request(
+      `/auth/yahoo/callback?code=mock-authorization-code&state=${encodeURIComponent(state)}`,
+    );
+
+    // Signed in, not refused.
+    expect(callback.status).toBe(302);
+    expect(callback.headers.get('Location')).not.toContain('yahooError');
+
+    const users = table.ofEntity('PortalUser');
+    expect(users).toHaveLength(1);
+    // The Fantasy API's GUID, and a name from it rather than "New manager".
+    expect(users[0]!['yahooGuid']).toBeTruthy();
+    expect(users[0]!['displayName']).not.toBe('New manager');
+  });
+});
+
 describe('commissioner bootstrap', () => {
   it('makes the first user the primary commissioner', async () => {
     const jar = await signInAsCommissioner();
