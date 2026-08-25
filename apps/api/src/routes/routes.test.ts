@@ -2004,25 +2004,53 @@ describe('challenge results', () => {
     // Exactly the eight buildable on documented fields; five stay refused.
     expect(activated).toBe(8);
 
-    const calculate = await app.request('/api/challenges/2026/calculate/3', {
-      method: 'POST',
-      headers: auth,
-    });
-    const body = await calculate.json();
-
-    expect(body.calculated).toHaveLength(8);
-    expect(body.note).toContain('provisional');
-    // Every result carries the arithmetic that produced it.
-    const results = await (
-      await app.request('/api/challenges/2026/results/3', {
-        headers: { Cookie: cookieHeader(jar) },
-      })
+    /*
+      One challenge a week, on the league's fixed schedule, so calculating a week
+      computes that week's challenge and nothing else. Week 3 is Bench Mob.
+    */
+    const week3 = await (
+      await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth })
     ).json();
 
-    expect(results.results).toHaveLength(8);
-    for (const result of results.results) {
-      expect(result.explanation.length).toBeGreaterThan(0);
-      expect(result.status).toBe('provisional');
+    expect(week3.calculated.map((entry: { slug: string }) => entry.slug)).toEqual(['bench-mob']);
+    expect(week3.note).toContain('provisional');
+
+    /*
+      All eight buildable ones, each in its own week. Running the whole calendar is
+      what proves the schedule and the arithmetic agree — calculating one week eight
+      times would have proved neither.
+    */
+    const buildable: Array<[number, string]> = [
+      [1, 'one-man-army'],
+      [2, 'photo-finish'],
+      [3, 'bench-mob'],
+      [4, 'ground-and-pound'],
+      [5, 'bad-beat'],
+      [8, 'tight-end-day'],
+      [9, 'defense-wins-championships'],
+      [12, 'blackjack'],
+    ];
+
+    for (const [week, slug] of buildable) {
+      const response = await (
+        await app.request(`/api/challenges/2026/calculate/${week}`, {
+          method: 'POST',
+          headers: auth,
+        })
+      ).json();
+
+      expect(response.calculated.map((entry: { slug: string }) => entry.slug)).toEqual([slug]);
+
+      const results = await (
+        await app.request(`/api/challenges/2026/results/${week}`, {
+          headers: { Cookie: cookieHeader(jar) },
+        })
+      ).json();
+
+      // Every result carries the arithmetic that produced it.
+      expect(results.results).toHaveLength(1);
+      expect(results.results[0].explanation.length).toBeGreaterThan(0);
+      expect(results.results[0].status).toBe('provisional');
     }
   });
 

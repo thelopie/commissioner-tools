@@ -23,6 +23,15 @@ import type {
  */
 
 export interface ChallengeProposal {
+  /**
+   * The week this challenge runs in.
+   *
+   * The league runs one challenge per week on a fixed schedule, so the week is part
+   * of the rule rather than something a commissioner picks each season. Seeding a
+   * season therefore lays out the whole calendar, and the engine refuses to compute
+   * a challenge in a week it does not belong to.
+   */
+  week: number;
   slug: string;
   name: string;
   /** The rule as proposed, in the language a commissioner would use. */
@@ -43,6 +52,7 @@ export interface ChallengeProposal {
 export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
   {
     slug: 'one-man-army',
+    week: 1,
     name: 'One Man Army',
     description: 'The single highest-scoring starter in the league for the week.',
     requiredYahooData: ['roster_selected_position', 'player_week_points'],
@@ -61,6 +71,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'photo-finish',
+    week: 2,
     name: 'Photo Finish',
     description: 'The narrowest margin of victory in any of the week’s matchups.',
     requiredYahooData: ['team_week_points', 'matchup_result'],
@@ -80,6 +91,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'bench-mob',
+    week: 3,
     name: 'Bench Mob',
     description: 'The most points left on the bench.',
     requiredYahooData: ['roster_selected_position', 'player_week_points'],
@@ -98,6 +110,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'ground-and-pound',
+    week: 4,
     name: 'Ground and Pound',
     description: 'The most points from starting running backs.',
     requiredYahooData: ['roster_selected_position', 'player_week_points', 'player_position'],
@@ -116,6 +129,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'bad-beat',
+    week: 5,
     name: 'Bad Beat',
     description: 'The highest score that still lost.',
     requiredYahooData: ['team_week_points', 'matchup_result'],
@@ -134,6 +148,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'tight-end-day',
+    week: 8,
     name: 'Tight End Day',
     description: 'The most points from starting tight ends.',
     requiredYahooData: ['roster_selected_position', 'player_week_points', 'player_position'],
@@ -150,6 +165,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'defense-wins-championships',
+    week: 9,
     name: 'Defense Wins Championships',
     description: 'The most points from the starting defense.',
     requiredYahooData: ['roster_selected_position', 'player_week_points', 'player_position'],
@@ -169,6 +185,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'blackjack',
+    week: 12,
     name: 'Blackjack',
     description:
       'The starter whose score comes closest to 21 without going over. Going over busts.',
@@ -195,6 +212,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'overachiever',
+    week: 6,
     name: 'Overachiever',
     description: 'The team that beat its projected total by the widest margin.',
     requiredYahooData: ['team_week_points', 'team_projected_points'],
@@ -214,6 +232,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'bullseye',
+    week: 10,
     name: 'Bullseye',
     description: 'The team that finished closest to its own projected total, in either direction.',
     requiredYahooData: ['team_week_points', 'team_projected_points'],
@@ -233,6 +252,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'air-raid',
+    week: 7,
     name: 'Air Raid',
     description: 'The most passing yards from a starting quarterback.',
     requiredYahooData: ['roster_selected_position', 'player_position', 'player_stat_by_id'],
@@ -253,6 +273,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'catch-everything',
+    week: 11,
     name: 'Catch Everything',
     description: 'The most receptions across starters.',
     requiredYahooData: ['roster_selected_position', 'player_stat_by_id'],
@@ -271,6 +292,7 @@ export const CHALLENGE_PROPOSALS: readonly ChallengeProposal[] = [
 
   {
     slug: 'touchdown-dependency',
+    week: 13,
     name: 'Touchdown Dependency',
     description: 'The team whose largest share of points came from touchdowns.',
     requiredYahooData: ['roster_selected_position', 'player_stat_by_id', 'team_week_points'],
@@ -352,7 +374,7 @@ export function proposalToDefinition(
       maxWinsPerSeason: 0,
       limitedToLeagueMemberIds: [],
     },
-    weeks: [] as number[],
+    weeks: [proposal.week],
   };
 
   if (missing.length === 0) {

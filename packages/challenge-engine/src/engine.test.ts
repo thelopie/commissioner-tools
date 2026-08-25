@@ -44,6 +44,13 @@ function definition(
     updatedBy: id('USER'),
     version: 1,
     ...derived,
+    /*
+      Unrestricted by week. These tests are about the arithmetic of each rule, not
+      about which week the league runs it in — the schedule has its own test. Leaving
+      the real week here would mean every case had to know the calendar, and a
+      calendar change would break maths tests that have nothing to do with it.
+    */
+    weeks: [],
     ...overrides,
   } as WeeklyChallengeDefinition;
 }
