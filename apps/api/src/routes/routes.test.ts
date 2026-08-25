@@ -283,11 +283,12 @@ describe('Yahoo OAuth flow', () => {
       from helpfully restoring it after reading the old OAuth 1.0a docs.
     */
     /*
-      `openid` and only that. Identity comes from OpenID Connect, so Fantasy
-      permission is not a prerequisite for signing in. Never `fspt-r`: the live
-      endpoint rejects it with invalid_scope, which broke every sign-in.
+      OpenID Connect scopes only. Identity comes from OIDC, so Fantasy permission
+      is not a prerequisite for signing in, and `profile`/`email` are what supply a
+      name to prefill. Never `fspt-r`: the live endpoint rejects it with
+      invalid_scope, which broke every sign-in.
     */
-    expect(url.searchParams.get('scope')).toBe('openid');
+    expect(url.searchParams.get('scope')).toBe('openid profile email');
     expect(url.searchParams.get('state')).toMatch(/^[A-Za-z0-9_-]{43}$/);
     // The client secret must never appear in a browser-visible URL.
     expect(response.headers.get('Location')).not.toContain('test-secret');
