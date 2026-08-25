@@ -193,10 +193,14 @@ function LlwsMapping({
                   <Typography
                     variant="body2"
                     sx={{
-                      // Struck through once they are out: the team stops mattering,
-                      // the position it earned does not.
-                      textDecoration: entry.standing?.locked ? 'line-through' : 'none',
-                      color: entry.standing?.locked ? 'text.disabled' : 'text.primary',
+                      /*
+                        Struck through once the team is out: it stops mattering, the
+                        position it earned does not. Keyed on being out rather than on
+                        having a settled position — a team tied with another is still
+                        out, and leaving it unstruck said it was still playing.
+                      */
+                      textDecoration: isOut(entry.standing) ? 'line-through' : 'none',
+                      color: isOut(entry.standing) ? 'text.disabled' : 'text.primary',
                     }}
                   >
                     {entry.llwsTeam}
@@ -429,6 +433,13 @@ function DraftOrder({
       </CardContent>
     </Card>
   );
+}
+
+/** Whether the team is out of the tournament, tied or not. */
+function isOut(
+  standing: NonNullable<PublicHome['assignments']>['entries'][number]['standing'],
+): boolean {
+  return standing !== null && standing.pending !== 'playing';
 }
 
 /**
