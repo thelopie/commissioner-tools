@@ -131,6 +131,14 @@ export function ChallengesPage(): JSX.Element {
   }
 
   const definitions = challenges.data?.definitions ?? [];
+
+  /*
+    In calendar order. Seeding returns them in whatever order the proposals are
+    declared, which reads as arbitrary to somebody looking for "what is week 4".
+  */
+  const byWeek = [...definitions].sort(
+    (a, b) => (a.weeks[0] ?? 99) - (b.weeks[0] ?? 99) || a.name.localeCompare(b.name),
+  );
   const verified = new Set(capabilities.data?.verifiedCapabilities ?? []);
   const hasData = (definition: { requiredYahooData: string[] }): boolean =>
     definition.requiredYahooData.every((capability) => verified.has(capability));
@@ -143,10 +151,10 @@ export function ChallengesPage(): JSX.Element {
    * trusting the status here would have the header claim eight calculable
    * challenges that produce nothing. The API re-checks; so must the count.
    */
-  const active = definitions.filter(
+  const active = byWeek.filter(
     (definition) => definition.status === 'active' && hasData(definition),
   );
-  const blocked = definitions.filter(
+  const blocked = byWeek.filter(
     (definition) => definition.status === 'blocked' || !hasData(definition),
   );
 
@@ -330,6 +338,10 @@ function ChallengeCard({
       <CardContent>
         <Stack spacing={1.5}>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            {/* The week is part of the rule: the league runs exactly one a week. */}
+            {definition.weeks.length > 0 && (
+              <Chip size="small" variant="outlined" label={`Week ${definition.weeks.join(', ')}`} />
+            )}
             <Typography variant="h3" sx={{ flexGrow: 1, minWidth: 0 }}>
               {definition.name}
             </Typography>

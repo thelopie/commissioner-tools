@@ -51,6 +51,7 @@ import {
 import type { ChallengeResult, PrizeRule } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { useNotify } from '../components/SnackbarProvider.js';
+import type { ChallengeDefinitionSummary } from '../api/client.js';
 import { EmptyState, Monogram, RelativeTime } from '../components/primitives.js';
 
 /** Cents to a readable amount. Money is stored as integers to avoid float drift. */
@@ -119,6 +120,19 @@ export function ChallengeResultsPanel({ seasonYear }: { seasonYear: number }): J
 
   const rows = results.data?.results ?? [];
   const nameBySlug = new Map(definitions.map((definition) => [definition.slug, definition.name]));
+
+  /**
+   * The challenge this week actually is.
+   *
+   * The league runs one a week on a fixed calendar, and the page only ever spoke in
+   * results — so before a week was played it said "nothing calculated" and left a
+   * reader with no idea which challenge was coming or what it rewards. That is the
+   * most useful thing on the screen for eleven of the thirteen weeks of its life.
+   */
+  const thisWeek =
+    activeWeek === null
+      ? undefined
+      : definitions.find((definition) => definition.weeks.includes(activeWeek));
 
   return (
     <Stack spacing={3}>
@@ -231,15 +245,18 @@ export function ChallengeResultsPanel({ seasonYear }: { seasonYear: number }): J
         <ErrorNotice error={results.error} onRetry={() => void results.refetch()} />
       )}
 
-      {results.data && rows.length === 0 && (
+      {/*
+        Shown whether or not the week has been played. Before it, this is the whole
+        point of the screen; after it, it is the rule the result should be read
+        against.
+      */}
+      {thisWeek && <WeekChallengeCard definition={thisWeek} week={activeWeek!} />}
+
+      {results.data && rows.length === 0 && !thisWeek && (
         <EmptyState
           icon={<EmojiEventsIcon />}
-          title={`Nothing calculated for week ${activeWeek}`}
-          description={
-            isCommissioner
-              ? 'Calculate the week once its games are done. Results start out provisional, because Yahoo keeps correcting stats for days afterwards.'
-              : 'Your commissioner calculates each week once the games finish.'
-          }
+          title={`No challenge is scheduled for week ${activeWeek}`}
+          description="The league runs one challenge a week from week 1 to week 13."
         />
       )}
 
@@ -918,5 +935,49 @@ function RecordByHandDialog({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+/**
+ * What this week's challenge is, and where it stands.
+ *
+ * Deliberately states the rule rather than only the name. "Bench Mob" means nothing
+ * to somebody in their first season, and the rule is one sentence.
+ */
+function WeekChallengeCard({
+  definition,
+  week,
+}: {
+  definition: ChallengeDefinitionSummary;
+  week: number;
+}): JSX.Element {
+  const blocked = definition.status === 'blocked';
+
+  return (
+    <Card variant="filled" sx={{ mb: 2 }}>
+      <CardContent>
+        <Stack spacing={1.25}>
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+            <Chip size="small" color="primary" label={`Week ${week}`} />
+            <Typography variant="h6">{definition.name}</Typography>
+            {blocked && (
+              <Tooltip title={definition.blockedReason ?? 'Needs Yahoo data that is unverified.'}>
+                <Chip size="small" color="warning" label="entered by hand" />
+              </Tooltip>
+            )}
+          </Stack>
+
+          <Typography variant="body2" color="text.secondary">
+            {definition.description}
+          </Typography>
+
+          <Typography variant="caption" color="text.secondary">
+            {blocked
+              ? 'The portal cannot compute this one, so the commissioner records the winner.'
+              : 'Worked out from the week’s scores once the games are done.'}
+          </Typography>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }

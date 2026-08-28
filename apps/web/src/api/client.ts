@@ -285,6 +285,8 @@ export interface ChallengeDefinitionSummary {
   description: string;
   status: 'draft' | 'active' | 'blocked' | 'retired';
   blockedReason?: string;
+  /** The week the league runs it. One challenge a week, weeks 1 to 13. */
+  weeks: number[];
   requiredYahooData: string[];
   benchCounts: boolean;
   decimalsCount: boolean;
