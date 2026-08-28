@@ -16,7 +16,15 @@
 
 export const MOCK_GAME_KEY = '999';
 export const MOCK_LEAGUE_KEY = '999.l.100001';
-export const MOCK_USER_GUID = 'MOCKGUID0000000000000001';
+/**
+ * Shaped like a real Yahoo GUID: 26 uppercase alphanumerics.
+ *
+ * The old value was 24 characters, which no real GUID is. Fixtures that are not
+ * shaped like the thing they stand in for hide exactly the bugs they should catch —
+ * this one let a placeholder GUID through validation in a test while production
+ * created an account keyed on the literal string `--hidden--`.
+ */
+export const MOCK_USER_GUID = 'MOCKGUID00000000000000001X';
 export const MOCK_SEASON = 2026;
 export const MOCK_CURRENT_WEEK = 3;
 

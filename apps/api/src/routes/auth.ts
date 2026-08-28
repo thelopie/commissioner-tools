@@ -666,10 +666,30 @@ async function establishIdentity(
     });
 
     const profile = await probe.getUserProfile();
-    if (!profile.guid) {
+
+    /*
+      Yahoo does not always return a GUID here. When the account's privacy settings
+      withhold it, the Fantasy API answers with the literal string `--hidden--`, and
+      taking that at face value is worse than having no identity at all: it is the
+      same value for every such user, so they would all land on one shared portal
+      account. That happened — one account, named "New manager", keyed on
+      `--hidden--`, which anybody with a hidden profile would have signed straight
+      into.
+
+      A real Yahoo GUID is 26 characters of uppercase alphanumerics. Anything else is
+      refused rather than trusted.
+    */
+    const YAHOO_GUID = /^[A-Z0-9]{26}$/;
+
+    if (!profile.guid || !YAHOO_GUID.test(profile.guid)) {
+      ctx.logger.error('Yahoo would not identify the account', {
+        reason: profile.guid ? 'guid is not a Yahoo GUID' : 'no guid returned',
+      });
+
       throw new AppError('oauth_exchange_failed', {
-        publicMessage: 'Yahoo did not identify your account. Try signing in again.',
-        detail: { reason: 'missing_guid' },
+        publicMessage:
+          'Yahoo did not share enough to identify your account. Your Yahoo profile privacy may be hiding it.',
+        detail: { reason: 'unusable_guid' },
       });
     }
 

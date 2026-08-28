@@ -417,6 +417,58 @@ describe('identifying a signer-in when OpenID Connect is unavailable', () => {
    * read the league cannot use OpenID Connect. Identity falls back to the Fantasy
    * API, and the two must agree on who the person is.
    */
+  it('refuses the hidden-GUID placeholder rather than sharing one account', async () => {
+    /**
+     * When a Yahoo profile's privacy withholds the GUID, the Fantasy API answers with
+     * the literal string `--hidden--`. Accepting it is worse than failing: it is the
+     * same value for every such user, so all of them land on one shared portal
+     * account. Production grew exactly one of those before this was caught.
+     */
+    const hidden: FetchLike = async (url, init) => {
+      const parsed = new URL(url);
+
+      if (parsed.pathname === '/oauth2/get_token') {
+        const result = handleTokenRequest(init.body ?? '');
+        return {
+          status: result.status,
+          ok: true,
+          text: async () => JSON.stringify(result.body),
+          headers: { get: () => null },
+        };
+      }
+
+      if (parsed.pathname === '/openid/v1/userinfo') {
+        return { status: 401, ok: false, text: async () => '{}', headers: { get: () => null } };
+      }
+
+      // What Yahoo really sends for a private profile.
+      return {
+        status: 200,
+        ok: true,
+        text: async () =>
+          JSON.stringify({ fantasy_content: { users: { 0: { user: [{ guid: '--hidden--' }] } } } }),
+        headers: { get: () => null },
+      };
+    };
+
+    const local = createApp({
+      config: config(),
+      table: table.asTable(),
+      fetchImpl: hidden,
+      logger: createLogger({ correlationId: 'test', sink: () => {} }),
+    });
+
+    const start = await local.request('/auth/yahoo/start');
+    const state = new URL(start.headers.get('Location')!).searchParams.get('state')!;
+    const callback = await local.request(
+      `/auth/yahoo/callback?code=mock-authorization-code&state=${encodeURIComponent(state)}`,
+    );
+
+    // Refused, and no account created to be shared.
+    expect(callback.headers.get('Location')).toContain('yahooError');
+    expect(table.ofEntity('PortalUser')).toHaveLength(0);
+  });
+
   it('uses the Fantasy API and lands on the same account', async () => {
     const noOidc: FetchLike = async (url, init) => {
       const parsed = new URL(url);
