@@ -167,7 +167,19 @@ export function HomePage(): JSX.Element {
 
       <PinnedAnnouncements />
 
-      {data.matchup ? <MatchupHero matchup={data.matchup} you={data.you} /> : <NoTeamNotice />}
+      {/*
+        Three different situations, which used to share one message. A missing
+        matchup is the ordinary state of every week before the season starts, and
+        saying "Yahoo did not identify a team as yours" for it told the commissioner
+        his mapping had failed when it had not.
+      */}
+      {data.matchup ? (
+        <MatchupHero matchup={data.matchup} you={data.you} />
+      ) : data.you ? (
+        <NoMatchupYet team={data.you.name} week={data.week ?? null} />
+      ) : (
+        <NoTeamNotice />
+      )}
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -484,11 +496,28 @@ function Stat({ label, value }: { label: string; value: string }): JSX.Element {
  * The normal case for a commissioner who does not play, and for a member reading
  * through someone else's connection. Saying so beats rendering an empty hero.
  */
+/**
+ * Your team is known; the week simply has not been played.
+ *
+ * The common case for most of August, and previously indistinguishable from the
+ * portal not knowing who you are.
+ */
+function NoMatchupYet({ team, week }: { team: string; week: number | null }): JSX.Element {
+  return (
+    <Alert severity="info">
+      <AlertTitle>{team}</AlertTitle>
+      No matchup to show yet{week === null ? '' : ` for week ${week}`} — the season has not started.
+      Your standings and dues are below.
+    </Alert>
+  );
+}
+
 function NoTeamNotice(): JSX.Element {
   return (
     <Alert severity="info">
-      Yahoo did not identify a team as yours in this league, so there is no personal matchup to
-      show. The league&rsquo;s standings and matchups are still below.
+      <AlertTitle>No team linked to your account</AlertTitle>
+      Your commissioner maps each Yahoo team to a manager; yours has not been mapped yet. Everything
+      else on the site works in the meantime.
     </Alert>
   );
 }
