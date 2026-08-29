@@ -155,7 +155,12 @@ ledgerRoutes.get('/api/league/ledger/:seasonYear', async (c) => {
       runnerUp: order.length > 1 ? nameOf(order[1]!, roster) : null,
       // Last place. The league calls it the Sacko.
       sacko: order.length > 2 ? nameOf(order[order.length - 1]!, roster) : null,
-      teamCount: order.length,
+      /*
+        The season's own count, not however many places happen to be recorded. Some
+        older years survive only as champion, runner-up and Sacko, and reporting a
+        twelve-team league as a four-team one would be a worse lie than the gap.
+      */
+      teamCount: season.teamCount ?? order.length,
     };
   });
 
