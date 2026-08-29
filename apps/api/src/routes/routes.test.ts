@@ -938,7 +938,7 @@ describe('challenges', () => {
 
     expect(body.calculated).toEqual([]);
     expect(body.blocked).toHaveLength(13);
-    expect(body.blocked[0].reason).toContain('verify:yahoo');
+    expect(body.blocked[0].reason).toContain('commissioner records the winner');
   });
 
   it('lets a commissioner correct a rule without a code change', async () => {

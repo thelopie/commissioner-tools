@@ -390,9 +390,16 @@ export function proposalToDefinition(
   return {
     ...base,
     status: 'blocked' as ChallengeStatus,
-    blockedReason:
-      `Unverified Yahoo data: ${missing.join(', ')}. ` +
-      `Run \`npm run verify:yahoo\` after Yahoo grants API access.`,
+    /*
+      Written for a league member, because that is who reads it. It appeared on the
+      challenges page verbatim, and told twelve people playing fantasy football to
+      run an npm command — which is nobody's job here and means nothing to them.
+
+      What they need to know is that the week still has a winner and a person
+      decides it. The field names live in `requiredYahooData`, where a commissioner
+      debugging this can find them.
+    */
+    blockedReason: 'The portal cannot work this one out from the scores yet, so the commissioner records the winner.',
   };
 }
 

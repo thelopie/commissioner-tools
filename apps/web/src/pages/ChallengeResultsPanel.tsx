@@ -961,8 +961,8 @@ function WeekChallengeCard({
             <Chip size="small" color="primary" label={`Week ${week}`} />
             <Typography variant="h6">{definition.name}</Typography>
             {blocked && (
-              <Tooltip title={definition.blockedReason ?? 'Needs Yahoo data that is unverified.'}>
-                <Chip size="small" color="warning" label="entered by hand" />
+              <Tooltip title="The commissioner decides this week's winner and records it here.">
+                <Chip size="small" color="warning" label="commissioner decides" />
               </Tooltip>
             )}
           </Stack>
@@ -973,7 +973,7 @@ function WeekChallengeCard({
 
           <Typography variant="caption" color="text.secondary">
             {blocked
-              ? 'The portal cannot compute this one, so the commissioner records the winner.'
+              ? 'Your commissioner decides this one and records it here.'
               : 'Worked out from the week’s scores once the games are done.'}
           </Typography>
         </Stack>

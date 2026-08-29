@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
-import { AppError, weekNumberSchema } from '@lopie/shared';
+import { AppError, weekNumberSchema, type InternalId } from '@lopie/shared';
 import type { YahooManager } from '@lopie/yahoo-client';
-import type { AppEnv } from '../context.js';
+import type { AppEnv, RequestContext } from '../context.js';
 import { requireLeagueId } from '../context.js';
 import { requireAuthenticated } from '../lib/authorization.js';
 import { currentLink } from './yahoo.js';
@@ -20,8 +20,44 @@ import { currentLink } from './yahoo.js';
 
 export const leagueViewRoutes = new Hono<AppEnv>();
 
-/** True when Yahoo says one of these managers is the signed-in user. */
-function isOwnedByViewer(managers: readonly YahooManager[]): boolean {
+/**
+ * Which Yahoo team belongs to the person reading the page.
+ *
+ * Every league read goes through one account's token — whoever linked the league —
+ * so Yahoo's `is_current_login` flag marks *that* account's team, not the viewer's.
+ * Anybody else was told "Yahoo did not identify a team as yours", and so was the
+ * link owner whenever Yahoo declined to set the flag on a league-wide read, which
+ * it often does.
+ *
+ * The portal already knows the answer: mapping a Yahoo team to a member is a step
+ * the commissioner completes, and a member who has signed in carries their user id.
+ * That is data we own and can rely on, so it comes first. Yahoo's flag stays as a
+ * fallback for the case the mapping was written to cover — before anyone has been
+ * mapped at all.
+ */
+async function viewerTeamKey(
+  ctx: RequestContext,
+  userId: InternalId,
+  seasonYear: number,
+): Promise<string | null> {
+  const leagueId = ctx.leagueId;
+  if (!leagueId) return null;
+
+  const members = await ctx.repositories.leagues.listMembers(leagueId, seasonYear);
+  const mine = members.find(
+    (member: { userId?: InternalId | null; yahooTeamKey?: string }) =>
+      member.userId === userId && member.yahooTeamKey,
+  );
+
+  return mine?.yahooTeamKey ?? null;
+}
+
+function isOwnedByViewer(
+  managers: readonly YahooManager[],
+  teamKey: string,
+  viewerTeam: string | null,
+): boolean {
+  if (viewerTeam !== null) return teamKey === viewerTeam;
   return managers.some((manager) => manager.isCurrentLogin === true);
 }
 
@@ -31,6 +67,7 @@ leagueViewRoutes.get('/api/league/standings', async (c) => {
   requireLeagueId(ctx);
 
   const link = await currentLink(ctx as never);
+  const mine = await viewerTeamKey(ctx, principal.userId as InternalId, link?.seasonYear ?? 0);
   if (!link) {
     throw new AppError('yahoo_league_not_linked', {
       publicMessage: 'No Yahoo league is linked yet, so there are no standings to show.',
@@ -64,7 +101,7 @@ leagueViewRoutes.get('/api/league/standings', async (c) => {
       pointsAgainst: row.pointsAgainst ?? null,
       streak: row.streak ?? null,
       managers: row.managers.map((manager) => manager.nickname),
-      isYou: isOwnedByViewer(row.managers),
+      isYou: isOwnedByViewer(row.managers, row.teamKey, mine),
     })),
     fetchedAt: new Date().toISOString(),
     viewerUserId: principal.userId,
@@ -73,12 +110,13 @@ leagueViewRoutes.get('/api/league/standings', async (c) => {
 
 leagueViewRoutes.get('/api/league/matchups/:week', async (c) => {
   const ctx = c.get('ctx');
-  requireAuthenticated(ctx.principal);
+  const principal = requireAuthenticated(ctx.principal);
   requireLeagueId(ctx);
 
   const week = weekNumberSchema.parse(Number(c.req.param('week')));
 
   const link = await currentLink(ctx as never);
+  const mine = await viewerTeamKey(ctx, principal.userId as InternalId, link?.seasonYear ?? 0);
   if (!link) {
     throw new AppError('yahoo_league_not_linked', {
       publicMessage: 'No Yahoo league is linked yet, so there are no matchups to show.',
@@ -99,7 +137,7 @@ leagueViewRoutes.get('/api/league/matchups/:week', async (c) => {
         name: team.name ?? '(unnamed team)',
         points: team.points ?? null,
         managers: team.managers.map((manager) => manager.nickname),
-        isYou: isOwnedByViewer(team.managers),
+        isYou: isOwnedByViewer(team.managers, team.teamKey, mine),
         isWinner: matchup.winnerTeamKey === team.teamKey,
       }));
 
@@ -136,10 +174,11 @@ leagueViewRoutes.get('/api/league/matchups/:week', async (c) => {
  */
 leagueViewRoutes.get('/api/league/transactions', async (c) => {
   const ctx = c.get('ctx');
-  requireAuthenticated(ctx.principal);
+  const principal = requireAuthenticated(ctx.principal);
   requireLeagueId(ctx);
 
   const link = await currentLink(ctx as never);
+  const mine = await viewerTeamKey(ctx, principal.userId as InternalId, link?.seasonYear ?? 0);
   if (!link) {
     throw new AppError('yahoo_league_not_linked', {
       publicMessage: 'No Yahoo league is linked yet, so there are no transactions to show.',
@@ -157,7 +196,7 @@ leagueViewRoutes.get('/api/league/transactions', async (c) => {
   const teams = await ctx.yahoo.getLeagueTeams(link.connectionUserId, link.yahooLeagueKey);
   const nameByKey = new Map(teams.map((team) => [team.teamKey, team.name]));
   const yourKeys = new Set(
-    teams.filter((team) => isOwnedByViewer(team.managers)).map((team) => team.teamKey),
+    teams.filter((team) => isOwnedByViewer(team.managers, team.teamKey, mine)).map((team) => team.teamKey),
   );
 
   return c.json({
@@ -201,10 +240,11 @@ leagueViewRoutes.get('/api/league/transactions', async (c) => {
  */
 leagueViewRoutes.get('/api/league/roster', async (c) => {
   const ctx = c.get('ctx');
-  requireAuthenticated(ctx.principal);
+  const principal = requireAuthenticated(ctx.principal);
   requireLeagueId(ctx);
 
   const link = await currentLink(ctx as never);
+  const mine = await viewerTeamKey(ctx, principal.userId as InternalId, link?.seasonYear ?? 0);
   if (!link) {
     throw new AppError('yahoo_league_not_linked', {
       publicMessage: 'No Yahoo league is linked yet, so there is no roster to show.',
@@ -226,7 +266,7 @@ leagueViewRoutes.get('/api/league/roster', async (c) => {
   const requestedTeam = c.req.query('team');
   const team = requestedTeam
     ? teams.find((candidate) => candidate.teamKey === requestedTeam)
-    : teams.find((candidate) => isOwnedByViewer(candidate.managers));
+    : teams.find((candidate) => isOwnedByViewer(candidate.managers, candidate.teamKey, mine));
 
   if (!team) {
     /**
@@ -264,7 +304,7 @@ leagueViewRoutes.get('/api/league/roster', async (c) => {
       yahooTeamKey: team.teamKey,
       name: team.name,
       managers: team.managers.map((manager) => manager.nickname),
-      isYou: isOwnedByViewer(team.managers),
+      isYou: isOwnedByViewer(team.managers, team.teamKey, mine),
     },
     slots,
     startersPoints: sum(true),
@@ -285,10 +325,11 @@ leagueViewRoutes.get('/api/league/roster', async (c) => {
  */
 leagueViewRoutes.get('/api/league/me', async (c) => {
   const ctx = c.get('ctx');
-  requireAuthenticated(ctx.principal);
+  const principal = requireAuthenticated(ctx.principal);
   requireLeagueId(ctx);
 
   const link = await currentLink(ctx as never);
+  const mine = await viewerTeamKey(ctx, principal.userId as InternalId, link?.seasonYear ?? 0);
   if (!link) return c.json({ linked: false });
 
   const metadata = await ctx.yahoo.getLeagueMetadata(link.connectionUserId, link.yahooLeagueKey);
@@ -299,13 +340,13 @@ leagueViewRoutes.get('/api/league/me', async (c) => {
     ctx.yahoo.getScoreboard(link.connectionUserId, link.yahooLeagueKey, week),
   ]);
 
-  const myRow = standings.find((row) => isOwnedByViewer(row.managers));
+  const myRow = standings.find((row) => isOwnedByViewer(row.managers, row.teamKey, mine));
   const myMatchup = matchups.find((matchup) =>
-    matchup.teams.some((team) => isOwnedByViewer(team.managers)),
+    matchup.teams.some((team) => isOwnedByViewer(team.managers, team.teamKey, mine)),
   );
 
-  const myTeam = myMatchup?.teams.find((team) => isOwnedByViewer(team.managers));
-  const opponent = myMatchup?.teams.find((team) => !isOwnedByViewer(team.managers));
+  const myTeam = myMatchup?.teams.find((team) => isOwnedByViewer(team.managers, team.teamKey, mine));
+  const opponent = myMatchup?.teams.find((team) => !isOwnedByViewer(team.managers, team.teamKey, mine));
 
   return c.json({
     linked: true,
@@ -358,7 +399,7 @@ leagueViewRoutes.get('/api/league/me', async (c) => {
       rank: row.rank ?? null,
       name: row.name,
       record: row.recordLabel ?? null,
-      isYou: isOwnedByViewer(row.managers),
+      isYou: isOwnedByViewer(row.managers, row.teamKey, mine),
     })),
 
     // The week's biggest performances, computed here from the live scoreboard.

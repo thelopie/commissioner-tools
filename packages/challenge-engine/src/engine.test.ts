@@ -879,7 +879,7 @@ describe('challenge proposals', () => {
     for (const proposal of CHALLENGE_PROPOSALS) {
       const derived = proposalToDefinition(proposal, { isCapabilityVerified: NONE_VERIFIED });
       expect(derived.status).toBe('blocked');
-      expect(derived.blockedReason).toContain('verify:yahoo');
+      expect(derived.blockedReason).toContain('commissioner records the winner');
     }
   });
 

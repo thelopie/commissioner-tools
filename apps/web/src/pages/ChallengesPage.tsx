@@ -385,7 +385,7 @@ function ChallengeCard({
               hint="Whether a negative score is eligible."
             />
             <RuleChip
-              label={definition.tieBreakers.join(' → ')}
+              label={definition.tieBreakers.map(readableTieBreaker).join(' → ')}
               hint="Tiebreakers, applied in order until one separates the leaders."
             />
           </Stack>
@@ -393,6 +393,17 @@ function ChallengeCard({
       </CardContent>
     </Card>
   );
+}
+
+/**
+ * A tiebreaker in words.
+ *
+ * These are stored as slugs and were rendered raw, so the page read
+ * "worse_record → commissioner_decides" to a league of people who do not write
+ * code. Everything on this page is meant to be read by any member.
+ */
+function readableTieBreaker(slug: string): string {
+  return slug.replace(/_/g, ' ');
 }
 
 function RuleChip({ label, hint }: { label: string; hint: string }): JSX.Element {
