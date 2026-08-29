@@ -314,9 +314,17 @@ The certificate must be in **us-east-1** — CloudFront requires it.
 
    ```bash
    npm run build --workspace @lopie/web
-   aws s3 sync apps/web/dist "s3://$(aws cloudformation describe-stacks \
+   BUCKET="s3://$(aws cloudformation describe-stacks \
      --stack-name LaLigaDeLopie-dev \
-     --query 'Stacks[0].Outputs[?OutputKey==`WebBucketName`].OutputValue' --output text)" --delete
+     --query 'Stacks[0].Outputs[?OutputKey==`WebBucketName`].OutputValue' --output text)"
+
+   # Two passes. The CLI has no mime type for .webp and would upload the artwork
+   # as binary/octet-stream; combined with the nosniff header these responses
+   # carry, that is asking the browser to guess. Set the type explicitly.
+   aws s3 sync apps/web/dist "$BUCKET" --delete --exclude '*.webp'
+   aws s3 sync apps/web/dist "$BUCKET" --exclude '*' --include '*.webp' \
+     --content-type image/webp
+
    aws cloudfront create-invalidation --distribution-id <DistributionId> --paths '/*'
    ```
 

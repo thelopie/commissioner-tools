@@ -7,16 +7,26 @@
     <!-- A private league tool: never indexed, never linked publicly. -->
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="same-origin" />
-    <!--
-      Inline SVG data URI rather than a file: it avoids a 404 on every page load
-      without adding a binary asset, and the strict CSP already allows `data:`
-      for images.
-    -->
-    <link
-      rel="icon"
-      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231b5e20'/%3E%3Cellipse cx='16' cy='16' rx='9' ry='6' fill='%23f5f0e6'/%3E%3Cpath d='M11 16h10M16 12.5v7' stroke='%231b5e20' stroke-width='1.6' stroke-linecap='round'/%3E%3C/svg%3E"
-    />
+    <!-- The league crest, cropped from the emblem. -->
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-64.png" />
+    <!-- Safari's home-screen icon will not take a webp, so this one is a png. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <title>La Liga de Lopie</title>
+    <!--
+      Link previews. The site is noindex, but the address gets pasted into group
+      chats and mail, and an unfurled card is where most of the league will first
+      see it. The full lockup as jpeg: unfurlers are the one place webp still is
+      not safe to assume.
+    -->
+    <meta property="og:title" content="La Liga de Lopie" />
+    <meta
+      property="og:description"
+      content="Dues, prizes, weekly challenges, and the draft order, all in one place."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://lopieleague.com/" />
+    <meta property="og:image" content="https://lopieleague.com/og-image.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
   </head>
   <body>
     <div id="root"></div>

@@ -41,6 +41,18 @@ import { RAIL_WIDTH } from '../theme/tokens.js';
 import { Monogram } from './primitives.js';
 
 /**
+ * The shield medallion, cropped out of the full emblem.
+ *
+ * Not the whole crest: it has a fist, wings, a bolt and a banner, and at 32px in
+ * a nav rail all of that collapses into a dark smudge. The medallion is one
+ * high-contrast shape and still reads at the sizes actually used here.
+ *
+ * Served from `public/` rather than imported, so it stays a plain cacheable file
+ * instead of being hashed into the bundle on every build.
+ */
+const LOGO_MARK = '/logo-mark-256.webp';
+
+/**
  * Application shell.
  *
  * Navigation adapts rather than shrinking: a navigation rail from 900px up, a
@@ -426,16 +438,17 @@ function Crest(): JSX.Element {
           width: 44,
           height: 44,
           borderRadius: 3,
-          display: 'grid',
-          placeItems: 'center',
-          bgcolor: 'primary.main',
-          color: 'primary.contrastText',
+          overflow: 'hidden',
+          display: 'block',
           textDecoration: 'none',
-          fontWeight: 800,
-          fontSize: '1.1rem',
         }}
       >
-        LL
+        <Box
+          component="img"
+          src={LOGO_MARK}
+          alt=""
+          sx={{ width: '100%', height: '100%', display: 'block', objectFit: 'cover' }}
+        />
       </Box>
     </Tooltip>
   );
@@ -460,20 +473,18 @@ function Wordmark(): JSX.Element {
       }}
     >
       <Box
+        component="img"
+        src={LOGO_MARK}
+        alt=""
         sx={{
           width: 32,
           height: 32,
           borderRadius: 2,
-          display: 'grid',
-          placeItems: 'center',
-          bgcolor: 'primary.main',
-          color: 'primary.contrastText',
-          fontWeight: 800,
+          objectFit: 'cover',
+          display: 'block',
           flexShrink: 0,
         }}
-      >
-        LL
-      </Box>
+      />
       <Typography
         variant="h3"
         noWrap

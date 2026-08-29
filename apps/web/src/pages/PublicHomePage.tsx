@@ -107,6 +107,27 @@ function Hero({
           background: 'linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0) 55%)',
         }}
       >
+        {/*
+          The shield, badged onto the artwork rather than replacing the title.
+          Signed out, this page has no top bar, so without it the league mark
+          would appear nowhere on the one screen everybody sees first.
+        */}
+        <Box
+          component="img"
+          src="/logo-mark-256.webp"
+          alt=""
+          sx={{
+            width: { xs: 52, sm: 64 },
+            height: { xs: 52, sm: 64 },
+            borderRadius: 2,
+            mb: 1,
+            display: 'block',
+            objectFit: 'cover',
+            border: '1px solid rgba(255,255,255,0.28)',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.45)',
+          }}
+        />
+
         <Typography
           variant="h1"
           id="page-title"
@@ -258,12 +279,11 @@ export function DraftHighlights({
 
       {order ? (
         <DraftOrder order={order} />
-      ) : assignments && assignments.entries.length > 0 ? /*
+      ) : assignments && assignments.entries.length > 0 /*
           The draw has happened but the tournament decides the order, so there is
           nothing to put here yet. The mapping below explains what everyone is
           waiting on; a second card saying "not set yet" would just repeat it.
-        */
-      null : (
+        */ ? null : (
         <Card variant="filled">
           <CardContent>
             <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center', py: 3 }}>

@@ -43,23 +43,26 @@ export function SignInPage(): JSX.Element {
     <Box sx={{ maxWidth: 560, mx: 'auto', mt: { xs: 1, sm: 5 } }}>
       <Stack spacing={3}>
         <Stack spacing={1.5} alignItems="center" sx={{ textAlign: 'center' }}>
-          <Box
-            sx={{
-              width: 64,
-              height: 64,
-              borderRadius: 4,
-              display: 'grid',
-              placeItems: 'center',
-              bgcolor: 'primary.main',
-              color: 'primary.contrastText',
-              fontWeight: 800,
-              fontSize: '1.75rem',
-            }}
+          {/*
+            The heading is the emblem. It already sets the league name in better
+            type than this page could, so a line of text repeating it underneath
+            would just be the name twice. The alt text keeps it a real heading for
+            anyone who cannot see it.
+          */}
+          <Typography
+            variant="h1"
+            id="page-title"
+            tabIndex={-1}
+            sx={{ outline: 'none', width: '100%', m: 0 }}
           >
-            LL
-          </Box>
-          <Typography variant="h1" id="page-title" tabIndex={-1} sx={{ outline: 'none' }}>
-            La Liga de Lopie
+            <Box
+              component="img"
+              src="/logo-wide-800.webp"
+              srcSet="/logo-wide-800.webp 800w, /logo-wide-1200.webp 1200w"
+              sizes="(max-width: 480px) 100vw, 440px"
+              alt="La Liga de Lopie"
+              sx={{ width: '100%', maxWidth: 440, display: 'block', mx: 'auto', borderRadius: 4 }}
+            />
           </Typography>
           <Typography variant="body1" color="text.secondary" sx={{ maxWidth: '46ch' }}>
             Dues, prizes, weekly challenges, and the draft-order workflow, all in one place.
@@ -90,11 +93,9 @@ export function SignInPage(): JSX.Element {
                   Sign in
                 </Button>
               )}
-
             </Stack>
           </CardContent>
         </Card>
-
       </Stack>
     </Box>
   );
@@ -172,7 +173,6 @@ function SetupSignIn(): JSX.Element {
     </Box>
   );
 }
-
 
 function YahooErrorAlert({ code }: { code: string }): JSX.Element {
   const { severity, message } = describeOAuthError(code);
