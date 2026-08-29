@@ -49,7 +49,15 @@ export function HomePage(): JSX.Element {
 
   const user = session.data?.user ?? null;
   const isCommissioner = user?.role === 'commissioner';
-  const firstName = user?.displayName?.split(/[\s(]/)[0] ?? 'there';
+  /*
+    The whole name, not the first word of it.
+
+    This took everything up to the first space or bracket, which suited "Josh Lopez"
+    and made a nonsense of the names people actually choose: "The Commish" greeted
+    its owner as "The". A display name in this portal is already the name somebody
+    picked for themselves and confirmed, so there is nothing to trim off it.
+  */
+  const greetingName = user?.displayName?.trim() || 'there';
 
   if (connection.isLoading || (connection.data?.connected && me.isLoading)) {
     return (
@@ -76,7 +84,7 @@ export function HomePage(): JSX.Element {
   if (!connection.data?.connected) {
     return (
       <Stack spacing={4}>
-        <PageHeader title={`Hi, ${firstName}`} />
+        <PageHeader title={`Hi, ${greetingName}`} />
         <DraftHighlights
           draftAt={publicHome.data?.draftAt ?? null}
           order={publicHome.data?.order ?? null}
@@ -100,7 +108,7 @@ export function HomePage(): JSX.Element {
   if (me.error instanceof ApiError && me.error.isFantasyUnauthorized) {
     return (
       <Stack spacing={4}>
-        <PageHeader title={`Hi, ${firstName}`} />
+        <PageHeader title={`Hi, ${greetingName}`} />
         <Alert severity="info">
           <AlertTitle>Live scores are not switched on yet</AlertTitle>
           Standings, matchups and rosters need Yahoo to enable Fantasy access for this app.
@@ -118,7 +126,7 @@ export function HomePage(): JSX.Element {
   if (me.isError) {
     return (
       <Stack spacing={3}>
-        <PageHeader title={`Hi, ${firstName}`} />
+        <PageHeader title={`Hi, ${greetingName}`} />
         <ErrorNotice error={me.error} onRetry={() => void me.refetch()} />
       </Stack>
     );
@@ -129,7 +137,7 @@ export function HomePage(): JSX.Element {
   if (!data?.linked) {
     return (
       <Stack spacing={3}>
-        <PageHeader title={`Hi, ${firstName}`} />
+        <PageHeader title={`Hi, ${greetingName}`} />
         <EmptyState
           icon={<EmojiEventsIcon />}
           title="No league linked yet"
@@ -153,7 +161,7 @@ export function HomePage(): JSX.Element {
   return (
     <Stack spacing={3}>
       <PageHeader
-        title={`Hi, ${firstName}`}
+        title={`Hi, ${greetingName}`}
         description={`${data.leagueName ?? 'Your league'} · ${data.seasonYear} season · week ${data.week}`}
       />
 
