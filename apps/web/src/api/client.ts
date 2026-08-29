@@ -670,6 +670,16 @@ export interface DuesRecord {
   note?: string;
 }
 
+export interface SeasonSummary {
+  seasonYear: number;
+  status: string;
+  buyIn: Money;
+  /** Where dues are sent. A link only; nothing here moves money. */
+  paymentLink?: string;
+  paymentNote?: string;
+  draftAt?: string;
+}
+
 export interface DuesResponse {
   dues: DuesRecord[];
   members: Array<{ leagueMemberId: string; displayName: string }>;

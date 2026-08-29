@@ -60,6 +60,9 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
         .optional(),
       /** Absolute instant the draft starts, which is what the countdown reads. */
       draftAt: z.string().datetime({ offset: false }).optional(),
+      /** Where dues are sent. A link only — nothing here moves money. */
+      paymentLink: z.string().url().max(500).optional(),
+      paymentNote: z.string().max(300).optional(),
       /** Best-first finish order, portal-owned so draft tiebreaks survive. */
       finalFinishOrder: z.array(z.string().length(26)).optional(),
     }),
@@ -90,6 +93,8 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
     ...(body.teamCount === undefined ? {} : { teamCount: body.teamCount }),
     ...(body.draftDate === undefined ? {} : { draftDate: body.draftDate }),
     ...(body.draftAt === undefined ? {} : { draftAt: body.draftAt }),
+    ...(body.paymentLink === undefined ? {} : { paymentLink: body.paymentLink }),
+    ...(body.paymentNote === undefined ? {} : { paymentNote: body.paymentNote }),
     ...(existing
       ? {
           createdAt: existing.createdAt,

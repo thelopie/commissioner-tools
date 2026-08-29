@@ -14,7 +14,13 @@ import {
   Typography,
 } from '@mui/material';
 import LeaderboardIcon from '@mui/icons-material/LeaderboardRounded';
-import { useConnection, useLeagueOverview, useStandings } from '../hooks.js';
+import {
+  useConnection,
+  useLeagueOverview,
+  useSession,
+  useStandings,
+} from '../hooks.js';
+import { DuesCell, PaymentLink, useDuesByTeam } from '../components/DuesCell.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
 import { formatPoints } from './HomePage.js';
@@ -30,6 +36,11 @@ export function StandingsPage(): JSX.Element {
   const connection = useConnection();
   const connected = connection.data?.connected ?? false;
   const standings = useStandings(connected);
+  const session = useSession();
+  const isCommissioner = session.data?.user?.role === 'commissioner';
+
+  const seasonYear = standings.data?.seasonYear ?? null;
+  const { byTeamKey } = useDuesByTeam(seasonYear);
   const overview = useLeagueOverview(connected);
 
   /**
@@ -94,6 +105,8 @@ export function StandingsPage(): JSX.Element {
         action={<Chip label={`${rows.length} teams`} />}
       />
 
+      <PaymentLink seasonYear={seasonYear} />
+
       {/* Wide layout: a real table. */}
       <Card sx={{ display: { xs: 'none', md: 'block' } }}>
         <TableContainer sx={{ overflowX: 'auto' }}>
@@ -107,6 +120,9 @@ export function StandingsPage(): JSX.Element {
                 <TableCell align="right">Points for</TableCell>
                 <TableCell align="right">Against</TableCell>
                 <TableCell align="right">Diff</TableCell>
+                {/* Dues sit beside the table everyone already looks at, rather than
+                    on a page nobody opens until September. */}
+                <TableCell align="right">Dues</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -190,6 +206,13 @@ export function StandingsPage(): JSX.Element {
                       }}
                     >
                       {diff === null ? '—' : `${diff >= 0 ? '+' : ''}${formatPoints(diff)}`}
+                    </TableCell>
+                    <TableCell align="right">
+                      <DuesCell
+                        seasonYear={seasonYear}
+                        dues={byTeamKey.get(row.yahooTeamKey)}
+                        isCommissioner={isCommissioner}
+                      />
                     </TableCell>
                   </TableRow>
                 );

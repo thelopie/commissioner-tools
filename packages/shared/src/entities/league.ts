@@ -37,6 +37,17 @@ export const seasonSchema = auditableSchema.extend({
   buyIn: moneySchema,
   teamCount: z.number().int().min(2).max(32).optional(),
 
+  /**
+   * Where to send dues, as a link the commissioner controls.
+   *
+   * A pointer and nothing more: the portal processes no payment, holds no funds and
+   * moves no money. Somebody pays the commissioner the way they always have and the
+   * commissioner records that it happened. Keeping it here rather than in the code
+   * means a new payment handle is a form field, not a deploy.
+   */
+  paymentLink: z.string().url().max(500).optional(),
+  paymentNote: z.string().max(300).optional(),
+
   regularSeasonWeeks: z.number().int().min(1).max(22).optional(),
   playoffStartWeek: z.number().int().min(1).max(22).optional(),
 

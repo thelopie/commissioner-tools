@@ -966,6 +966,15 @@ export function useSavePriorFinishOrder(priorSeasonYear: number | null) {
   });
 }
 
+/** Every season the portal knows, including the buy-in and where to pay it. */
+export function useSeasons(): UseQueryResult<SeasonsResponse> {
+  return useQuery({
+    queryKey: queryKeys.seasons,
+    queryFn: () => api.get<SeasonsResponse>('/api/seasons'),
+    staleTime: 60_000,
+  });
+}
+
 export function usePriorSeason(priorSeasonYear: number | null): UseQueryResult<SeasonsResponse> {
   return useQuery({
     queryKey: queryKeys.seasons,
