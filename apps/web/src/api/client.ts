@@ -670,6 +670,32 @@ export interface DuesRecord {
   note?: string;
 }
 
+export interface LedgerEntry {
+  leagueMemberId: string;
+  name: string;
+  challengesWon: number;
+  wonCents: number;
+  paidOutCents: number;
+  duesOwedCents: number;
+  duesPaidCents: number;
+  netCents: number;
+}
+
+export interface LedgerResponse {
+  seasonYear: number;
+  entries: LedgerEntry[];
+  history: Array<{
+    seasonYear: number;
+    champion: string;
+    runnerUp: string | null;
+    /** Last place. The league calls it the Sacko. */
+    sacko: string | null;
+    teamCount: number;
+  }>;
+  pot: { totalCents: number; collectedCents: number; awardedCents: number };
+  note: string;
+}
+
 export interface SeasonSummary {
   seasonYear: number;
   status: string;

@@ -12,6 +12,7 @@ import { DraftPage } from './pages/DraftPage.js';
 import { LlwsPage } from './pages/LlwsPage.js';
 import { PublicHomePage } from './pages/PublicHomePage.js';
 import { DrawVerificationPage } from './pages/DrawVerificationPage.js';
+import { TheLeaguePage } from './pages/TheLeaguePage.js';
 import { MoneyPage } from './pages/MoneyPage.js';
 import { AnnouncementsPage } from './pages/AnnouncementsPage.js';
 import { TasksPage } from './pages/TasksPage.js';
@@ -148,6 +149,10 @@ export function App(): JSX.Element {
           <Route
             path="/transactions"
             element={authenticated ? <TransactionsPage /> : <Navigate to="/signin" replace />}
+          />
+          <Route
+            path="/the-league"
+            element={authenticated ? <TheLeaguePage /> : <Navigate to="/signin" replace />}
           />
           <Route
             path="/standings"

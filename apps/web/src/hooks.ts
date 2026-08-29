@@ -30,6 +30,7 @@ import {
   type VerifyDrawResponse,
   type StandingsResponse,
   type TransactionsResponse,
+  type LedgerResponse,
   type PublicHome,
 } from './api/client.js';
 
@@ -63,6 +64,7 @@ export const queryKeys = {
   verifyDraw: (seasonYear: number) => ['llws', 'verify', seasonYear] as const,
   draftStatus: (seasonYear: number) => ['draft', 'status', seasonYear] as const,
   publicHome: ['public', 'home'] as const,
+  ledger: (seasonYear: number) => ['ledger', seasonYear] as const,
 };
 
 /**
@@ -963,6 +965,15 @@ export function useSavePriorFinishOrder(priorSeasonYear: number | null) {
       void queryClient.invalidateQueries({ queryKey: queryKeys.seasons });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
+  });
+}
+
+/** Season-long standing: challenges won, money, dues, and the record books. */
+export function useLedger(seasonYear: number | null): UseQueryResult<LedgerResponse> {
+  return useQuery({
+    queryKey: queryKeys.ledger(seasonYear ?? 0),
+    queryFn: () => api.get<LedgerResponse>(`/api/league/ledger/${seasonYear}`),
+    enabled: seasonYear !== null,
   });
 }
 

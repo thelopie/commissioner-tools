@@ -70,7 +70,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'My team', to: '/my-team', icon: <GroupsIcon /> },
   { label: 'Matchups', to: '/matchups', icon: <ScoreboardIcon /> },
   { label: 'Standings', to: '/standings', icon: <LeaderboardIcon /> },
-  { label: 'Challenges', to: '/challenges', icon: <EmojiEventsIcon /> },
+  { label: 'The League', to: '/the-league', icon: <EmojiEventsIcon /> },
 ];
 
 /**
@@ -80,6 +80,7 @@ const NAV_ITEMS: NavItem[] = [
  * item would shrink all of them below a comfortable tap target.
  */
 const MEMBER_ITEMS: Array<{ label: string; to: string; icon: React.ReactNode }> = [
+  { label: 'Weekly challenges', to: '/challenges', icon: <EmojiEventsIcon /> },
   { label: 'Announcements', to: '/announcements', icon: <CampaignIcon /> },
   { label: 'Recaps', to: '/recaps', icon: <ArticleIcon /> },
   { label: 'Dues and prizes', to: '/money', icon: <PaymentsIcon /> },

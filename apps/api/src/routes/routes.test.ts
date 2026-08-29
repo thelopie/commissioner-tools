@@ -1157,6 +1157,122 @@ describe('linking a league the API cannot read', () => {
   });
 });
 
+describe('the season ledger', () => {
+  /**
+   * The join nothing else performed: challenges won, prize money and dues added up
+   * per manager, plus the record books. Both halves have a way of going quietly
+   * wrong — a net that counts the wrong things, and history that resolves a name
+   * against the wrong season's roster.
+   */
+  async function seeded() {
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    for (const name of ['Alpha', 'Beta', 'Gamma']) {
+      await app.request('/api/league/members', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({ seasonYear: 2026, legacyManagerName: name }),
+      });
+    }
+
+    const members = await (
+      await app.request('/api/league/members?seasonYear=2026', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+
+    return { jar, auth, members: members.members as Array<{ leagueMemberId: string; displayName: string }> };
+  }
+
+  it('nets prize money against what a manager is in for', async () => {
+    const { jar, auth, members } = await seeded();
+    const [alpha, beta] = members;
+
+    // Everyone owes the buy-in.
+    for (const member of members) {
+      await app.request('/api/dues/2026', {
+        method: 'POST',
+        headers: auth,
+        body: JSON.stringify({
+          leagueMemberId: member.leagueMemberId,
+          amountOwed: { amountCents: 3500, currency: 'USD' },
+        }),
+      });
+    }
+
+    // Alpha wins one challenge worth $50.
+    await app.request('/api/payouts/2026', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: alpha!.leagueMemberId,
+        reason: 'Bench Mob, week 3',
+        amount: { amountCents: 5000, currency: 'USD' },
+      }),
+    });
+
+    const ledger = await (
+      await app.request('/api/league/ledger/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const alphaRow = ledger.entries.find(
+      (entry: { leagueMemberId: string }) => entry.leagueMemberId === alpha!.leagueMemberId,
+    );
+    const betaRow = ledger.entries.find(
+      (entry: { leagueMemberId: string }) => entry.leagueMemberId === beta!.leagueMemberId,
+    );
+
+    // $50 won against $35 in.
+    expect(alphaRow.netCents).toBe(1500);
+    // Nothing won, still down the buy-in — which is the point of showing it.
+    expect(betaRow.netCents).toBe(-3500);
+
+    // Best net first: the running order is the whole reason to look.
+    expect(ledger.entries[0].leagueMemberId).toBe(alpha!.leagueMemberId);
+  });
+
+  it('reads the champion, runner-up and Sacko out of the finish order', async () => {
+    const { jar, auth, members } = await seeded();
+
+    await app.request('/api/seasons/2026', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({
+        status: 'complete',
+        finalFinishOrder: members.map((member) => member.leagueMemberId),
+      }),
+    });
+
+    const ledger = await (
+      await app.request('/api/league/ledger/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const season = ledger.history.find((entry: { seasonYear: number }) => entry.seasonYear === 2026);
+
+    expect(season.champion).toBe(members[0]!.displayName);
+    expect(season.runnerUp).toBe(members[1]!.displayName);
+    // Last place, and the reason anybody scrolls this far.
+    expect(season.sacko).toBe(members[members.length - 1]!.displayName);
+  });
+
+  it('leaves a season with no recorded finish out of the record books', async () => {
+    // An unfinished season has no champion, and inventing one from a partial order
+    // would put somebody's name against a title they have not won.
+    const { jar } = await seeded();
+
+    const ledger = await (
+      await app.request('/api/league/ledger/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    expect(ledger.history).toEqual([]);
+  });
+});
+
 describe('LLWS draft-order workflow', () => {
   it('produces a reproducible draw and never claims Yahoo can be written', async () => {
     const jar = await signInAsCommissioner();
