@@ -324,6 +324,13 @@ function Countdown({ target }: { target: string | null }): JSX.Element | null {
 
   if (targetMs === null || Number.isNaN(targetMs)) return null;
 
+  /*
+    Retired the day after the draft. "It is draft time" shouted from the home page
+    for the rest of the season would be worse than showing nothing, and the draft
+    order below it is the part that still matters in October.
+  */
+  if (now - targetMs > 24 * 60 * 60 * 1000) return null;
+
   const left = remainingUntil(targetMs, now);
 
   // Rendered in the reader's own timezone, which is the only one they can act on.

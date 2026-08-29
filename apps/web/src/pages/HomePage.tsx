@@ -176,6 +176,21 @@ export function HomePage(): JSX.Element {
       <PinnedAnnouncements />
 
       {/*
+        The draw belongs here too.
+
+        It is on the signed-out page, and connecting Yahoo used to remove it — so
+        signing in showed a manager less than a stranger sees, which is the second
+        time that has happened on this screen. It stays until the draft is done,
+        after which the countdown retires itself and the board lives on the draft
+        page and in The League.
+      */}
+      <DraftHighlights
+        draftAt={publicHome.data?.draftAt ?? null}
+        order={publicHome.data?.order ?? null}
+        assignments={publicHome.data?.assignments ?? null}
+      />
+
+      {/*
         Three different situations, which used to share one message. A missing
         matchup is the ordinary state of every week before the season starts, and
         saying "Yahoo did not identify a team as yours" for it told the commissioner
