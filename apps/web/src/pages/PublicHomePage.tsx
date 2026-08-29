@@ -16,6 +16,32 @@ import SportsFootballIcon from '@mui/icons-material/SportsFootballRounded';
 import VideocamIcon from '@mui/icons-material/VideocamRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import type { PublicHome } from '../api/client.js';
+
+/**
+ * Everything the countdown needs to know about the draft room.
+ *
+ * One object rather than three loose props: they are only ever read together,
+ * and `exists` without `url` is the specific combination that means "a room is
+ * booked but you are not signed in", which is easy to get wrong when the three
+ * travel separately through four call sites.
+ */
+export interface DraftMeeting {
+  /** The room, when the reader is entitled to it. */
+  url: string | null;
+  /** Dial-in details and the like, shown beside the link. */
+  note: string | null;
+  /** Whether a room exists, which a signed-out reader is told without the link. */
+  exists: boolean;
+}
+
+/** Reads the meeting out of a home payload, however little of it has arrived. */
+export function draftMeetingOf(home: PublicHome | undefined): DraftMeeting {
+  return {
+    url: home?.draftMeetingUrl ?? null,
+    note: home?.draftMeetingNote ?? null,
+    exists: home?.hasDraftMeeting ?? false,
+  };
+}
 import { usePublicHome } from '../hooks.js';
 
 /**
@@ -51,8 +77,7 @@ export function PublicHomePage(): JSX.Element {
 
       <DraftHighlights
         draftAt={home.data?.draftAt ?? null}
-        meetingUrl={home.data?.draftMeetingUrl ?? null}
-        hasMeeting={home.data?.hasDraftMeeting ?? false}
+        meeting={draftMeetingOf(home.data)}
         order={order}
         assignments={home.data?.assignments ?? null}
       />
@@ -269,22 +294,18 @@ function LlwsMapping({
  */
 export function DraftHighlights({
   draftAt,
-  meetingUrl,
-  hasMeeting,
+  meeting,
   order,
   assignments,
 }: {
   draftAt: string | null;
-  /** The room, when the reader is entitled to it. */
-  meetingUrl: string | null;
-  /** Whether a room exists, which a signed-out reader is told without the link. */
-  hasMeeting: boolean;
+  meeting: DraftMeeting;
   order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;
   assignments: PublicHome['assignments'];
 }): JSX.Element {
   return (
     <Stack spacing={4}>
-      <Countdown target={draftAt} meetingUrl={meetingUrl} hasMeeting={hasMeeting} />
+      <Countdown target={draftAt} meeting={meeting} />
 
       {order ? (
         <DraftOrder order={order} />
@@ -355,12 +376,10 @@ function remainingUntil(targetMs: number, nowMs: number): Remaining {
  */
 function Countdown({
   target,
-  meetingUrl,
-  hasMeeting,
+  meeting,
 }: {
   target: string | null;
-  meetingUrl: string | null;
-  hasMeeting: boolean;
+  meeting: DraftMeeting;
 }): JSX.Element | null {
   const targetMs = target === null ? null : Date.parse(target);
   const [now, setNow] = useState(() => Date.now());
@@ -387,7 +406,7 @@ function Countdown({
     People turn up early, and a button that appears at 5:30 sharp is a button nobody
     finds at 5:25.
   */
-  const roomOpen = hasMeeting && (left.passed || isSameLocalDay(now, targetMs));
+  const roomOpen = meeting.exists && (left.passed || isSameLocalDay(now, targetMs));
 
   // Rendered in the reader's own timezone, which is the only one they can act on.
   const when = new Date(targetMs).toLocaleString(undefined, {
@@ -422,7 +441,7 @@ function Countdown({
             {when}
           </Typography>
 
-          {roomOpen && <DraftRoom url={meetingUrl} started={left.passed} />}
+          {roomOpen && <DraftRoom meeting={meeting} started={left.passed} />}
         </Stack>
       </CardContent>
     </Card>
@@ -437,7 +456,15 @@ function Countdown({
  * things the league would read aloud — but a room anybody can walk into is not, and
  * the address of this site is not a secret worth resting that on.
  */
-function DraftRoom({ url, started }: { url: string | null; started: boolean }): JSX.Element {
+function DraftRoom({
+  meeting,
+  started,
+}: {
+  meeting: DraftMeeting;
+  started: boolean;
+}): JSX.Element {
+  const { url, note } = meeting;
+
   if (url === null) {
     return (
       <Stack spacing={1} alignItems="center">
@@ -465,6 +492,21 @@ function DraftRoom({ url, started }: { url: string | null; started: boolean }): 
       >
         {started ? 'Join the draft' : 'Open the draft room'}
       </Button>
+
+      {/*
+        Selectable rather than a link: this is a phone number and a PIN, and the
+        thing people do with it is read it out or copy it into a keypad.
+      */}
+      {note && (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textAlign: 'center', userSelect: 'text', maxWidth: '40ch' }}
+        >
+          {note}
+        </Typography>
+      )}
+
       {!started && (
         <Typography variant="caption" color="text.secondary">
           Open now if you want to test your microphone.

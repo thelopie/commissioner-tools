@@ -76,6 +76,16 @@ export const seasonSchema = auditableSchema.extend({
   draftMeetingUrl: z.string().url().max(500).optional(),
 
   /**
+   * Anything else needed to get in — a dial-in number and PIN, usually.
+   *
+   * Free text beside the link, the same shape as `paymentNote` beside
+   * `paymentLink`, because the useful extra varies by service and none of it is
+   * worth a schema. Held to members like the link is: a PIN is the other half of
+   * the same door.
+   */
+  draftMeetingNote: z.string().max(200).optional(),
+
+  /**
    * Final finish order for the season, best first, as league member IDs.
    *
    * portal-owned on purpose: the draft-order workflow breaks LLWS ties by prior

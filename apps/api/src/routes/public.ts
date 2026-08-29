@@ -61,6 +61,7 @@ publicRoutes.get('/api/public/home', async (c) => {
   const season = await ctx.repositories.leagues.findSeason(leagueId, seasonYear);
   const draftAt = season?.draftAt ?? null;
   const meetingUrl = season?.draftMeetingUrl ?? null;
+  const meetingNote = season?.draftMeetingNote ?? null;
 
   const [assignments, order] = await Promise.all([
     publishedAssignments(ctx, leagueId, seasonYear),
@@ -77,6 +78,8 @@ publicRoutes.get('/api/public/home', async (c) => {
       without handing the room to anyone who has the address.
     */
     draftMeetingUrl: ctx.principal ? meetingUrl : null,
+    // A dial-in PIN is the other half of the same door, so it travels with it.
+    draftMeetingNote: ctx.principal ? meetingNote : null,
     hasDraftMeeting: meetingUrl !== null,
     assignments,
     order,
@@ -95,6 +98,7 @@ const EMPTY_HOME = {
   seasonYear: null,
   draftAt: null,
   draftMeetingUrl: null,
+  draftMeetingNote: null,
   hasDraftMeeting: false,
   assignments: null,
   order: null,

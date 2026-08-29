@@ -164,6 +164,8 @@ export interface PublicHome {
    * for that, which is what lets the public page offer a sign-in instead.
    */
   draftMeetingUrl: string | null;
+  /** Dial-in details and the like. Members only, same as the link. */
+  draftMeetingNote: string | null;
   /** Whether a room exists at all. True for everybody, link or no link. */
   hasDraftMeeting: boolean;
   /** Null until the commissioner publishes the draw. Available weeks before `order`. */
@@ -715,6 +717,8 @@ export interface SeasonSummary {
   draftAt?: string;
   /** Where the draft is held. Any https URL; the portal only ever links to it. */
   draftMeetingUrl?: string;
+  /** Dial-in details shown beside the link. */
+  draftMeetingNote?: string;
 }
 
 export interface DuesResponse {

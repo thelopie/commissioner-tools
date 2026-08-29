@@ -983,8 +983,8 @@ export function useSaveDraftMeeting(seasonYear: number | null) {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (draftMeetingUrl: string) =>
-      api.put<{ season: unknown }>(`/api/seasons/${seasonYear}`, { draftMeetingUrl }),
+    mutationFn: (meeting: { draftMeetingUrl: string; draftMeetingNote: string }) =>
+      api.put<{ season: unknown }>(`/api/seasons/${seasonYear}`, meeting),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.seasons });
       void queryClient.invalidateQueries({ queryKey: queryKeys.publicHome });

@@ -29,7 +29,7 @@ import {
 } from '../hooks.js';
 import { ApiError } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
-import { DraftHighlights } from './PublicHomePage.js';
+import { DraftHighlights, draftMeetingOf } from './PublicHomePage.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
 
 /**
@@ -87,8 +87,7 @@ export function HomePage(): JSX.Element {
         <PageHeader title={`Hi, ${greetingName}`} />
         <DraftHighlights
           draftAt={publicHome.data?.draftAt ?? null}
-          meetingUrl={publicHome.data?.draftMeetingUrl ?? null}
-          hasMeeting={publicHome.data?.hasDraftMeeting ?? false}
+          meeting={draftMeetingOf(publicHome.data)}
           order={publicHome.data?.order ?? null}
           assignments={publicHome.data?.assignments ?? null}
         />
@@ -118,8 +117,7 @@ export function HomePage(): JSX.Element {
         </Alert>
         <DraftHighlights
           draftAt={publicHome.data?.draftAt ?? null}
-          meetingUrl={publicHome.data?.draftMeetingUrl ?? null}
-          hasMeeting={publicHome.data?.hasDraftMeeting ?? false}
+          meeting={draftMeetingOf(publicHome.data)}
           order={publicHome.data?.order ?? null}
           assignments={publicHome.data?.assignments ?? null}
         />
@@ -190,8 +188,7 @@ export function HomePage(): JSX.Element {
       */}
       <DraftHighlights
         draftAt={publicHome.data?.draftAt ?? null}
-        meetingUrl={publicHome.data?.draftMeetingUrl ?? null}
-        hasMeeting={publicHome.data?.hasDraftMeeting ?? false}
+        meeting={draftMeetingOf(publicHome.data)}
         order={publicHome.data?.order ?? null}
         assignments={publicHome.data?.assignments ?? null}
       />

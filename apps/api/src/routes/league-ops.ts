@@ -68,6 +68,8 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
        * day is worse than none, because people will sit in an empty one.
        */
       draftMeetingUrl: z.union([z.string().url().max(500), z.literal('')]).optional(),
+      /** Dial-in details and the like. Empty string clears it. */
+      draftMeetingNote: z.string().max(200).optional(),
       /** Where dues are sent. A link only — nothing here moves money. */
       paymentLink: z.string().url().max(500).optional(),
       paymentNote: z.string().max(300).optional(),
@@ -105,6 +107,9 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
     ...(body.draftMeetingUrl === undefined
       ? {}
       : { draftMeetingUrl: body.draftMeetingUrl === '' ? undefined : body.draftMeetingUrl }),
+    ...(body.draftMeetingNote === undefined
+      ? {}
+      : { draftMeetingNote: body.draftMeetingNote === '' ? undefined : body.draftMeetingNote }),
     ...(body.paymentLink === undefined ? {} : { paymentLink: body.paymentLink }),
     ...(body.paymentNote === undefined ? {} : { paymentNote: body.paymentNote }),
     ...(existing

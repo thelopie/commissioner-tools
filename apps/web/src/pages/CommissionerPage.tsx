@@ -173,21 +173,26 @@ function DraftRoomCard(): JSX.Element | null {
   const season = [...(seasons.data?.seasons ?? [])].sort((a, b) => b.seasonYear - a.seasonYear)[0];
 
   const saved = season?.draftMeetingUrl ?? '';
+  const savedNote = season?.draftMeetingNote ?? '';
   const [url, setUrl] = useState(saved);
+  const [note, setNote] = useState(savedNote);
   const [touched, setTouched] = useState(false);
 
-  // Adopt the stored value once it arrives, unless the commissioner is mid-edit.
+  // Adopt the stored values once they arrive, unless the commissioner is mid-edit.
   useEffect(() => {
-    if (!touched) setUrl(saved);
-  }, [saved, touched]);
+    if (touched) return;
+    setUrl(saved);
+    setNote(savedNote);
+  }, [saved, savedNote, touched]);
 
   const save = useSaveDraftMeeting(season?.seasonYear ?? null);
 
   if (!season) return null;
 
   const trimmed = url.trim();
+  const trimmedNote = note.trim();
   const valid = trimmed === '' || /^https:\/\/\S+$/.test(trimmed);
-  const changed = trimmed !== saved;
+  const changed = trimmed !== saved || trimmedNote !== savedNote;
 
   return (
     <Stack spacing={2}>
@@ -225,20 +230,36 @@ function DraftRoomCard(): JSX.Element | null {
               }
             />
 
+            <TextField
+              label="Dial-in (optional)"
+              placeholder="Or dial +1 555-000-0000, PIN 000 000 000#"
+              value={note}
+              onChange={(event) => {
+                setTouched(true);
+                setNote(event.target.value);
+              }}
+              fullWidth
+              slotProps={{ htmlInput: { maxLength: 200 } }}
+              helperText="Shown under the button, for anyone drafting from a car."
+            />
+
             <Stack direction="row" spacing={1} justifyContent="flex-end">
               <Button
                 variant="contained"
                 disabled={!valid || !changed || save.isPending}
                 onClick={() => {
-                  save.mutate(trimmed, {
-                    onSuccess: () => {
-                      setTouched(false);
-                      notify(
-                        trimmed === '' ? 'Draft room link removed.' : 'Draft room link saved.',
-                      );
+                  save.mutate(
+                    { draftMeetingUrl: trimmed, draftMeetingNote: trimmedNote },
+                    {
+                      onSuccess: () => {
+                        setTouched(false);
+                        notify(
+                          trimmed === '' ? 'Draft room link removed.' : 'Draft room link saved.',
+                        );
+                      },
+                      onError: () => notify('Could not save that link.', 'error'),
                     },
-                    onError: () => notify('Could not save that link.', 'error'),
-                  });
+                  );
                 }}
               >
                 {save.isPending ? 'Saving…' : trimmed === '' && saved !== '' ? 'Remove' : 'Save'}

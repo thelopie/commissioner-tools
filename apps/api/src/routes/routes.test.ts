@@ -2079,6 +2079,37 @@ describe('LLWS draft-order workflow', () => {
         expect(JSON.stringify(body)).not.toContain('meet.google.com');
       });
 
+      /**
+        A dial-in PIN is the other half of the same door, so it must not leak where
+        the link does not. Tested separately because it travels as its own field and
+        is exactly the sort of thing that gets appended to a response without anyone
+        re-checking who can read it.
+       */
+      it('withholds the dial-in details from a signed-out reader too', async () => {
+        const jar = await signInAsCommissioner();
+        await app.request('/api/seasons/2026', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: cookieHeader(jar),
+            [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+          },
+          body: JSON.stringify({
+            draftMeetingUrl: ROOM,
+            draftMeetingNote: 'Or dial 555, PIN 999#',
+          }),
+        });
+
+        const anonymous = await (await app.request('/api/public/home')).json();
+        expect(anonymous.draftMeetingNote).toBeNull();
+        expect(JSON.stringify(anonymous)).not.toContain('999');
+
+        const member = await (
+          await app.request('/api/public/home', { headers: { Cookie: cookieHeader(jar) } })
+        ).json();
+        expect(member.draftMeetingNote).toBe('Or dial 555, PIN 999#');
+      });
+
       it('is sent to a reader with a session', async () => {
         const jar = await setRoom(ROOM);
 
