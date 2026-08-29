@@ -37,6 +37,7 @@ import GroupsIcon from '@mui/icons-material/GroupsRounded';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEventsRounded';
 import HowToRegIcon from '@mui/icons-material/HowToRegRounded';
 import SportsFootballIcon from '@mui/icons-material/SportsFootballRounded';
+import VideocamIcon from '@mui/icons-material/VideocamRounded';
 import { useSearchParams } from 'react-router-dom';
 import {
   useConfirmDisplayName,
@@ -47,6 +48,8 @@ import {
   useManualRefresh,
   useMapLeagueMember,
   usePortalUsers,
+  useSaveDraftMeeting,
+  useSeasons,
   useSelectLeague,
   useSession,
   useYahooLeagues,
@@ -137,9 +140,113 @@ export function CommissionerPage(): JSX.Element {
         </Stack>
       )}
 
+      {isCommissioner && <DraftRoomCard />}
+
       {connected && <ConnectionCard />}
 
       {connected && <LeagueSection />}
+    </Stack>
+  );
+}
+
+/**
+ * Where the draft is held.
+ *
+ * Sits outside the Yahoo gate above because it owes Yahoo nothing — the countdown
+ * and the room are the portal's own, and they have to work on the evening Yahoo is
+ * most likely to be the thing that is broken.
+ *
+ * One field, because that is the whole feature: the portal stores a URL and puts a
+ * button on the countdown for the day of the draft. It creates no meeting and joins
+ * none, so a link from any video service works and next year's choice is a paste
+ * rather than a deploy.
+ */
+function DraftRoomCard(): JSX.Element | null {
+  const seasons = useSeasons();
+  const notify = useNotify();
+
+  /*
+    The newest season, which is the one being drafted. Same fallback the rest of the
+    portal uses: `currentSeasonYear` is only ever set by linking a Yahoo league, so
+    keying off it would leave this blank on a portal that has not linked one.
+  */
+  const season = [...(seasons.data?.seasons ?? [])].sort((a, b) => b.seasonYear - a.seasonYear)[0];
+
+  const saved = season?.draftMeetingUrl ?? '';
+  const [url, setUrl] = useState(saved);
+  const [touched, setTouched] = useState(false);
+
+  // Adopt the stored value once it arrives, unless the commissioner is mid-edit.
+  useEffect(() => {
+    if (!touched) setUrl(saved);
+  }, [saved, touched]);
+
+  const save = useSaveDraftMeeting(season?.seasonYear ?? null);
+
+  if (!season) return null;
+
+  const trimmed = url.trim();
+  const valid = trimmed === '' || /^https:\/\/\S+$/.test(trimmed);
+  const changed = trimmed !== saved;
+
+  return (
+    <Stack spacing={2}>
+      <SectionHeader title="Draft day" />
+
+      <Card variant="filled">
+        <CardContent>
+          <Stack spacing={2}>
+            <Stack direction="row" spacing={1.5} alignItems="flex-start">
+              <VideocamIcon color="primary" />
+              <Stack spacing={0.5}>
+                <Typography variant="h3">The draft room</Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Paste the meeting link. On the day of the draft the countdown turns into a button
+                  that opens it, for anyone signed in. Leave it empty and the countdown stays as it
+                  is.
+                </Typography>
+              </Stack>
+            </Stack>
+
+            <TextField
+              label="Meeting link"
+              placeholder="https://meet.google.com/…"
+              value={url}
+              onChange={(event) => {
+                setTouched(true);
+                setUrl(event.target.value);
+              }}
+              fullWidth
+              error={!valid}
+              helperText={
+                valid
+                  ? 'Members only — it is never shown to a signed-out visitor.'
+                  : 'Needs to be a full https:// link.'
+              }
+            />
+
+            <Stack direction="row" spacing={1} justifyContent="flex-end">
+              <Button
+                variant="contained"
+                disabled={!valid || !changed || save.isPending}
+                onClick={() => {
+                  save.mutate(trimmed, {
+                    onSuccess: () => {
+                      setTouched(false);
+                      notify(
+                        trimmed === '' ? 'Draft room link removed.' : 'Draft room link saved.',
+                      );
+                    },
+                    onError: () => notify('Could not save that link.', 'error'),
+                  });
+                }}
+              >
+                {save.isPending ? 'Saving…' : trimmed === '' && saved !== '' ? 'Remove' : 'Save'}
+              </Button>
+            </Stack>
+          </Stack>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }
@@ -940,7 +1047,7 @@ function ManualLeagueKey({
               disabled={!valid || pending}
               onClick={() =>
                 onSubmit({
-    yahooLeagueKey: yahooLeagueKeyFor(parsedId!),
+                  yahooLeagueKey: yahooLeagueKeyFor(parsedId!),
                   yahooGameKey: 'nfl',
                   seasonYear: Number(seasonYear),
                 })

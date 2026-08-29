@@ -606,16 +606,15 @@ export function useRecordChallenge(seasonYear: number | null, week: number | nul
       winningValue?: number;
       note: string;
     }) =>
-      api.post<{ ok: boolean }>(
-        `/api/challenges/${seasonYear}/record/${week}/${input.slug}`,
-        {
-          winningLeagueMemberIds: input.winningLeagueMemberIds,
-          ...(input.winningValue === undefined ? {} : { winningValue: input.winningValue }),
-          note: input.note,
-        },
-      ),
+      api.post<{ ok: boolean }>(`/api/challenges/${seasonYear}/record/${week}/${input.slug}`, {
+        winningLeagueMemberIds: input.winningLeagueMemberIds,
+        ...(input.winningValue === undefined ? {} : { winningValue: input.winningValue }),
+        note: input.note,
+      }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.challengeResults(seasonYear ?? 0, week ?? 0) });
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.challengeResults(seasonYear ?? 0, week ?? 0),
+      });
     },
   });
 }
@@ -963,6 +962,32 @@ export function useSavePriorFinishOrder(priorSeasonYear: number | null) {
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.seasons });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
+    },
+  });
+}
+
+/**
+ * Sets, or clears, the link to wherever the draft is held.
+ *
+ * An empty string is a deliberate clear rather than a no-op: every other field on
+ * the season PUT treats undefined as "leave alone", which left no way to retract a
+ * room. A stale video link on draft night is worse than none, because people will
+ * sit in an empty one waiting.
+ *
+ * The public home payload carries this too, so it is invalidated alongside the
+ * seasons list — otherwise the commissioner saves a link and the countdown on the
+ * very next screen is still showing the old one.
+ */
+export function useSaveDraftMeeting(seasonYear: number | null) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (draftMeetingUrl: string) =>
+      api.put<{ season: unknown }>(`/api/seasons/${seasonYear}`, { draftMeetingUrl }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.seasons });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.publicHome });
       void queryClient.invalidateQueries({ queryKey: queryKeys.audit });
     },
   });

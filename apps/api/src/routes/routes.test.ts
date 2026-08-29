@@ -1071,7 +1071,8 @@ describe('linking a league the API cannot read', () => {
   const FANTASY_CLOSED = {
     error: {
       lang: 'en-US',
-      description: 'Please provide valid credentials. OAuth oauth_problem="additional_authorization_required"',
+      description:
+        'Please provide valid credentials. OAuth oauth_problem="additional_authorization_required"',
     },
   };
 
@@ -1186,7 +1187,11 @@ describe('the season ledger', () => {
       })
     ).json();
 
-    return { jar, auth, members: members.members as Array<{ leagueMemberId: string; displayName: string }> };
+    return {
+      jar,
+      auth,
+      members: members.members as Array<{ leagueMemberId: string; displayName: string }>,
+    };
   }
 
   it('nets prize money against what a manager is in for', async () => {
@@ -1252,7 +1257,9 @@ describe('the season ledger', () => {
       await app.request('/api/league/ledger/2026', { headers: { Cookie: cookieHeader(jar) } })
     ).json();
 
-    const season = ledger.history.find((entry: { seasonYear: number }) => entry.seasonYear === 2026);
+    const season = ledger.history.find(
+      (entry: { seasonYear: number }) => entry.seasonYear === 2026,
+    );
 
     expect(season.champion).toBe(members[0]!.displayName);
     expect(season.runnerUp).toBe(members[1]!.displayName);
@@ -1284,7 +1291,9 @@ describe('the season ledger', () => {
       await app.request('/api/league/ledger/2026', { headers: { Cookie: cookieHeader(jar) } })
     ).json();
 
-    const season = ledger.history.find((entry: { seasonYear: number }) => entry.seasonYear === 2025);
+    const season = ledger.history.find(
+      (entry: { seasonYear: number }) => entry.seasonYear === 2025,
+    );
 
     expect(season.champion).toBe(members[0]!.displayName);
     expect(season.sacko).toBe(members[members.length - 1]!.displayName);
@@ -2031,6 +2040,145 @@ describe('LLWS draft-order workflow', () => {
       const body = await (await app.request('/api/public/home')).json();
       expect(body.draftAt).toBe('2026-09-02T00:30:00Z');
     });
+
+    /**
+     * The draft room is the one value on this endpoint that is not the same for
+     * everybody, so it gets the same treatment as the order above: prove what a
+     * stranger gets, not merely that the feature works.
+     *
+     * The distinction is real. Names and pick order are things the league would
+     * read aloud; a meeting link is a room anyone holding it can walk into, and
+     * the address of this site is not a secret worth resting that on.
+     */
+    describe('the draft room link', () => {
+      const ROOM = 'https://meet.google.com/abc-defg-hij';
+
+      async function setRoom(url: string): Promise<Record<string, string>> {
+        const jar = await signInAsCommissioner();
+        await app.request('/api/seasons/2026', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: cookieHeader(jar),
+            [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+          },
+          body: JSON.stringify({ draftMeetingUrl: url }),
+        });
+        return jar;
+      }
+
+      it('is never sent to a signed-out reader, who is told one exists instead', async () => {
+        await setRoom(ROOM);
+
+        // No Cookie header: this is what someone opening the link sees.
+        const body = await (await app.request('/api/public/home')).json();
+
+        expect(body.draftMeetingUrl).toBeNull();
+        // Enough to render "sign in to join" without handing over the room.
+        expect(body.hasDraftMeeting).toBe(true);
+        expect(JSON.stringify(body)).not.toContain('meet.google.com');
+      });
+
+      it('is sent to a reader with a session', async () => {
+        const jar = await setRoom(ROOM);
+
+        const body = await (
+          await app.request('/api/public/home', { headers: { Cookie: cookieHeader(jar) } })
+        ).json();
+
+        expect(body.draftMeetingUrl).toBe(ROOM);
+        expect(body.hasDraftMeeting).toBe(true);
+      });
+
+      it('reports no room when none is set', async () => {
+        await signInAsCommissioner();
+
+        const body = await (await app.request('/api/public/home')).json();
+
+        expect(body.hasDraftMeeting).toBe(false);
+        expect(body.draftMeetingUrl).toBeNull();
+      });
+
+      /**
+       * An empty string clears it.
+       *
+       * Every other field on the season PUT reads undefined as "leave alone", which
+       * left no way to retract a room at all. That matters more than it sounds: a
+       * stale link on draft night is worse than none, because people sit in an empty
+       * one waiting for everybody else.
+       */
+      it('can be retracted, not only replaced', async () => {
+        const jar = await setRoom(ROOM);
+
+        await app.request('/api/seasons/2026', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: cookieHeader(jar),
+            [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+          },
+          body: JSON.stringify({ draftMeetingUrl: '' }),
+        });
+
+        const body = await (
+          await app.request('/api/public/home', { headers: { Cookie: cookieHeader(jar) } })
+        ).json();
+
+        expect(body.hasDraftMeeting).toBe(false);
+        expect(body.draftMeetingUrl).toBeNull();
+      });
+
+      it('refuses anything that is not a URL', async () => {
+        const jar = await signInAsCommissioner();
+
+        const response = await app.request('/api/seasons/2026', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Cookie: cookieHeader(jar),
+            [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+          },
+          body: JSON.stringify({ draftMeetingUrl: 'ask me on the day' }),
+        });
+
+        expect(response.status).toBe(400);
+      });
+
+      /**
+       * Saving the room must not wipe the countdown.
+       *
+       * The season PUT rebuilds its record from scratch on every write, and has
+       * already dropped fields it did not name once before. Draft time and draft
+       * room are edited on different screens, minutes apart, on the one day both
+       * matter.
+       */
+      it('leaves the draft time alone', async () => {
+        const jar = await signInAsCommissioner();
+        const auth = {
+          'Content-Type': 'application/json',
+          Cookie: cookieHeader(jar),
+          [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+        };
+
+        await app.request('/api/seasons/2026', {
+          method: 'PUT',
+          headers: auth,
+          body: JSON.stringify({ draftAt: '2026-09-02T00:30:00Z' }),
+        });
+        await app.request('/api/seasons/2026', {
+          method: 'PUT',
+          headers: auth,
+          body: JSON.stringify({ draftMeetingUrl: ROOM }),
+        });
+
+        const body = await (
+          await app.request('/api/public/home', { headers: { Cookie: cookieHeader(jar) } })
+        ).json();
+
+        expect(body.draftAt).toBe('2026-09-02T00:30:00Z');
+        expect(body.draftMeetingUrl).toBe(ROOM);
+      });
+    });
   });
 });
 
@@ -2105,7 +2253,9 @@ describe('challenge results', () => {
    * rewrite one that is already settled.
    */
   describe('recording a winner by hand', () => {
-    async function members(jar: Record<string, string>): Promise<Array<{ leagueMemberId: string }>> {
+    async function members(
+      jar: Record<string, string>,
+    ): Promise<Array<{ leagueMemberId: string }>> {
       const response = await app.request('/api/league/members?seasonYear=2026', {
         headers: { Cookie: cookieHeader(jar) },
       });
@@ -2134,7 +2284,9 @@ describe('challenge results', () => {
       expect(response.status).toBe(201);
 
       const results = await (
-        await app.request('/api/challenges/2026/results/3', { headers: { Cookie: cookieHeader(jar) } })
+        await app.request('/api/challenges/2026/results/3', {
+          headers: { Cookie: cookieHeader(jar) },
+        })
       ).json();
 
       const recorded = results.results.find(
@@ -3439,10 +3591,7 @@ describe('break-glass sign-in', () => {
     // this application can produce, so it must not pass silently.
     const refusal = table
       .all()
-      .find(
-        (item) =>
-          item['entity'] === 'AuditLog' && String(item['summary']).includes('REFUSED'),
-      );
+      .find((item) => item['entity'] === 'AuditLog' && String(item['summary']).includes('REFUSED'));
     expect(refusal).toBeDefined();
   });
 

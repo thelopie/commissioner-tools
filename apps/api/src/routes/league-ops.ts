@@ -60,6 +60,14 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
         .optional(),
       /** Absolute instant the draft starts, which is what the countdown reads. */
       draftAt: z.string().datetime({ offset: false }).optional(),
+      /**
+       * Where the draft is held. Empty string clears it.
+       *
+       * Every other field here treats undefined as "leave alone", which leaves no
+       * way to say "there is no room any more" — and a stale video link on draft
+       * day is worse than none, because people will sit in an empty one.
+       */
+      draftMeetingUrl: z.union([z.string().url().max(500), z.literal('')]).optional(),
       /** Where dues are sent. A link only — nothing here moves money. */
       paymentLink: z.string().url().max(500).optional(),
       paymentNote: z.string().max(300).optional(),
@@ -93,6 +101,10 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
     ...(body.teamCount === undefined ? {} : { teamCount: body.teamCount }),
     ...(body.draftDate === undefined ? {} : { draftDate: body.draftDate }),
     ...(body.draftAt === undefined ? {} : { draftAt: body.draftAt }),
+    // Undefined is dropped before it reaches DynamoDB, so this genuinely removes it.
+    ...(body.draftMeetingUrl === undefined
+      ? {}
+      : { draftMeetingUrl: body.draftMeetingUrl === '' ? undefined : body.draftMeetingUrl }),
     ...(body.paymentLink === undefined ? {} : { paymentLink: body.paymentLink }),
     ...(body.paymentNote === undefined ? {} : { paymentNote: body.paymentNote }),
     ...(existing

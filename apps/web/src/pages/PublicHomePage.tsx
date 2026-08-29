@@ -13,6 +13,7 @@ import {
   Typography,
 } from '@mui/material';
 import SportsFootballIcon from '@mui/icons-material/SportsFootballRounded';
+import VideocamIcon from '@mui/icons-material/VideocamRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import type { PublicHome } from '../api/client.js';
 import { usePublicHome } from '../hooks.js';
@@ -50,6 +51,8 @@ export function PublicHomePage(): JSX.Element {
 
       <DraftHighlights
         draftAt={home.data?.draftAt ?? null}
+        meetingUrl={home.data?.draftMeetingUrl ?? null}
+        hasMeeting={home.data?.hasDraftMeeting ?? false}
         order={order}
         assignments={home.data?.assignments ?? null}
       />
@@ -266,16 +269,22 @@ function LlwsMapping({
  */
 export function DraftHighlights({
   draftAt,
+  meetingUrl,
+  hasMeeting,
   order,
   assignments,
 }: {
   draftAt: string | null;
+  /** The room, when the reader is entitled to it. */
+  meetingUrl: string | null;
+  /** Whether a room exists, which a signed-out reader is told without the link. */
+  hasMeeting: boolean;
   order: Array<{ draftPosition: number; manager: string; llwsTeam: string | null }> | null;
   assignments: PublicHome['assignments'];
 }): JSX.Element {
   return (
     <Stack spacing={4}>
-      <Countdown target={draftAt} />
+      <Countdown target={draftAt} meetingUrl={meetingUrl} hasMeeting={hasMeeting} />
 
       {order ? (
         <DraftOrder order={order} />
@@ -332,7 +341,27 @@ function remainingUntil(targetMs: number, nowMs: number): Remaining {
  * recomputes from the current clock, so a laptop waking from sleep shows the right
  * number immediately instead of catching up.
  */
-function Countdown({ target }: { target: string | null }): JSX.Element | null {
+/**
+ * How long until the draft, and on the day itself, the way into it.
+ *
+ * The card has one job that changes shape three times: counting down, then counting
+ * down next to a door, then just the door. Splitting that across two cards would put
+ * a dead countdown above a live link on the one evening it matters.
+ *
+ * "Draft day" is the reader's own calendar day, not the commissioner's. Someone
+ * opening this in Panama should see the room on the date it is happening where they
+ * are, and the start time below it is already rendered in their timezone for the
+ * same reason.
+ */
+function Countdown({
+  target,
+  meetingUrl,
+  hasMeeting,
+}: {
+  target: string | null;
+  meetingUrl: string | null;
+  hasMeeting: boolean;
+}): JSX.Element | null {
   const targetMs = target === null ? null : Date.parse(target);
   const [now, setNow] = useState(() => Date.now());
 
@@ -352,6 +381,13 @@ function Countdown({ target }: { target: string | null }): JSX.Element | null {
   if (now - targetMs > 24 * 60 * 60 * 1000) return null;
 
   const left = remainingUntil(targetMs, now);
+
+  /*
+    The room opens for the whole of draft day, not at the stroke of the start time.
+    People turn up early, and a button that appears at 5:30 sharp is a button nobody
+    finds at 5:25.
+  */
+  const roomOpen = hasMeeting && (left.passed || isSameLocalDay(now, targetMs));
 
   // Rendered in the reader's own timezone, which is the only one they can act on.
   const when = new Date(targetMs).toLocaleString(undefined, {
@@ -385,9 +421,73 @@ function Countdown({ target }: { target: string | null }): JSX.Element | null {
           <Typography variant="body2" color="text.secondary">
             {when}
           </Typography>
+
+          {roomOpen && <DraftRoom url={meetingUrl} started={left.passed} />}
         </Stack>
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The way into the draft, or the reason you cannot see it yet.
+ *
+ * A signed-out reader is told the room exists and pointed at sign-in rather than
+ * handed the link. The public page is deliberately open — names and pick order are
+ * things the league would read aloud — but a room anybody can walk into is not, and
+ * the address of this site is not a secret worth resting that on.
+ */
+function DraftRoom({ url, started }: { url: string | null; started: boolean }): JSX.Element {
+  if (url === null) {
+    return (
+      <Stack spacing={1} alignItems="center">
+        <Button variant="contained" size="large" href="/signin" startIcon={<VideocamIcon />}>
+          Sign in to join the draft
+        </Button>
+        <Typography variant="caption" color="text.secondary">
+          The draft room is open to league members.
+        </Typography>
+      </Stack>
+    );
+  }
+
+  return (
+    <Stack spacing={1} alignItems="center">
+      <Button
+        variant="contained"
+        size="large"
+        href={url}
+        // A draft room is somewhere you sit for two hours; it should not replace
+        // the board you are picking from.
+        target="_blank"
+        rel="noopener noreferrer"
+        startIcon={<VideocamIcon />}
+      >
+        {started ? 'Join the draft' : 'Open the draft room'}
+      </Button>
+      {!started && (
+        <Typography variant="caption" color="text.secondary">
+          Open now if you want to test your microphone.
+        </Typography>
+      )}
+    </Stack>
+  );
+}
+
+/**
+ * Whether two instants fall on the same calendar day where the reader is.
+ *
+ * Deliberately local rather than UTC: a draft at 5:30pm Pacific is the small hours
+ * of the next UTC day, so a UTC comparison would open the room a day late for
+ * everybody sitting in the timezone it was scheduled for.
+ */
+function isSameLocalDay(a: number, b: number): boolean {
+  const x = new Date(a);
+  const y = new Date(b);
+  return (
+    x.getFullYear() === y.getFullYear() &&
+    x.getMonth() === y.getMonth() &&
+    x.getDate() === y.getDate()
   );
 }
 

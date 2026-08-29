@@ -65,6 +65,17 @@ export const seasonSchema = auditableSchema.extend({
   draftAt: isoTimestampSchema.optional(),
 
   /**
+   * Where the draft is actually held, as a link the commissioner controls.
+   *
+   * Any https URL — Meet this year, whatever the league picks next year. The portal
+   * stores a string and renders an anchor: it creates no meeting, joins none, and
+   * talks to no video service, so changing rooms is a form field rather than a
+   * deploy. Only shown to signed-in members, because a joinable room is not
+   * something the signed-out page should hand to whoever has the address.
+   */
+  draftMeetingUrl: z.string().url().max(500).optional(),
+
+  /**
    * Final finish order for the season, best first, as league member IDs.
    *
    * portal-owned on purpose: the draft-order workflow breaks LLWS ties by prior

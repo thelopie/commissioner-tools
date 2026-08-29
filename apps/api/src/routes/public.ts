@@ -21,6 +21,13 @@ import type { AppEnv } from '../context.js';
  *   member IDs, no Yahoo identifiers. What ships is what would be read aloud.
  * - **Nothing from Yahoo.** Every value here is portal-owned, so this endpoint keeps
  *   working when the Yahoo connection lapses and it retains nothing it should not.
+ *
+ * One field is not the same for everybody. The draft meeting link is a room anybody
+ * holding it can walk into, which is a different kind of value from a list of names
+ * — so it is sent only to a reader with a session, and everyone else is told a room
+ * exists and invited to sign in. The signed-out response is otherwise identical, and
+ * every API response is `Cache-Control: no-store`, so no shared cache can hand one
+ * reader's copy to another.
  */
 export const publicRoutes = new Hono<AppEnv>();
 
@@ -37,27 +44,23 @@ publicRoutes.get('/api/public/home', async (c) => {
   // Before bootstrap there is no league at all. Not an error: the page renders a
   // holding state rather than a stack trace.
   if (!leagueId) {
-    return c.json({ leagueName: null, seasonYear: null, draftAt: null, order: null });
+    return c.json({ ...EMPTY_HOME, leagueName: null });
   }
 
   const league = await ctx.repositories.leagues.find(leagueId);
   if (!league) {
-    return c.json({ leagueName: null, seasonYear: null, draftAt: null, order: null });
+    return c.json({ ...EMPTY_HOME, leagueName: null });
   }
 
   const seasonYear = league.currentSeasonYear ?? latestSeasonYear(await seasons(ctx, leagueId));
 
   if (seasonYear === null) {
-    return c.json({
-      leagueName: league.name,
-      seasonYear: null,
-      draftAt: null,
-      order: null,
-    });
+    return c.json({ ...EMPTY_HOME, leagueName: league.name });
   }
 
   const season = await ctx.repositories.leagues.findSeason(leagueId, seasonYear);
   const draftAt = season?.draftAt ?? null;
+  const meetingUrl = season?.draftMeetingUrl ?? null;
 
   const [assignments, order] = await Promise.all([
     publishedAssignments(ctx, leagueId, seasonYear),
@@ -68,10 +71,34 @@ publicRoutes.get('/api/public/home', async (c) => {
     leagueName: league.name,
     seasonYear,
     draftAt,
+    /*
+      The room itself, for members only. A signed-out reader gets the flag below
+      instead, which is enough to render "the draft room is open, sign in to join"
+      without handing the room to anyone who has the address.
+    */
+    draftMeetingUrl: ctx.principal ? meetingUrl : null,
+    hasDraftMeeting: meetingUrl !== null,
     assignments,
     order,
   });
 });
+
+/**
+ * The shape returned before there is a league, or a season, to describe.
+ *
+ * Named because three early returns share it and one of them had already drifted:
+ * a field added to the bottom of the handler is a field those returns silently omit,
+ * and the client then reads undefined where it was promised null.
+ */
+const EMPTY_HOME = {
+  leagueName: null as string | null,
+  seasonYear: null,
+  draftAt: null,
+  draftMeetingUrl: null,
+  hasDraftMeeting: false,
+  assignments: null,
+  order: null,
+} as const;
 
 /**
  * Who drew which Little League team, by owner.
@@ -141,7 +168,10 @@ async function publishedAssignments(
       };
     })
     // Best position first once the tournament is under way; it is the running order.
-    .sort((a, b) => (a.standing?.best ?? 0) - (b.standing?.best ?? 0) || a.manager.localeCompare(b.manager));
+    .sort(
+      (a, b) =>
+        (a.standing?.best ?? 0) - (b.standing?.best ?? 0) || a.manager.localeCompare(b.manager),
+    );
 
   /*
     The seed is published deliberately. It is what turns "the commissioner says it
@@ -189,7 +219,11 @@ async function memberNamer(
 }
 
 async function seasons(
-  ctx: { repositories: { leagues: { listSeasons: (id: InternalId) => Promise<Array<{ seasonYear: number }>> } } },
+  ctx: {
+    repositories: {
+      leagues: { listSeasons: (id: InternalId) => Promise<Array<{ seasonYear: number }>> };
+    };
+  },
   leagueId: InternalId,
 ): Promise<Array<{ seasonYear: number }>> {
   return ctx.repositories.leagues.listSeasons(leagueId);
@@ -237,7 +271,10 @@ async function publishedOrder(
   const teams = await ctx.repositories.llws.listTeams(leagueId, seasonYear);
   const teamById = new Map(teams.map((team) => [team.llwsTeamId, team]));
   const teamByMember = new Map(
-    assignments.map((assignment) => [assignment.leagueMemberId, teamById.get(assignment.llwsTeamId)]),
+    assignments.map((assignment) => [
+      assignment.leagueMemberId,
+      teamById.get(assignment.llwsTeamId),
+    ]),
   );
 
   const nameOf = await memberNamer(ctx, leagueId, seasonYear);

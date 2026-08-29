@@ -157,6 +157,15 @@ export interface PublicHome {
   seasonYear: number | null;
   /** UTC instant the draft starts, or null if the commissioner has not set one. */
   draftAt: string | null;
+  /**
+   * The draft room, sent only to a reader with a session.
+   *
+   * Null for a signed-out reader even when one exists — check `hasDraftMeeting`
+   * for that, which is what lets the public page offer a sign-in instead.
+   */
+  draftMeetingUrl: string | null;
+  /** Whether a room exists at all. True for everybody, link or no link. */
+  hasDraftMeeting: boolean;
   /** Null until the commissioner publishes the draw. Available weeks before `order`. */
   assignments: {
     entries: Array<{
@@ -704,6 +713,8 @@ export interface SeasonSummary {
   paymentLink?: string;
   paymentNote?: string;
   draftAt?: string;
+  /** Where the draft is held. Any https URL; the portal only ever links to it. */
+  draftMeetingUrl?: string;
 }
 
 export interface DuesResponse {
