@@ -1260,6 +1260,37 @@ describe('the season ledger', () => {
     expect(season.sacko).toBe(members[members.length - 1]!.displayName);
   });
 
+  it('names people when the finish order points at another season’s member rows', async () => {
+    /*
+      Production's actual shape, and the case the first version of this got wrong.
+
+      A league recording last season's result for the draft tiebreaker references the
+      members it has now, so the 2025 order points at rows filed under 2026. Looking
+      only in 2025 found nothing and put "(former member)" against every champion,
+      runner-up and Sacko.
+    */
+    const { jar, auth, members } = await seeded();
+
+    await app.request('/api/seasons/2025', {
+      method: 'PUT',
+      headers: auth,
+      body: JSON.stringify({
+        status: 'complete',
+        finalFinishOrder: members.map((member) => member.leagueMemberId),
+      }),
+    });
+
+    const ledger = await (
+      await app.request('/api/league/ledger/2026', { headers: { Cookie: cookieHeader(jar) } })
+    ).json();
+
+    const season = ledger.history.find((entry: { seasonYear: number }) => entry.seasonYear === 2025);
+
+    expect(season.champion).toBe(members[0]!.displayName);
+    expect(season.sacko).toBe(members[members.length - 1]!.displayName);
+    expect(JSON.stringify(season)).not.toContain('former member');
+  });
+
   it('leaves a season with no recorded finish out of the record books', async () => {
     // An unfinished season has no champion, and inventing one from a partial order
     // would put somebody's name against a title they have not won.

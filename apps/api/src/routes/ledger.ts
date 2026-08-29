@@ -120,27 +120,44 @@ ledgerRoutes.get('/api/league/ledger/:seasonYear', async (c) => {
     season-scoped, so each year's names are resolved against that year's roster —
     somebody who left in 2021 still has a name on their 2019 title.
   */
-  const history = await Promise.all(
-    seasons
-      .filter((season) => season.finalFinishOrder.length > 0)
-      .sort((a, b) => b.seasonYear - a.seasonYear)
-      .map(async (season) => {
-        const roster = await ctx.repositories.leagues.listMembers(
-          leagueId,
-          season.seasonYear as SeasonYear,
-        );
-        const order = season.finalFinishOrder;
+  const finished = seasons
+    .filter((season) => season.finalFinishOrder.length > 0)
+    .sort((a, b) => b.seasonYear - a.seasonYear);
 
-        return {
-          seasonYear: season.seasonYear,
-          champion: nameOf(order[0]!, roster),
-          runnerUp: order.length > 1 ? nameOf(order[1]!, roster) : null,
-          // Last place. The league calls it the Sacko.
-          sacko: order.length > 2 ? nameOf(order[order.length - 1]!, roster) : null,
-          teamCount: order.length,
-        };
-      }),
+  /*
+    Every roster the league has, not just the one matching the season.
+
+    A finish order holds member ids, and a member row is season-scoped — but the two
+    do not have to agree about which season. A league recording last year's result
+    for the draft tiebreaker naturally references the members it has now, which is
+    exactly what happened here: the 2025 order points at rows filed under 2026.
+    Looking only in 2025 found nothing and put "(former member)" against every
+    champion, runner-up and Sacko in the record books.
+
+    So: prefer the season's own roster, where one exists, and fall back to anyone the
+    league has ever had.
+  */
+  const rosters = await Promise.all(
+    finished.map((season) =>
+      ctx.repositories.leagues.listMembers(leagueId, season.seasonYear as SeasonYear),
+    ),
   );
+
+  const everyone = [...members, ...rosters.flat()];
+
+  const history = finished.map((season, index) => {
+    const roster = [...(rosters[index] ?? []), ...everyone];
+    const order = season.finalFinishOrder;
+
+    return {
+      seasonYear: season.seasonYear,
+      champion: nameOf(order[0]!, roster),
+      runnerUp: order.length > 1 ? nameOf(order[1]!, roster) : null,
+      // Last place. The league calls it the Sacko.
+      sacko: order.length > 2 ? nameOf(order[order.length - 1]!, roster) : null,
+      teamCount: order.length,
+    };
+  });
 
   const totalPotCents = dues.reduce((total, record) => total + record.amountOwed.amountCents, 0);
 
