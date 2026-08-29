@@ -1,6 +1,7 @@
 export * from './env.js';
 export * from './ids.js';
 export * from './keys.js';
+export * from './manager-name.js';
 export * from './persistence-firewall.js';
 
 export * from './entities/common.js';

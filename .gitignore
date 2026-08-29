@@ -53,3 +53,7 @@ Thumbs.db
 scratch/
 local-data/
 *.private.csv
+
+# The real prod deploy script: same as deploy-prod.example.sh but with this
+# deployment's domain, zone and certificate in it. Account-specific, so it stays local.
+infrastructure/deploy-prod.sh

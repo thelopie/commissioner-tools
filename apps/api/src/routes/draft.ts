@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  managerName,
   AppError,
   generateId,
   seasonYearSchema,
@@ -16,7 +17,6 @@ import {
   nextTurn,
   verifyDraw,
   type SelectionState,
-
   eliminationRankForGroup,
 } from '@lopie/draft-order';
 import { z } from 'zod';
@@ -270,11 +270,7 @@ draftRoutes.get('/api/llws/:seasonYear/assignments', async (c) => {
   const nameOf = (memberId: string): string => {
     const member = members.find((candidate) => candidate.leagueMemberId === memberId);
     if (!member) return '(former member)';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      '(unnamed manager)'
-    );
+    return managerName(member, (userId) => userById.get(userId)?.displayName);
   };
 
   /** The member this viewer is, so the UI can lead with their own team. */
@@ -690,11 +686,7 @@ draftRoutes.get('/api/draft/:seasonYear/status', async (c) => {
   const nameOf = (memberId: string): string => {
     const member = members.find((candidate) => candidate.leagueMemberId === memberId);
     if (!member) return '(unknown manager)';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      '(unnamed manager)'
-    );
+    return managerName(member, (userId) => userById.get(userId)?.displayName);
   };
 
   return c.json({

@@ -1,4 +1,5 @@
 import {
+  managerName,
   generateId,
   SYSTEM_ACTOR_ID,
   type LeagueRecap,
@@ -206,11 +207,7 @@ async function collectFacts(
   const nameOf = (memberId: InternalId): string => {
     const member = members.find((candidate) => candidate.leagueMemberId === memberId);
     if (!member) return '(former member)';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      '(unnamed manager)'
-    );
+    return managerName(member, (userId) => userById.get(userId)?.displayName);
   };
 
   for (const result of results) {

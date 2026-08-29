@@ -1,12 +1,12 @@
 import { Hono } from 'hono';
 import {
+  managerName,
   AppError,
   generateId,
   seasonYearSchema,
   weekNumberSchema,
   type InternalId,
   type WeeklyChallengeDefinition,
-
   type WeeklyChallengeResult,
 } from '@lopie/shared';
 import {
@@ -225,11 +225,7 @@ challengeRoutes.get('/api/challenges/:seasonYear/results/:week', async (c) => {
   const nameOf = (memberId: string): string => {
     const member = members.find((candidate) => candidate.leagueMemberId === memberId);
     if (!member) return '(former member)';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      '(unnamed manager)'
-    );
+    return managerName(member, (userId) => userById.get(userId)?.displayName);
   };
 
   return c.json({

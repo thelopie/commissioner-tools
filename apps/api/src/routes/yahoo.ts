@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  managerName,
   AppError,
   generateId,
   seasonYearSchema,
@@ -315,7 +316,8 @@ yahooRoutes.get('/api/league/overview', async (c) => {
   const seasonYear =
     league.currentSeasonYear ??
     (await ctx.repositories.leagues.listSeasons(leagueId)).reduce<number | null>(
-      (latest, season) => (latest === null || season.seasonYear > latest ? season.seasonYear : latest),
+      (latest, season) =>
+        latest === null || season.seasonYear > latest ? season.seasonYear : latest,
       null,
     );
 
@@ -468,12 +470,9 @@ yahooRoutes.get('/api/league/members', async (c) => {
       leagueMemberId: member.leagueMemberId,
       seasonYear: member.seasonYear,
       userId: member.userId,
-      // The portal's own name: the portal user's confirmed display name, or the
-      // legacy name from the CSV import. Never a Yahoo nickname.
-      displayName:
-        (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-        member.legacyManagerName ??
-        '(unnamed manager)',
+      // The portal's own name, never a Yahoo nickname. The commissioner's name
+      // for someone outranks the one they set themselves; see `managerName`.
+      displayName: managerName(member, (userId) => userById.get(userId)?.displayName),
       yahooTeamKey: member.yahooTeamKey ?? null,
       isActive: member.isActive,
     })),

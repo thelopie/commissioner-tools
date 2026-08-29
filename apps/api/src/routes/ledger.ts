@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { isSettled, seasonYearSchema, type SeasonYear } from '@lopie/shared';
+import { managerName, isSettled, seasonYearSchema, type SeasonYear } from '@lopie/shared';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
 import { requireAuthenticated } from '../lib/authorization.js';
@@ -59,11 +59,7 @@ ledgerRoutes.get('/api/league/ledger/:seasonYear', async (c) => {
   const nameOf = (memberId: string, pool = members): string => {
     const member = pool.find((candidate) => candidate.leagueMemberId === memberId);
     if (!member) return '(former member)';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      '(unnamed manager)'
-    );
+    return managerName(member, (userId) => userById.get(userId)?.displayName);
   };
 
   /*

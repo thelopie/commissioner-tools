@@ -294,6 +294,15 @@ npx cdk deploy -c environment=dev -c alertEmail=you@example.com
 
 Optional custom domain (all three are required together):
 
+> **Every later deploy of that stack needs the same three values.** They are read
+> from context, not from the deployed stack, so a redeploy without them synthesizes
+> a stack that has no domain — and CloudFormation then does exactly what it is told:
+> drops the CloudFront alias, deletes the Route 53 record, and resets
+> `APP_BASE_URL` to the placeholder. The site goes dark at its real address and
+> OAuth starts pointing at the CloudFront hostname. Deploying with only
+> `-c environment=prod` is the whole failure. Put the full command in a script
+> rather than trusting anyone to remember it.
+
 ```bash
 npx cdk deploy -c environment=prod \
   -c domainName=portal.example.com \

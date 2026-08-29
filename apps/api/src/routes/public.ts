@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { seasonYearSchema, type InternalId, type SeasonYear } from '@lopie/shared';
+import { managerName, seasonYearSchema, type InternalId, type SeasonYear } from '@lopie/shared';
 import { currentStandings, finalDraftOrder, type SelectionState } from '@lopie/draft-order';
 import type { AppEnv } from '../context.js';
 
@@ -214,11 +214,7 @@ async function memberNamer(
   return (memberId: string): string => {
     const member = members.find((candidate) => candidate.leagueMemberId === memberId);
     if (!member) return 'Unknown manager';
-    return (
-      (member.userId ? userById.get(member.userId)?.displayName : undefined) ??
-      member.legacyManagerName ??
-      'Unnamed manager'
-    );
+    return managerName(member, (userId) => userById.get(userId)?.displayName);
   };
 }
 
