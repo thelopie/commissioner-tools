@@ -52,13 +52,26 @@ async function viewerTeamKey(
   return mine?.yahooTeamKey ?? null;
 }
 
+/**
+ * Whether a team belongs to the person looking at it.
+ *
+ * Answered only from the portal's own mapping. There used to be a fallback here:
+ * when the viewer had no mapped team, it asked Yahoo's `is_current_login` instead —
+ * but every read on these routes goes through the commissioner's connection, so
+ * that flag marks the COMMISSIONER's team no matter who is asking. Ten of twelve
+ * managers were unmapped, and each of them would have been shown the
+ * commissioner's roster, standings row and matchup as their own.
+ *
+ * Sign-in now matches people to their team (see `claimTeam`), so the fallback has
+ * nothing left to do. Where a viewer still cannot be matched, no team is theirs —
+ * the pages say so, which is better than confidently naming the wrong one.
+ */
 function isOwnedByViewer(
-  managers: readonly YahooManager[],
+  _managers: readonly YahooManager[],
   teamKey: string,
   viewerTeam: string | null,
 ): boolean {
-  if (viewerTeam !== null) return teamKey === viewerTeam;
-  return managers.some((manager) => manager.isCurrentLogin === true);
+  return viewerTeam !== null && teamKey === viewerTeam;
 }
 
 leagueViewRoutes.get('/api/league/standings', async (c) => {
@@ -196,7 +209,9 @@ leagueViewRoutes.get('/api/league/transactions', async (c) => {
   const teams = await ctx.yahoo.getLeagueTeams(link.connectionUserId, link.yahooLeagueKey);
   const nameByKey = new Map(teams.map((team) => [team.teamKey, team.name]));
   const yourKeys = new Set(
-    teams.filter((team) => isOwnedByViewer(team.managers, team.teamKey, mine)).map((team) => team.teamKey),
+    teams
+      .filter((team) => isOwnedByViewer(team.managers, team.teamKey, mine))
+      .map((team) => team.teamKey),
   );
 
   return c.json({
@@ -345,8 +360,12 @@ leagueViewRoutes.get('/api/league/me', async (c) => {
     matchup.teams.some((team) => isOwnedByViewer(team.managers, team.teamKey, mine)),
   );
 
-  const myTeam = myMatchup?.teams.find((team) => isOwnedByViewer(team.managers, team.teamKey, mine));
-  const opponent = myMatchup?.teams.find((team) => !isOwnedByViewer(team.managers, team.teamKey, mine));
+  const myTeam = myMatchup?.teams.find((team) =>
+    isOwnedByViewer(team.managers, team.teamKey, mine),
+  );
+  const opponent = myMatchup?.teams.find(
+    (team) => !isOwnedByViewer(team.managers, team.teamKey, mine),
+  );
 
   return c.json({
     linked: true,

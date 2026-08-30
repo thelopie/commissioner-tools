@@ -9,6 +9,7 @@ import {
   parseTransactions,
   parseUserLeagues,
   parseUserProfile,
+  parseUserTeams,
   type YahooLeagueMetadata,
   type YahooLeagueSummary,
   type YahooMatchup,
@@ -168,6 +169,19 @@ export class YahooClient {
   async getUserFootballLeagues(): Promise<YahooLeagueSummary[]> {
     const body = await this.get('users;use_login=1/games;game_codes=nfl/leagues');
     return parseUserLeagues(body);
+  }
+
+  /**
+   * The teams the signed-in user manages, read with their OWN token.
+   *
+   * The one call that can answer "which of these twelve teams is yours". Used once
+   * per person, at sign-in, to attach them to their league member row — after
+   * which the portal never needs to ask Yahoo who somebody is again.
+   */
+  async getUserFootballTeams(): Promise<
+    Array<{ teamKey: YahooTeamKey; leagueKey: YahooLeagueKey | undefined }>
+  > {
+    return parseUserTeams(await this.get('users;use_login=1/games;game_codes=nfl/teams'));
   }
 
   async getLeagueMetadata(leagueKey: YahooLeagueKey): Promise<YahooLeagueMetadata> {

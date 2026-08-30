@@ -36,6 +36,8 @@ import {
   generateInviteToken,
 } from '../lib/crypto.js';
 import { created, now } from '../repositories.js';
+import { describeError } from '../lib/logger.js';
+import { currentLink } from './yahoo.js';
 
 /**
  * Authentication, the Yahoo OAuth flow, and role management.
@@ -210,6 +212,14 @@ authRoutes.get('/auth/yahoo/callback', async (c) => {
     });
 
     const { userId, isNewUser, prefillDisplayName } = await establishIdentity(ctx, tokens);
+
+    /*
+      Attach this person to the team they actually manage.
+
+      Runs here because it needs the access token that is about to go out of scope,
+      and before the session so the very first page load already knows who they are.
+    */
+    await claimTeam(ctx, userId as InternalId, tokens.accessToken);
 
     const sessionId = generateSessionId();
     const csrfToken = generateCsrfToken();
@@ -620,6 +630,102 @@ authRoutes.get('/api/audit', async (c) => {
  * The Yahoo nickname is read once here to prefill a display name and is not
  * otherwise retained; the GUID is what persists.
  */
+/**
+ * Attaches a freshly signed-in user to their own league member row.
+ *
+ * The league already knows which team belongs to which manager — every member row
+ * carries a `yahooTeamKey`. What it cannot know is which of those managers just
+ * signed in: all a sign-in yields is a Yahoo GUID, and no member row records one.
+ *
+ * Only one Yahoo call can close that gap, and it has to be made with the viewer's
+ * own token. Every other read the portal makes goes through the commissioner's
+ * connection, where `is_current_login` marks the commissioner's team regardless of
+ * who is looking and other managers' GUIDs come back redacted as `--hidden--`. The
+ * token is in hand exactly once, here.
+ *
+ * Without this, a signed-in manager with no member row falls through to that
+ * `is_current_login` flag and is shown the COMMISSIONER's team as their own, across
+ * standings, matchups and rosters.
+ *
+ * Failure is never fatal. Someone who cannot be matched sees "no team identified",
+ * which is honest and fixable by hand; someone who cannot sign in at all is not.
+ */
+async function claimTeam(
+  ctx: RequestContext,
+  userId: InternalId,
+  accessToken: string,
+): Promise<void> {
+  try {
+    const leagueId = ctx.leagueId;
+    if (!leagueId) return;
+
+    const link = await currentLink(ctx as never);
+    if (!link) return;
+
+    const members = await ctx.repositories.leagues.listMembers(leagueId, link.seasonYear as never);
+
+    // Already attached, by an earlier sign-in or by the commissioner.
+    if (members.some((member) => member.userId === userId)) return;
+
+    const { YahooClient } = await import('@lopie/yahoo-client');
+    const client = new YahooClient({
+      fetchImpl: ctx.yahooFetch,
+      baseUrl: ctx.config.yahooApiBaseUrl,
+      getAccessToken: async () => accessToken,
+    });
+
+    const teams = await client.getUserFootballTeams();
+
+    /*
+      Matched on the team key, never on position in the list. Plenty of people play
+      in more than one league and Yahoo returns every football team the account
+      manages, so taking the first would attach someone to a stranger's league.
+    */
+    const mine = members.find((member) =>
+      teams.some((team) => team.teamKey === member.yahooTeamKey),
+    );
+
+    if (!mine) {
+      ctx.logger.info('no league member matched this account', { userId });
+      return;
+    }
+
+    if (mine.userId && mine.userId !== userId) {
+      /*
+        Two accounts claiming one team is a real conflict rather than something to
+        silently overwrite — a shared Yahoo login, or a team that changed hands. The
+        commissioner decides who that row belongs to.
+      */
+      ctx.logger.warn('league member already claimed by another user', {
+        userId,
+        leagueMemberId: mine.leagueMemberId,
+      });
+      return;
+    }
+
+    await ctx.repositories.leagues.saveMember(
+      { ...mine, userId, updatedAt: now(), updatedBy: userId, version: mine.version + 1 },
+      mine.version,
+    );
+
+    await ctx.repositories.audit.record({
+      leagueId,
+      action: 'yahoo.team_claimed',
+      actorUserId: userId,
+      actorRole: 'manager',
+      summary: 'Matched a signing-in manager to their own Yahoo team.',
+      correlationId: ctx.correlationId,
+      targetEntity: 'LeagueMember',
+      targetId: mine.leagueMemberId,
+    });
+
+    ctx.logger.info('claimed league member', { userId, leagueMemberId: mine.leagueMemberId });
+  } catch (error) {
+    // Never the reason a sign-in fails.
+    ctx.logger.warn('could not claim a team for this account', describeError(error));
+  }
+}
+
 async function establishIdentity(
   ctx: RequestContext,
   tokens: {

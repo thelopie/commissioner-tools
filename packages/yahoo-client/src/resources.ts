@@ -239,6 +239,54 @@ export function parseUserLeagues(body: unknown): YahooLeagueSummary[] {
   return summaries;
 }
 
+/**
+ * Parses the signed-in user's own teams from
+ * `/users;use_login=1/games;game_codes=nfl/teams`.
+ *
+ * This is the only Yahoo call that answers "which team is *yours*" for the person
+ * holding the token. Everything else the portal reads goes through the
+ * commissioner's connection, where `is_current_login` marks the commissioner's
+ * team no matter who is looking — so a viewer's own team cannot be discovered
+ * from those responses at all.
+ *
+ * Returns every football team the account manages, across leagues; the caller
+ * picks the one in the league it cares about. Ephemeral like everything else
+ * here: the team KEY is the only part worth keeping.
+ */
+export function parseUserTeams(
+  body: unknown,
+): Array<{ teamKey: YahooTeamKey; leagueKey: YahooLeagueKey | undefined }> {
+  const content = fantasyContent(body);
+  const games = descend(content, ['users', 'user', 'games', 'game']);
+
+  const teams: Array<{ teamKey: YahooTeamKey; leagueKey: YahooLeagueKey | undefined }> = [];
+
+  for (const game of games) {
+    for (const node of collect(game['teams'])) {
+      const team = mergeParts(pick(node, 'team') ?? node);
+      if (Object.keys(team).length === 0) continue;
+
+      const teamKey = optionalString(team, 'team_key');
+      if (!teamKey) continue;
+
+      /*
+        Yahoo does not put a league key on the team node. The team key is
+        `{league_key}.t.{team_id}`, and while that is a convention rather than a
+        documented guarantee, there is nothing else to go on here — so it is
+        derived defensively and the caller is free to ignore it and match on the
+        team key alone.
+      */
+      const separator = teamKey.lastIndexOf('.t.');
+      const leagueKey =
+        separator === -1 ? undefined : (teamKey.slice(0, separator) as YahooLeagueKey);
+
+      teams.push({ teamKey: teamKey as YahooTeamKey, leagueKey });
+    }
+  }
+
+  return teams;
+}
+
 /** Parses `/league/{league_key}/settings` (or a bare league resource). */
 export function parseLeagueMetadata(body: unknown): YahooLeagueMetadata {
   const content = fantasyContent(body);

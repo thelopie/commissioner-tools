@@ -80,6 +80,10 @@ export function handleFantasyRequest(path: string): MockResponse {
     return { status: 200, body: fixtures.mockUserLeaguesResponse() };
   }
 
+  if (clean === 'users;use_login=1/games;game_codes=nfl/teams') {
+    return { status: 200, body: fixtures.mockUserTeamsResponse() };
+  }
+
   const leagueSettings = /^league\/([^/]+)\/settings$/.exec(clean);
   if (leagueSettings) {
     return leagueScopedResponse(leagueSettings[1]!, fixtures.mockLeagueSettingsResponse());

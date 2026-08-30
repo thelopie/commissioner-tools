@@ -106,6 +106,42 @@ export function mockUserProfileResponse(): unknown {
   };
 }
 
+/**
+ * `/users;use_login=1/games;game_codes=nfl/teams` — the signed-in account's own teams.
+ *
+ * Deliberately returns a team in a SECOND league as well as the mock league, so a
+ * caller that simply takes the first team it is handed fails here rather than in
+ * production against somebody who plays in more than one league.
+ */
+export function mockUserTeamsResponse(teamId = 1): unknown {
+  return {
+    fantasy_content: {
+      users: countedCollection([
+        {
+          user: [
+            { guid: MOCK_USER_GUID },
+            {
+              games: countedCollection([
+                {
+                  game: [
+                    { game_key: MOCK_GAME_KEY, code: 'nfl', season: String(MOCK_SEASON) },
+                    {
+                      teams: countedCollection([
+                        { team: [{ team_key: '999.l.100002.t.4', name: 'Other League Team' }] },
+                        { team: [{ team_key: teamKey(teamId), name: 'Mock Team' }] },
+                      ]),
+                    },
+                  ],
+                },
+              ]),
+            },
+          ],
+        },
+      ]),
+    },
+  };
+}
+
 export function mockUserLeaguesResponse(): unknown {
   return {
     fantasy_content: {

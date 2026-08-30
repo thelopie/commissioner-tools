@@ -32,6 +32,8 @@ export const auditActionSchema = z.enum([
   'yahoo.connection_failed',
   'yahoo.league_linked',
   'yahoo.league_unlinked',
+  /* A signing-in manager matched to their own team, by asking Yahoo with their token. */
+  'yahoo.team_claimed',
 
   // League configuration
   'season.created',

@@ -3839,23 +3839,48 @@ describe('error responses', () => {
 });
 
 describe('manager-facing league views', () => {
-  /** Signs in, bootstraps, and links the mock league. */
+  /**
+   * Signs in, bootstraps, links the mock league, and puts a member on team 1.
+   *
+   * Ordered the way a real league is: the roster is mapped to Yahoo teams before
+   * anybody signs in. That matters because attaching a person to their team happens
+   * during sign-in — so the final step here is a SECOND sign-in, which is the one
+   * that finds the mapping and claims it.
+   */
   async function linkedCommissioner(): Promise<Record<string, string>> {
     const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
     await app.request('/api/yahoo/league-link', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Cookie: cookieHeader(jar),
-        [CSRF_HEADER]: jar[CSRF_COOKIE]!,
-      },
+      headers: auth,
       body: JSON.stringify({
         yahooLeagueKey: '999.l.100001',
         yahooGameKey: '999',
         seasonYear: 2026,
       }),
     });
-    return jar;
+
+    /*
+      A roster row for team 1 with NO portal user on it. Team 1 is the team the mock
+      account manages, so this is the row sign-in has to find on its own.
+    */
+    await app.request('/api/league/members', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        seasonYear: 2026,
+        yahooTeamKey: '999.l.100001.t.1',
+        legacyManagerName: 'Team One Manager',
+      }),
+    });
+
+    // Same Yahoo account, so the same portal user — now with a roster to match against.
+    return signIn();
   }
 
   it('serves standings with records and points', async () => {
@@ -3874,9 +3899,17 @@ describe('manager-facing league views', () => {
     expect(body.standings[0].pointsFor).toBeTypeOf('number');
   });
 
-  it('marks the signed-in user’s own row without any manual mapping', async () => {
-    // Yahoo's is_current_login is what makes this work, so a member sees "you"
-    // before a commissioner has mapped any teams.
+  it('marks the signed-in user’s own row without the commissioner linking them', async () => {
+    /*
+      The commissioner maps a roster to Yahoo teams; they never map a PERSON to a row,
+      because a portal user does not exist until that person signs in. Sign-in closes
+      the gap itself by asking Yahoo, with the user's own token, which team is theirs.
+
+      This used to lean on Yahoo's `is_current_login` instead, which was wrong in a way
+      no test caught: every read here goes through the commissioner's connection, so
+      that flag marks the COMMISSIONER's team whoever is looking. With ten of twelve
+      managers unmapped, all ten would have been shown the commissioner's row as their own.
+    */
     const jar = await linkedCommissioner();
 
     const response = await app.request('/api/league/standings', {
@@ -3885,6 +3918,64 @@ describe('manager-facing league views', () => {
     const body = await response.json();
 
     expect(body.standings.filter((row: { isYou: boolean }) => row.isYou)).toHaveLength(1);
+  });
+
+  it('never guesses a team for a viewer it cannot match', async () => {
+    /*
+      The regression this whole change exists for.
+
+      Every Yahoo read on these routes goes through the COMMISSIONER's connection, so
+      `is_current_login` marks the commissioner's team no matter who is asking. The
+      old code fell back to that flag whenever a viewer had no mapped team — which in
+      production was ten of twelve managers, each of whom would have opened the app
+      and been shown the commissioner's row, roster and matchup as their own.
+
+      Here the roster row points at team 5 while the signed-in account manages team 1,
+      so nothing matches. Team 1 is the one carrying `is_current_login` in the mock,
+      which is exactly the row the old fallback would have lit up. Nothing may be
+      flagged: no team is honest, the wrong team is not.
+    */
+    const jar = await signInAsCommissioner();
+    const auth = {
+      'Content-Type': 'application/json',
+      Cookie: cookieHeader(jar),
+      [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+    };
+
+    await app.request('/api/yahoo/league-link', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        yahooLeagueKey: '999.l.100001',
+        yahooGameKey: '999',
+        seasonYear: 2026,
+      }),
+    });
+
+    await app.request('/api/league/members', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        seasonYear: 2026,
+        yahooTeamKey: '999.l.100001.t.5',
+        legacyManagerName: 'Somebody Else',
+      }),
+    });
+
+    const fresh = await signIn();
+
+    const standings = await (
+      await app.request('/api/league/standings', { headers: { Cookie: cookieHeader(fresh) } })
+    ).json();
+    expect(standings.standings.filter((row: { isYou: boolean }) => row.isYou)).toHaveLength(0);
+
+    const matchups = await (
+      await app.request('/api/league/matchups/3', { headers: { Cookie: cookieHeader(fresh) } })
+    ).json();
+    const flagged = matchups.matchups.flatMap((m: { teams: Array<{ isYou: boolean }> }) =>
+      m.teams.filter((team) => team.isYou),
+    );
+    expect(flagged).toHaveLength(0);
   });
 
   it('serves a week of matchups with scores and a margin', async () => {
