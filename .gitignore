@@ -57,3 +57,6 @@ local-data/
 # The real prod deploy script: same as deploy-prod.example.sh but with this
 # deployment's domain, zone and certificate in it. Account-specific, so it stays local.
 infrastructure/deploy-prod.sh
+
+# Isolation worktrees created by agent runs are never part of the repo.
+.claude/worktrees/
