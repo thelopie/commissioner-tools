@@ -45,14 +45,19 @@ export async function notifyTurnOpened(
       '',
       `Pick here: ${url}`,
       '',
-      mine ? `You're number ${mine.selectionOrder} in the order of choosing.` : '',
+      mine ? `You're number ${mine.selectionOrder} in the order of choosing.` : null,
       taken.length > 0 ? `Slots already taken: ${taken.join(', ')}.` : 'No slots taken yet.',
       '',
       `Your pick locks as soon as you make it, so choose the slot you actually want.`,
       '',
       '— La Liga de Lopie',
     ]
-      .filter((line) => line !== '')
+      /*
+        Drops only the line that had nothing to say, never the deliberate blank
+        ones — filtering on the empty string took the paragraph breaks with it and
+        the first of these went out as a wall of text.
+      */
+      .filter((line): line is string => line !== null)
       .join('\n');
 
     return await ctx.mailer.send({
