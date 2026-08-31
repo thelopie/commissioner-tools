@@ -56,20 +56,29 @@ export const serverEnvSchema = z
      */
     BREAK_GLASS_TOKEN: z.string().min(24).optional(),
 
-  /**
-   * OAuth scopes to request, space separated.
-   *
-   * Configurable because getting this right took three Yahoo applications and
-   * several rounds of trial and error, and Yahoo validates most of the request only
-   * after the user has logged in — so the only way to test a combination is to try
-   * it against a real sign-in. Baking it into the code meant a full build and deploy
-   * per attempt; here it is a secret edit and a cold start.
-   *
-   * Default: identity plus read-only Fantasy. Never fspt-w — Yahoo documents no
-   * write endpoint and the portal calls none.
-   */
-  YAHOO_SCOPE: z.string().min(1).max(200).default('openid profile email fspt-r'),
+    /**
+     * OAuth scopes to request, space separated.
+     *
+     * Configurable because getting this right took three Yahoo applications and
+     * several rounds of trial and error, and Yahoo validates most of the request only
+     * after the user has logged in — so the only way to test a combination is to try
+     * it against a real sign-in. Baking it into the code meant a full build and deploy
+     * per attempt; here it is a secret edit and a cold start.
+     *
+     * Default: identity plus read-only Fantasy. Never fspt-w — Yahoo documents no
+     * write endpoint and the portal calls none.
+     */
+    YAHOO_SCOPE: z.string().min(1).max(200).default('openid profile email fspt-r'),
     YAHOO_MOCK_BASE_URL: z.string().url().default('http://127.0.0.1:4310'),
+
+    /**
+     * Outbound email. Optional: without them the portal simply sends nothing and
+     * says so in the log, which is the state it ran in for weeks.
+     */
+    SENDGRID_API_KEY: z.string().min(1).max(200).optional(),
+    /** Must be an address SendGrid is authorised to send as. */
+    EMAIL_FROM: z.string().email().optional(),
+    EMAIL_FROM_NAME: z.string().min(1).max(80).default('La Liga de Lopie'),
 
     // Application
     APP_BASE_URL: z.string().url(),

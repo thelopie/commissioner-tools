@@ -20,6 +20,7 @@ import {
   eliminationRankForGroup,
 } from '@lopie/draft-order';
 import { z } from 'zod';
+import { notifyTurnOpened } from '../lib/draft-notify.js';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
 import { requireAuthenticated, requireCommissioner } from '../lib/authorization.js';
@@ -830,6 +831,14 @@ draftRoutes.post('/api/draft/:seasonYear/select', async (c) => {
         summary: `Opened draft selection turn ${nextSelection.selectionOrder}.`,
         correlationId: ctx.correlationId,
       });
+
+      /*
+        Tell them. The queue only moves when somebody acts, and nothing about the
+        site pushes — without this it stalls on whoever checks the page least often.
+        Best-effort on purpose: a mail provider having a bad afternoon must not fail
+        the pick that just succeeded.
+      */
+      await notifyTurnOpened(ctx, next.leagueMemberId, seasonYear);
     }
   }
 
@@ -882,13 +891,17 @@ draftRoutes.post('/api/draft/:seasonYear/remind', async (c) => {
     detail: { remindersSent: count },
   });
 
+  const delivered = await notifyTurnOpened(ctx, current.leagueMemberId, seasonYear);
+
   return c.json({
     reminded: true,
     remindersSent: count,
-    delivered: false,
-    // Honest about what happened: the portal recorded the reminder, it did not
-    // send anything. Message delivery is deferred deliberately.
-    note: 'Recorded only — this version sends no email or SMS. Contact them yourself.',
+    delivered,
+    // Still honest: an address the portal does not have, or a provider that
+    // refused, both end up here — and the commissioner needs to know which.
+    note: delivered
+      ? 'Emailed the manager whose turn is open.'
+      : 'Recorded, but no email went out — they may not have signed in yet. Contact them yourself.',
   });
 });
 

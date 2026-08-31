@@ -8,6 +8,7 @@ import { Table } from './lib/table.js';
 import { createRepositories, type Repositories } from './repositories.js';
 import { defaultFetch, mockAwareFetch, YahooService } from './services/yahoo-service.js';
 import { assertCsrf, CSRF_HEADER, parseCookies, SESSION_COOKIE } from './lib/cookies.js';
+import { createMailer, type Mailer } from './lib/email.js';
 import { authRoutes } from './routes/auth.js';
 import { yahooRoutes } from './routes/yahoo.js';
 import { leagueViewRoutes } from './routes/league-view.js';
@@ -40,6 +41,8 @@ export interface CreateAppOptions {
   table?: Table;
   repositories?: Repositories;
   logger?: Logger;
+  /** Injectable so tests can assert on mail without a network or an API key. */
+  mailer?: Mailer;
   /**
    * Injectable HTTP transport for Yahoo calls.
    *
@@ -103,6 +106,14 @@ export function createApp(options: CreateAppOptions = {}): Hono<AppEnv> {
       principal: null,
       leagueId: null,
       yahooFetch,
+      mailer:
+        options.mailer ??
+        createMailer({
+          apiKey: config.env.SENDGRID_API_KEY,
+          from: config.env.EMAIL_FROM,
+          fromName: config.env.EMAIL_FROM_NAME,
+          logger,
+        }),
     } satisfies RequestContext);
 
     const startedAt = Date.now();

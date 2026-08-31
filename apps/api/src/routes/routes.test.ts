@@ -5,6 +5,7 @@ import { createApp } from '../app.js';
 import type { AppConfig } from '../config.js';
 import { InMemoryTable } from '../testing/in-memory-table.js';
 import { createLogger } from '../lib/logger.js';
+import { recordingMailer } from '../lib/email.js';
 import { handleFantasyRequest, handleTokenRequest } from '../../../mock-yahoo/src/handlers.js';
 import { CSRF_COOKIE, CSRF_HEADER, SESSION_COOKIE } from '../lib/cookies.js';
 
@@ -94,14 +95,17 @@ const mockFetch: FetchLike = async (url, init) => {
 
 let table: InMemoryTable;
 let app: ReturnType<typeof createApp>;
+let mailbox: ReturnType<typeof recordingMailer>;
 
 beforeEach(() => {
   setCapabilityMatrix(MATRIX);
   table = new InMemoryTable();
+  mailbox = recordingMailer();
   app = createApp({
     config: config(),
     table: table.asTable(),
     fetchImpl: mockFetch,
+    mailer: mailbox,
     // Silent sink: these tests assert on responses, and real log output would
     // bury the failures.
     logger: createLogger({ correlationId: 'test', sink: () => {} }),
@@ -1878,6 +1882,74 @@ describe('LLWS draft-order workflow', () => {
     expect(ordered[0].displayName).toBe('WoodenSpoon');
     expect(ordered[1].displayName).toBe('Champion');
     expect(ordered[0].derivedFrom.appliedTieBreaker).toBe('worse_prior_season_finish');
+  });
+
+  it('tells the next manager it is their turn', async () => {
+    /*
+      The queue only moves when somebody acts, and nothing about the site pushes.
+      Without a nudge it stalls on whoever opens the page least often — which on a
+      twelve-person queue is the whole draft waiting on one person.
+    */
+    const { auth, order } = await readyToSelect(4);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    mailbox.sent.length = 0;
+
+    await app.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: sorted[0]!.leagueMemberId,
+        draftPosition: 1,
+      }),
+    });
+
+    // The mock league's members have no portal user behind them, so nothing can be
+    // addressed — the important half is that the pick still succeeded.
+    const status = await (await app.request('/api/draft/2026/status', { headers: auth })).json();
+    const next = status.selections.find((s: { selectionOrder: number }) => s.selectionOrder === 2);
+    expect(next.status).toBe('open');
+
+    // Anything that did go out went to exactly one person, and said why.
+    for (const message of mailbox.sent) {
+      expect(message.subject).toMatch(/turn/i);
+      expect(message.to).toContain('@');
+    }
+  });
+
+  it('never lets a mail failure cost somebody their pick', async () => {
+    /*
+      The pick is the thing that matters. A mail provider having a bad afternoon
+      must not roll back a slot somebody just locked, so the mailer is allowed to
+      throw here and the request is still expected to succeed.
+    */
+    const { auth, order } = await readyToSelect(4);
+    const sorted = [...order].sort((a, b) => a.selectionOrder - b.selectionOrder);
+
+    const exploding = {
+      send: (): Promise<boolean> => {
+        throw new Error('sendgrid is down');
+      },
+    };
+    const local = createApp({
+      config: config(),
+      table: table.asTable(),
+      fetchImpl: mockFetch,
+      logger: createLogger({ correlationId: 'test', sink: () => {} }),
+      mailer: exploding,
+    });
+
+    const response = await local.request('/api/draft/2026/select', {
+      method: 'POST',
+      headers: auth,
+      body: JSON.stringify({
+        leagueMemberId: sorted[0]!.leagueMemberId,
+        draftPosition: 1,
+      }),
+    });
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).locked).toBe(true);
   });
 
   it('refuses to redraw over an existing draw without explicit confirmation', async () => {

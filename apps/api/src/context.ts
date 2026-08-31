@@ -2,6 +2,7 @@ import { AppError, type InternalId, type PortalRole } from '@lopie/shared';
 import type { FetchLike } from '@lopie/yahoo-client';
 import type { AppConfig } from './config.js';
 import type { Logger } from './lib/logger.js';
+import type { Mailer } from './lib/email.js';
 import type { Table } from './lib/table.js';
 import type { Repositories } from './repositories.js';
 import type { YahooService } from './services/yahoo-service.js';
@@ -29,6 +30,8 @@ export interface RequestContext {
    * `fetch` would silently bypass whatever the app was configured with.
    */
   yahooFetch: FetchLike;
+  /** Outbound email. Best-effort by design: it never throws and never blocks. */
+  mailer: Mailer;
 }
 
 export type AppEnv = {
