@@ -197,10 +197,19 @@ async function publishedAssignments(
           : null,
       };
     })
-    // Best position first once the tournament is under way; it is the running order.
+    /*
+      Pick order first, once there is one; the tournament standing until then.
+
+      Sorting on the standing after the ties are broken produces a list numbered
+      1, 2, 3, 4, 5, 7, 6, 9, 8 — every number correct and the whole thing looking
+      broken, because four managers share an LLWS rank and only the tiebreakers
+      separate them.
+    */
     .sort(
       (a, b) =>
-        (a.standing?.best ?? 0) - (b.standing?.best ?? 0) || a.manager.localeCompare(b.manager),
+        (a.pickOrder ?? Number.MAX_SAFE_INTEGER) - (b.pickOrder ?? Number.MAX_SAFE_INTEGER) ||
+        (a.standing?.best ?? 0) - (b.standing?.best ?? 0) ||
+        a.manager.localeCompare(b.manager),
     );
 
   /*
