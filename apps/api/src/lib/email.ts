@@ -61,6 +61,20 @@ export function createMailer({ apiKey, from, fromName, logger, fetchImpl }: Mail
           from: { email: from, ...(fromName ? { name: fromName } : {}) },
           subject: message.subject,
           content: [{ type: 'text/plain', value: message.text }],
+          /*
+            No click tracking, no open pixel.
+
+            SendGrid rewrites every URL in the body into a tracking redirect by
+            default. In a plain-text mail that turns a short, readable link into
+            three hundred characters of opaque redirect — and the first one it sent
+            did not even resolve, so the one thing the message exists to deliver was
+            broken. There is nothing here worth measuring: the audience is twelve
+            people who are being told to go and do something.
+          */
+          tracking_settings: {
+            click_tracking: { enable: false, enable_text: false },
+            open_tracking: { enable: false },
+          },
         }),
       });
 
