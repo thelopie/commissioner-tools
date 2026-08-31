@@ -400,7 +400,25 @@ yahooRoutes.post('/api/league/claim-teams', async (c) => {
   requireCommissioner(ctx.principal);
   const leagueId = requireLeagueId(ctx);
 
-  const users = await ctx.repositories.users.listByLeague(leagueId);
+  /*
+    Optional explicit list, because the default cannot see the people who need this
+    most. `listByLeague` finds users THROUGH their member rows, so anyone not yet
+    attached to one is invisible to it — which is precisely the population a
+    backfill exists to fix. Passing ids breaks that circle.
+  */
+  const body = await parseJson(
+    c,
+    z.object({ userIds: z.array(z.string().length(26)).max(64).optional() }),
+  );
+
+  const users = body.userIds
+    ? (
+        await Promise.all(
+          body.userIds.map((id) => ctx.repositories.users.findById(id as InternalId)),
+        )
+      ).filter((user): user is NonNullable<typeof user> => user !== null)
+    : await ctx.repositories.users.listByLeague(leagueId);
+
   const results: Array<{ displayName: string; status: string; detail?: string }> = [];
 
   for (const user of users) {
