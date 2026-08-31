@@ -10,6 +10,7 @@ import {
   type YahooLeagueKey,
 } from '@lopie/shared';
 import { getCapabilityMatrix } from '@lopie/yahoo-client';
+import { claimTeamWith } from '../lib/claim-team.js';
 import { z } from 'zod';
 import type { AppEnv } from '../context.js';
 import { requireLeagueId } from '../context.js';
@@ -379,6 +380,50 @@ yahooRoutes.get('/api/league/overview', async (c) => {
     // view was assembled rather than implying it is a stored snapshot.
     fetchedAt: new Date().toISOString(),
   });
+});
+
+/**
+ * Attaches every already-signed-in manager to their own team.
+ *
+ * Sign-in does this by itself, but only from the moment it started doing it.
+ * Anyone who signed in before then — or before the commissioner had mapped the
+ * roster to Yahoo teams — is left unattached, and an unattached manager cannot
+ * pick a draft slot at all: the select route has no row to act on.
+ *
+ * Runs against each manager's own stored Yahoo connection, the only credential
+ * that can answer "which of these teams is yours". Idempotent: someone already
+ * attached is reported and left alone, and a row claimed by another account is a
+ * conflict for the commissioner rather than something to overwrite.
+ */
+yahooRoutes.post('/api/league/claim-teams', async (c) => {
+  const ctx = c.get('ctx');
+  requireCommissioner(ctx.principal);
+  const leagueId = requireLeagueId(ctx);
+
+  const users = await ctx.repositories.users.listByLeague(leagueId);
+  const results: Array<{ displayName: string; status: string; detail?: string }> = [];
+
+  for (const user of users) {
+    const connection = await ctx.repositories.connections.find(user.userId);
+    if (!connection) {
+      results.push({
+        displayName: user.displayName,
+        status: 'skipped',
+        detail: 'no Yahoo connection',
+      });
+      continue;
+    }
+
+    const { client } = await ctx.yahoo.clientFor(user.userId);
+    const outcome = await claimTeamWith(ctx, user.userId, client);
+    results.push({
+      displayName: user.displayName,
+      status: outcome.status,
+      ...(outcome.detail ? { detail: outcome.detail } : {}),
+    });
+  }
+
+  return c.json({ claimed: results.filter((r) => r.status === 'claimed').length, results });
 });
 
 /** Maps a Yahoo team to a portal league member, so history survives the link. */
