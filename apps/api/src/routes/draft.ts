@@ -654,9 +654,23 @@ draftRoutes.post('/api/draft/:seasonYear/selection-order', async (c) => {
     },
   });
 
+  /*
+    Tell whoever is now up.
+
+    Computing the order OPENS the first turn, and only a pick was notifying anyone
+    — so the one person who could act immediately was the one person nobody told.
+    The queue then sits still waiting on somebody who does not know they are on the
+    clock, which is exactly the stall the notifications exist to prevent.
+  */
+  const first = computed.order.find((entry) => entry.selectionOrder === 1);
+  const notified = first
+    ? await notifyTurnOpened(ctx, first.leagueMemberId as InternalId, seasonYear)
+    : false;
+
   return c.json({
     order: computed.order,
     unplaced: computed.unplaced,
+    notifiedFirstPicker: notified,
     ...(seed ? { seed } : {}),
   });
 });
