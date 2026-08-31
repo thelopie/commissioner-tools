@@ -172,6 +172,10 @@ export interface PublicHome {
   assignments: {
     entries: Array<{
       manager: string;
+      /** Their place in the order of choosing a slot, once the ties are broken. */
+      pickOrder: number | null;
+      /** The slot they took, once locked. */
+      chosenDraftPosition: number | null;
       llwsTeam: string;
       region: string | null;
       /** A settled position, or the range still in play. Derived, never stored. */

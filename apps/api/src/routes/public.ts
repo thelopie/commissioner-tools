@@ -118,6 +118,19 @@ async function publishedAssignments(
 ): Promise<{
   entries: Array<{
     manager: string;
+    /**
+     * Where they sit in the order of CHOOSING a draft slot, once that has been
+     * worked out. Null before it has.
+     *
+     * Distinct from the LLWS standing beside it, and the reason both exist: the
+     * tournament hands out shared ranks — four teams knocked out in the same round
+     * all finish 9th — so the standing alone can only ever say "6-9". The league's
+     * tiebreakers turn that into a single number, and this is that number. Without
+     * it the board keeps showing a range long after the range has been settled.
+     */
+    pickOrder: number | null;
+    /** The slot they took, once they have taken it. */
+    chosenDraftPosition: number | null;
     llwsTeam: string;
     region: string | null;
     /** Where this manager stands: a settled position, or a range still in play. */
@@ -138,6 +151,16 @@ async function publishedAssignments(
   const nameOf = await memberNamer(ctx, leagueId, seasonYear);
 
   /*
+    Names and positions, same as everything else here — nothing about who is next
+    or how long they are taking, which is the league's business rather than a
+    passer-by's.
+  */
+  const selections = await ctx.repositories.llws.listSelections(leagueId, seasonYear);
+  const selectionByMember = new Map(
+    selections.map((selection) => [selection.leagueMemberId, selection]),
+  );
+
+  /*
     Positions are derived, never stored. A team still playing finishes above every
     team already out, which settles an eliminated manager's position the moment they
     go out and narrows everyone else's range by itself.
@@ -155,8 +178,11 @@ async function publishedAssignments(
     .map((assignment) => {
       const team = teamById.get(assignment.llwsTeamId);
       const standing = standings.get(assignment.leagueMemberId) ?? null;
+      const selection = selectionByMember.get(assignment.leagueMemberId);
       return {
         manager: nameOf(assignment.leagueMemberId),
+        pickOrder: selection?.selectionOrder ?? null,
+        chosenDraftPosition: selection?.chosenDraftPosition ?? null,
         llwsTeam: team?.name ?? 'Unknown team',
         region: team?.region ?? null,
         standing: standing

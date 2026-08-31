@@ -2067,6 +2067,29 @@ describe('LLWS draft-order workflow', () => {
         return jar;
       }
 
+      it('shows the settled pick order once the ties are broken', async () => {
+        /*
+          The tournament hands out shared ranks, so the LLWS standing alone can only
+          ever say "6-9" for four teams knocked out together. Once the tiebreakers
+          have run each of them has one place in the choosing order, and that is the
+          number the board has to show — it was reported as the site being stale.
+        */
+        const { auth } = await readyToSelect(4);
+        await app.request('/api/llws/2026/publish', { method: 'POST', headers: auth });
+
+        const body = await (await app.request('/api/public/home')).json();
+        const entries = body.assignments.entries;
+
+        expect(entries).toHaveLength(4);
+        for (const entry of entries) {
+          expect(entry.pickOrder).toBeTypeOf('number');
+          expect(entry.chosenDraftPosition).toBeNull();
+        }
+        // Every place distinct: a pick order with a tie left in it is not an order.
+        const orders = entries.map((e: { pickOrder: number }) => e.pickOrder).sort();
+        expect(new Set(orders).size).toBe(4);
+      });
+
       it('is never sent to a signed-out reader, who is told one exists instead', async () => {
         await setRoom(ROOM);
 

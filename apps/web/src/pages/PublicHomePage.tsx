@@ -190,6 +190,9 @@ function LlwsMapping({
   const entries = assignments?.entries ?? [];
   if (entries.length === 0) return null;
 
+  // Once every manager has a place in the choosing order, the ranges are history.
+  const picksSettled = entries.length > 0 && entries.every((entry) => entry.pickOrder !== null);
+
   return (
     <Card variant="filled">
       <CardContent>
@@ -209,6 +212,14 @@ function LlwsMapping({
                   {' '}
                   <strong>
                     {assignments.stillPlaying} still playing, so those places can still move.
+                  </strong>
+                </>
+              )}
+              {picksSettled && (
+                <>
+                  {' '}
+                  <strong>
+                    The order is settled — this is who chooses a draft slot, and when.
                   </strong>
                 </>
               )}
@@ -233,11 +244,19 @@ function LlwsMapping({
                   alignItems="center"
                   sx={{ minWidth: 0, flex: 1 }}
                 >
-                  <StandingBadge standing={entry.standing} />
+                  <StandingBadge standing={entry.standing} pickOrder={entry.pickOrder} />
                   <Typography variant="body1" noWrap sx={{ fontWeight: 600 }}>
                     {entry.manager}
                   </Typography>
                 </Stack>
+                {entry.chosenDraftPosition !== null && (
+                  <Chip
+                    size="small"
+                    color="success"
+                    label={`slot ${entry.chosenDraftPosition}`}
+                    sx={{ flexShrink: 0 }}
+                  />
+                )}
                 <Stack sx={{ textAlign: 'right', minWidth: 0 }}>
                   <Typography
                     variant="body2"
@@ -456,13 +475,7 @@ function Countdown({
  * things the league would read aloud — but a room anybody can walk into is not, and
  * the address of this site is not a secret worth resting that on.
  */
-function DraftRoom({
-  meeting,
-  started,
-}: {
-  meeting: DraftMeeting;
-  started: boolean;
-}): JSX.Element {
+function DraftRoom({ meeting, started }: { meeting: DraftMeeting; started: boolean }): JSX.Element {
   const { url, note } = meeting;
 
   if (url === null) {
@@ -618,12 +631,26 @@ function isOut(
  * "1st–6th" mean very different things to somebody deciding whether to care yet,
  * and a single number for both would read as settled when it is not.
  */
+/**
+ * The number beside a manager's name.
+ *
+ * Two different things can go here and the order matters. The tournament hands out
+ * SHARED ranks — four teams knocked out in the same round all finish 9th — so the
+ * LLWS standing can only ever say "6-9" for those four. Once the league's
+ * tiebreakers have run, each of them has a single place in the choosing order, and
+ * that is the number people actually want.
+ *
+ * So a settled pick order wins. Showing "6-9" after the tie has been broken reads
+ * as though the board has not caught up, which is exactly how it was reported.
+ */
 function StandingBadge({
   standing,
+  pickOrder,
 }: {
   standing: NonNullable<PublicHome['assignments']>['entries'][number]['standing'];
+  pickOrder: number | null;
 }): JSX.Element | null {
-  if (standing === null) return null;
+  if (standing === null && pickOrder === null) return null;
 
   const ordinal = (value: number): string => {
     // 11th, 12th and 13th break the naive rule, so they are handled first.
@@ -633,19 +660,29 @@ function StandingBadge({
     return `${value}${last === 1 ? 'st' : last === 2 ? 'nd' : last === 3 ? 'rd' : 'th'}`;
   };
 
-  const label = standing.locked ? ordinal(standing.best) : `${standing.best}–${standing.worst}`;
+  const settled = pickOrder !== null;
+  const label = settled
+    ? ordinal(pickOrder)
+    : standing === null
+      ? '—'
+      : standing.locked
+        ? ordinal(standing.best)
+        : `${standing.best}–${standing.worst}`;
 
   /*
     A tie is not the same as an open question. Teams knocked out together will never
     narrow — who picks first among them comes from prior-season finish and the seed —
     so it is worth saying rather than leaving a range that looks like it might move.
   */
-  const hint =
-    standing.pending === 'tied'
-      ? 'Out together with others — the tiebreakers decide the order within this range.'
-      : standing.pending === 'playing'
-        ? 'Still playing, so this narrows as other teams go out.'
-        : 'Settled.';
+  const hint = settled
+    ? `Picks ${ordinal(pickOrder)} in the order of choosing a draft slot.`
+    : standing === null
+      ? 'Not placed yet.'
+      : standing.pending === 'tied'
+        ? 'Out together with others — the tiebreakers decide the order within this range.'
+        : standing.pending === 'playing'
+          ? 'Still playing, so this narrows as other teams go out.'
+          : 'Settled.';
 
   return (
     <Tooltip title={hint}>
@@ -657,10 +694,10 @@ function StandingBadge({
           borderRadius: 1.5,
           textAlign: 'center',
           flexShrink: 0,
-          bgcolor: standing.locked ? 'action.selected' : 'transparent',
+          bgcolor: settled || standing?.locked ? 'action.selected' : 'transparent',
           border: 1,
-          borderColor: standing.locked ? 'transparent' : 'divider',
-          borderStyle: standing.locked ? 'solid' : 'dashed',
+          borderColor: settled || standing?.locked ? 'transparent' : 'divider',
+          borderStyle: settled || standing?.locked ? 'solid' : 'dashed',
         }}
       >
         <Typography
@@ -668,7 +705,7 @@ function StandingBadge({
           sx={{
             fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
-            color: standing.locked ? 'text.primary' : 'text.secondary',
+            color: settled || standing?.locked ? 'text.primary' : 'text.secondary',
           }}
         >
           {label}
