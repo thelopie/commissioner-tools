@@ -331,15 +331,10 @@ export function mockScoreboardResponse(week: number): unknown {
     const homePoints = mockTeamWeekPoints(home.teamId, week);
     const awayPoints = mockTeamWeekPoints(away.teamId, week);
 
+    // Live shape: the teams hang off a numeric part of `matchup`, as everywhere else.
     matchups.push({
-      matchup: [
-        {
-          week: String(week),
-          status: 'postevent',
-          is_tied: homePoints === awayPoints ? '1' : '0',
-          winner_team_key: teamKey(homePoints >= awayPoints ? home.teamId : away.teamId),
-        },
-        {
+      matchup: {
+        0: {
           teams: countedCollection([
             {
               team: [
@@ -375,7 +370,11 @@ export function mockScoreboardResponse(week: number): unknown {
             },
           ]),
         },
-      ],
+        week: String(week),
+        status: 'postevent',
+        is_tied: homePoints === awayPoints ? '1' : '0',
+        winner_team_key: teamKey(homePoints >= awayPoints ? home.teamId : away.teamId),
+      },
     });
   }
 

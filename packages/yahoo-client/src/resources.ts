@@ -469,7 +469,9 @@ export function parseScoreboard(body: unknown, fallbackWeek: number): YahooMatch
   const matchups: YahooMatchup[] = [];
 
   for (const node of collect(scoreboard['matchups'])) {
-    const matchup = mergeParts(pick(node, 'matchup') ?? node);
+    // And once more per matchup: the two teams hang off `matchup[0]`, so reading
+    // `matchup.teams` produced six matchups with no teams in any of them.
+    const matchup = hoistParts(pick(node, 'matchup') ?? node);
     if (Object.keys(matchup).length === 0) continue;
 
     const teams: YahooMatchupTeam[] = [];
