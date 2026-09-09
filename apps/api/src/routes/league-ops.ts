@@ -74,6 +74,8 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
       /** Where dues are sent. A link only — nothing here moves money. */
       paymentLink: z.string().url().max(500).optional(),
       paymentNote: z.string().max(300).optional(),
+      /** League lore: what last place has to do. */
+      sackoPunishment: z.string().max(500).optional(),
       /** Best-first finish order, portal-owned so draft tiebreaks survive. */
       finalFinishOrder: z.array(z.string().length(26)).optional(),
     }),
@@ -113,6 +115,7 @@ leagueOpsRoutes.put('/api/seasons/:seasonYear', async (c) => {
       : { draftMeetingNote: body.draftMeetingNote === '' ? undefined : body.draftMeetingNote }),
     ...(body.paymentLink === undefined ? {} : { paymentLink: body.paymentLink }),
     ...(body.paymentNote === undefined ? {} : { paymentNote: body.paymentNote }),
+    ...(body.sackoPunishment === undefined ? {} : { sackoPunishment: body.sackoPunishment }),
     ...(existing
       ? {
           createdAt: existing.createdAt,

@@ -1,6 +1,13 @@
 import { Hono } from 'hono';
-import { AppError, weekNumberSchema, type InternalId } from '@lopie/shared';
-import type { YahooManager } from '@lopie/yahoo-client';
+import {
+  AppError,
+  managerName,
+  weekNumberSchema,
+  type InternalId,
+  type SeasonYear,
+  type YahooLeagueKey,
+} from '@lopie/shared';
+import type { YahooManager, YahooStandingsRow } from '@lopie/yahoo-client';
 import type { AppEnv, RequestContext } from '../context.js';
 import { requireLeagueId } from '../context.js';
 import { requireAuthenticated } from '../lib/authorization.js';
@@ -338,6 +345,150 @@ leagueViewRoutes.get('/api/league/roster', async (c) => {
  * One request rather than three, because this is the first paint a manager sees
  * and three round trips would show three separate loading states.
  */
+/**
+ * The four things a manager wants on the home page beyond their matchup.
+ *
+ * Gathered here rather than as four more endpoints because they are read together,
+ * once, on one screen — and three of them are cheap joins over data the handler has
+ * already fetched. Only the bench figure costs an extra Yahoo call, and only when
+ * the viewer actually has a team.
+ *
+ * Every one of these is derived at read time. Nothing new is stored: the dues row
+ * and the challenge results already exist, and the standings and roster are Yahoo's
+ * to serve live.
+ */
+async function homeExtras(
+  ctx: RequestContext,
+  leagueId: InternalId,
+  link: { seasonYear: number; connectionUserId: InternalId; yahooLeagueKey: YahooLeagueKey },
+  week: number,
+  userId: InternalId,
+  standings: readonly YahooStandingsRow[],
+  myTeamKey: string | null,
+  myMatchupMargin: number | null,
+): Promise<{
+  dues: {
+    owedCents: number;
+    paidCents: number;
+    settled: boolean;
+    paymentLink: string | null;
+    paymentNote: string | null;
+  } | null;
+  sacko: { name: string; record: string | null; punishment: string | null } | null;
+  benchRegret: { playerName: string; points: number; wouldHaveWon: boolean } | null;
+  settledChallenges: Array<{ week: number; name: string; winners: string[] }>;
+}> {
+  const seasonYear = link.seasonYear as SeasonYear;
+
+  const [members, season, dues, results, definitions] = await Promise.all([
+    ctx.repositories.leagues.listMembers(leagueId, seasonYear),
+    ctx.repositories.leagues.findSeason(leagueId, seasonYear),
+    ctx.repositories.money.listDues(leagueId, seasonYear),
+    ctx.repositories.challenges.listResults(leagueId, seasonYear),
+    ctx.repositories.challenges.listDefinitions(leagueId, seasonYear),
+  ]);
+
+  const me = members.find((member) => member.userId === userId) ?? null;
+
+  // ------------------------------------------------------------------- 1. dues
+  const myDues = me ? (dues.find((row) => row.leagueMemberId === me.leagueMemberId) ?? null) : null;
+
+  // ------------------------------------------------------------------ 5. sacko
+  /*
+    Last place, by Yahoo's own rank. Read live and never stored — a standing is
+    exactly the sort of Yahoo content the persistence firewall forbids keeping, and
+    it changes every week anyway.
+  */
+  const last = [...standings].sort((a, b) => (b.rank ?? 0) - (a.rank ?? 0))[0] ?? null;
+
+  // ---------------------------------------------------- 3. settled challenges
+  const nameByDefinition = new Map(
+    definitions.map((definition) => [definition.challengeDefinitionId, definition.name]),
+  );
+  const userById = new Map(
+    (await ctx.repositories.users.listByLeague(leagueId)).map((user) => [user.userId, user]),
+  );
+  const nameOf = (memberId: string): string => {
+    const member = members.find((candidate) => candidate.leagueMemberId === memberId);
+    if (!member) return '(former member)';
+    return managerName(member, (id) => userById.get(id)?.displayName);
+  };
+
+  const settled = results
+    .filter(
+      (result) =>
+        result.status === 'finalized' ||
+        result.status === 'overridden' ||
+        result.status === 'manual',
+    )
+    .sort((a, b) => b.week - a.week)
+    .slice(0, 4)
+    .map((result) => ({
+      week: result.week,
+      name: nameByDefinition.get(result.challengeDefinitionId) ?? 'Weekly challenge',
+      winners: result.winningLeagueMemberIds.map(nameOf),
+    }));
+
+  // ----------------------------------------------------------- 4. bench regret
+  /*
+    The highest-scoring player left on the bench, and whether starting them would
+    have flipped the result.
+
+    "Would have won" is deliberately narrow: it compares the bench score against
+    the margin of defeat, which answers the only question anyone asks. It does not
+    try to work out which starter should have been dropped, because that depends on
+    position eligibility and is an argument rather than a fact.
+  */
+  let benchRegret: { playerName: string; points: number; wouldHaveWon: boolean } | null = null;
+
+  if (myTeamKey) {
+    try {
+      const roster = await ctx.yahoo.getRoster(link.connectionUserId, myTeamKey as never, week);
+      const bench = roster.slots
+        .filter((slot) => slot.selectedPosition === 'BN')
+        .filter((slot) => typeof slot.points === 'number')
+        .sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+
+      const best = bench[0];
+      if (best && (best.points ?? 0) > 0) {
+        benchRegret = {
+          playerName: best.playerName,
+          points: best.points ?? 0,
+          // Only meaningful when the matchup was actually lost.
+          wouldHaveWon:
+            myMatchupMargin !== null &&
+            myMatchupMargin < 0 &&
+            (best.points ?? 0) > Math.abs(myMatchupMargin),
+        };
+      }
+    } catch {
+      // A roster read failing must not take the home page down with it.
+      benchRegret = null;
+    }
+  }
+
+  return {
+    dues: myDues
+      ? {
+          owedCents: myDues.amountOwed.amountCents,
+          paidCents: myDues.amountPaid.amountCents,
+          settled: myDues.amountPaid.amountCents >= myDues.amountOwed.amountCents,
+          paymentLink: season?.paymentLink ?? null,
+          paymentNote: season?.paymentNote ?? null,
+        }
+      : null,
+    sacko: last
+      ? {
+          name: last.name,
+          record: last.recordLabel ?? null,
+          punishment: season?.sackoPunishment ?? null,
+        }
+      : null,
+    benchRegret,
+    settledChallenges: settled,
+  };
+}
+
 leagueViewRoutes.get('/api/league/me', async (c) => {
   const ctx = c.get('ctx');
   const principal = requireAuthenticated(ctx.principal);
@@ -365,6 +516,22 @@ leagueViewRoutes.get('/api/league/me', async (c) => {
   );
   const opponent = myMatchup?.teams.find(
     (team) => !isOwnedByViewer(team.managers, team.teamKey, mine),
+  );
+
+  const myMargin =
+    myTeam?.points !== undefined && opponent?.points !== undefined
+      ? Math.round((myTeam.points - opponent.points) * 10) / 10
+      : null;
+
+  const extras = await homeExtras(
+    ctx,
+    requireLeagueId(ctx),
+    link as never,
+    week,
+    principal.userId as InternalId,
+    standings,
+    mine,
+    myMargin,
   );
 
   return c.json({
@@ -413,6 +580,8 @@ leagueViewRoutes.get('/api/league/me', async (c) => {
                 : null,
           }
         : null,
+
+    ...extras,
 
     leaders: standings.slice(0, 3).map((row) => ({
       rank: row.rank ?? null,

@@ -17,6 +17,8 @@ import WhatshotIcon from '@mui/icons-material/WhatshotRounded';
 import CompressIcon from '@mui/icons-material/CompressRounded';
 import FormatListNumberedIcon from '@mui/icons-material/FormatListNumberedRounded';
 import CampaignIcon from '@mui/icons-material/CampaignRounded';
+import WeekendIcon from '@mui/icons-material/WeekendRounded';
+import SentimentDissatisfiedIcon from '@mui/icons-material/SentimentDissatisfiedRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   useAnnouncements,
@@ -27,7 +29,7 @@ import {
   useLeagueOverview,
   useSession,
 } from '../hooks.js';
-import { ApiError } from '../api/client.js';
+import { ApiError, type MeResponse } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
 
@@ -176,6 +178,8 @@ export function HomePage(): JSX.Element {
 
       <PinnedAnnouncements />
 
+      {data.dues && <DuesNudge dues={data.dues} />}
+
       {/*
         Three different situations, which used to share one message. A missing
         matchup is the ordinary state of every week before the season starts, and
@@ -201,6 +205,12 @@ export function HomePage(): JSX.Element {
         the first thing a member sees.
       */}
       <ThisWeeksChallenge seasonYear={data.seasonYear ?? null} week={data.week ?? null} />
+
+      {data.benchRegret && <BenchRegretCard regret={data.benchRegret} />}
+
+      {data.settledChallenges && <SettledChallenges settled={data.settledChallenges} />}
+
+      {data.sacko && <SackoWatch sacko={data.sacko} />}
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -395,6 +405,152 @@ function ThisWeeksChallenge({
               </Button>
             </Box>
           </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * What you owe, if you owe it.
+ *
+ * Silent once settled. A permanent "you're paid" badge is clutter; the only reason
+ * this belongs on the home page is that a group-chat reminder gets ignored and a
+ * line above your own matchup does not.
+ */
+function DuesNudge({ dues }: { dues: NonNullable<MeResponse['dues']> }): JSX.Element | null {
+  if (dues.settled) return null;
+
+  const outstanding = (dues.owedCents - dues.paidCents) / 100;
+
+  return (
+    <Alert
+      severity="warning"
+      action={
+        dues.paymentLink ? (
+          <Button
+            size="small"
+            color="inherit"
+            href={dues.paymentLink}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Pay now
+          </Button>
+        ) : undefined
+      }
+    >
+      You owe <strong>${outstanding}</strong> in dues.
+      {dues.paymentNote ? ` ${dues.paymentNote}` : ''}
+    </Alert>
+  );
+}
+
+/**
+ * The best player you left on the bench.
+ *
+ * The most-argued-about number in any league, and it costs nothing to work out
+ * from a roster the portal already reads. Silent before kickoff, when every score
+ * is zero and there is nothing to regret yet.
+ */
+function BenchRegretCard({
+  regret,
+}: {
+  regret: NonNullable<MeResponse['benchRegret']>;
+}): JSX.Element {
+  return (
+    <Card variant={regret.wouldHaveWon ? 'outlined' : 'filled'}>
+      <CardContent>
+        <Stack direction="row" spacing={2} alignItems="flex-start">
+          <WeekendIcon color={regret.wouldHaveWon ? 'error' : 'disabled'} sx={{ mt: 0.25 }} />
+          <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+            <Typography variant="overline" color="text.secondary">
+              Best player on your bench
+            </Typography>
+            <Typography variant="h6">
+              {regret.playerName} · {formatPoints(regret.points)}
+            </Typography>
+            <Typography variant="body2" color={regret.wouldHaveWon ? 'error' : 'text.secondary'}>
+              {regret.wouldHaveWon
+                ? 'Starting them would have won you the week.'
+                : 'Not enough to have changed the result.'}
+            </Typography>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Who is last, and what it costs them.
+ *
+ * Read live from the standings and never stored — a standing is exactly the Yahoo
+ * content the persistence firewall forbids keeping. The punishment is the league's
+ * own text, so this stays interesting in November when the top of the table has
+ * stopped being a question for most people.
+ */
+function SackoWatch({ sacko }: { sacko: NonNullable<MeResponse['sacko']> }): JSX.Element {
+  return (
+    <Card variant="filled">
+      <CardContent>
+        <Stack direction="row" spacing={2} alignItems="flex-start">
+          <SentimentDissatisfiedIcon color="error" sx={{ mt: 0.25 }} />
+          <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+            <Typography variant="overline" color="text.secondary">
+              Sacko watch
+            </Typography>
+            <Typography variant="h6" noWrap>
+              {sacko.name}
+              {sacko.record ? ` · ${sacko.record}` : ''}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {sacko.punishment ?? 'Last place. The punishment has not been set for this season.'}
+            </Typography>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Weekly challenges already decided.
+ *
+ * Only settled ones: a provisional result moves for days while Yahoo corrects
+ * stats, and a winner that changes after being announced is worse than one
+ * announced late.
+ */
+function SettledChallenges({
+  settled,
+}: {
+  settled: NonNullable<MeResponse['settledChallenges']>;
+}): JSX.Element | null {
+  if (settled.length === 0) return null;
+
+  return (
+    <Card variant="filled">
+      <CardContent>
+        <Stack spacing={1.25}>
+          <Typography variant="overline" color="text.secondary">
+            Challenges won so far
+          </Typography>
+          {settled.map((entry) => (
+            <Stack
+              key={`${entry.week}-${entry.name}`}
+              direction="row"
+              spacing={1.5}
+              alignItems="baseline"
+            >
+              <Chip size="small" variant="outlined" label={`Wk ${entry.week}`} />
+              <Typography variant="body2" sx={{ flexGrow: 1, minWidth: 0 }} noWrap>
+                {entry.name}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {entry.winners.join(', ') || '—'}
+              </Typography>
+            </Stack>
+          ))}
         </Stack>
       </CardContent>
     </Card>

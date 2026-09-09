@@ -442,6 +442,31 @@ export interface MeResponse {
   leaders?: Array<{ rank: number | null; name: string; record: string | null; isYou: boolean }>;
   highestScore?: { name: string; points: number } | null;
   closestMatchup?: { margin: number; teams: string[] } | null;
+
+  /** The viewer's own dues, so the reminder lands where they already look. */
+  dues?: {
+    owedCents: number;
+    paidCents: number;
+    settled: boolean;
+    paymentLink: string | null;
+    paymentNote: string | null;
+  } | null;
+
+  /** Currently last, and what the league has decided that costs them. */
+  sacko?: { name: string; record: string | null; punishment: string | null } | null;
+
+  /**
+   * The best player the viewer left on their bench this week.
+   *
+   * `wouldHaveWon` is only true for a match actually lost by less than that
+   * player scored — the narrow question everybody asks, rather than a guess at
+   * which starter should have made way.
+   */
+  benchRegret?: { playerName: string; points: number; wouldHaveWon: boolean } | null;
+
+  /** Most recent settled weekly challenges, newest first. */
+  settledChallenges?: Array<{ week: number; name: string; winners: string[] }>;
+
   fetchedAt?: string;
 }
 

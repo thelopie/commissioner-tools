@@ -45,6 +45,15 @@ export const seasonSchema = auditableSchema.extend({
    * commissioner records that it happened. Keeping it here rather than in the code
    * means a new payment handle is a form field, not a deploy.
    */
+  /**
+   * What last place has to do, in the league's own words.
+   *
+   * Portal-owned lore, typed in by the commissioner — Yahoo has no concept of it.
+   * Lives on the season because the punishment is agreed fresh most years, and it
+   * is the only reason the bottom of the table is worth looking at in November.
+   */
+  sackoPunishment: z.string().max(500).optional(),
+
   paymentLink: z.string().url().max(500).optional(),
   paymentNote: z.string().max(300).optional(),
 
