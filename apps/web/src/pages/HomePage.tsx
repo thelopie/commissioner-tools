@@ -20,16 +20,15 @@ import CampaignIcon from '@mui/icons-material/CampaignRounded';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   useAnnouncements,
+  useChallenges,
   useConnection,
   useDraftStatus,
   useLeagueMe,
   useLeagueOverview,
-  usePublicHome,
   useSession,
 } from '../hooks.js';
 import { ApiError } from '../api/client.js';
 import { ErrorNotice } from '../components/ErrorNotice.js';
-import { DraftHighlights, draftMeetingOf } from './PublicHomePage.js';
 import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/primitives.js';
 
 /**
@@ -44,7 +43,6 @@ import { EmptyState, Monogram, PageHeader, RelativeTime } from '../components/pr
 export function HomePage(): JSX.Element {
   const session = useSession();
   const connection = useConnection();
-  const publicHome = usePublicHome();
   const me = useLeagueMe(connection.data?.connected ?? false);
 
   const user = session.data?.user ?? null;
@@ -76,21 +74,19 @@ export function HomePage(): JSX.Element {
   }
 
   /*
-    Without a Yahoo connection the live pages have nothing to show, but the draft
-    countdown and order are the portal's own and work regardless — so lead with them
-    and make connecting an offer rather than a wall. Signing in should never show
-    somebody less than the signed-out page does.
+    Without a Yahoo connection nothing live can load, so this is an offer rather than
+    a wall. It used to lead with the draft countdown and board, which made sense while
+    the draft was the only thing happening and reads as stale now that it is done.
   */
   if (!connection.data?.connected) {
     return (
       <Stack spacing={4}>
         <PageHeader title={`Hi, ${greetingName}`} />
-        <DraftHighlights
-          draftAt={publicHome.data?.draftAt ?? null}
-          meeting={draftMeetingOf(publicHome.data)}
-          order={publicHome.data?.order ?? null}
-          assignments={publicHome.data?.assignments ?? null}
-        />
+        <Alert severity="info">
+          <AlertTitle>Connect Yahoo to see your week</AlertTitle>
+          Your matchup, roster and the standings come from Yahoo. Everything the league keeps for
+          itself — dues, challenges, the record books — works either way.
+        </Alert>
         <Box sx={{ textAlign: 'center' }}>
           <Button variant="contained" href="/auth/yahoo/start">
             Connect Yahoo for scores and standings
@@ -102,9 +98,8 @@ export function HomePage(): JSX.Element {
 
   /*
     Yahoo is connected but the application has no Fantasy access, so nothing live can
-    load. That is not a reason to show this person an error and a retry button: the
-    countdown and the draw are the portal's own and work perfectly. Same content as
-    the signed-out page, plus one honest line about what is missing.
+    load. Still not an error page: the challenges, dues and record books are the
+    portal's own and unaffected, so say what is missing and point at what works.
   */
   if (me.error instanceof ApiError && me.error.isFantasyUnauthorized) {
     return (
@@ -113,14 +108,18 @@ export function HomePage(): JSX.Element {
         <Alert severity="info">
           <AlertTitle>Live scores are not switched on yet</AlertTitle>
           Standings, matchups and rosters need Yahoo to enable Fantasy access for this app.
-          Everything below is the portal&rsquo;s own and unaffected.
+          Everything the league keeps for itself is unaffected.
         </Alert>
-        <DraftHighlights
-          draftAt={publicHome.data?.draftAt ?? null}
-          meeting={draftMeetingOf(publicHome.data)}
-          order={publicHome.data?.order ?? null}
-          assignments={publicHome.data?.assignments ?? null}
-        />
+        {/*
+          No challenge card here on purpose: which week it is comes from Yahoo, and
+          this is the branch where Yahoo cannot be read. A card that guessed the week
+          would be worse than none.
+        */}
+        <Box sx={{ textAlign: 'center' }}>
+          <Button variant="tonal" component={RouterLink} to="/challenges">
+            Weekly challenges
+          </Button>
+        </Box>
       </Stack>
     );
   }
@@ -192,20 +191,16 @@ export function HomePage(): JSX.Element {
       )}
 
       {/*
-        The draw, below the matchup now that the season has started.
+        The draft board and the Little League draw are gone from here.
 
-        It led this screen all through August because the draft was the only thing
-        happening. Once games are being played the live matchup is what somebody
-        opens the app for, and a settled draft board is history — interesting, but
-        not what you came to check. It stays on the page rather than disappearing,
-        because signing in should never show a manager less than a stranger sees.
+        They owned this screen through August because the draft was the only thing
+        happening. Both are settled history now, and a signed-in manager opening the
+        app during the season wants this week: who they are playing, what the weekly
+        challenge is, and where they sit. The draw still exists on the signed-out
+        page and on the draft page, so nothing is lost — it has just stopped being
+        the first thing a member sees.
       */}
-      <DraftHighlights
-        draftAt={publicHome.data?.draftAt ?? null}
-        meeting={draftMeetingOf(publicHome.data)}
-        order={publicHome.data?.order ?? null}
-        assignments={publicHome.data?.assignments ?? null}
-      />
+      <ThisWeeksChallenge seasonYear={data.seasonYear ?? null} week={data.week ?? null} />
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 4 }}>
@@ -338,6 +333,71 @@ function PinnedAnnouncements(): JSX.Element | null {
         </Alert>
       ))}
     </Stack>
+  );
+}
+
+/**
+ * The challenge running this week.
+ *
+ * Thirteen challenges are defined once and each names the weeks it applies to, so
+ * "this week" is a lookup rather than anything stored. It earns a place on the home
+ * page because it is the one thing that changes what a manager DOES — you set your
+ * lineup differently if the week pays out the highest-scoring quarterback — and it
+ * was previously buried a page away.
+ *
+ * Silent when there is nothing to say. A week with no challenge, or a season with
+ * none defined, renders nothing rather than an empty card explaining its own
+ * absence.
+ */
+function ThisWeeksChallenge({
+  seasonYear,
+  week,
+}: {
+  seasonYear: number | null;
+  week: number | null;
+}): JSX.Element | null {
+  const challenges = useChallenges(seasonYear);
+
+  if (week === null) return null;
+
+  const definition = (challenges.data?.definitions ?? []).find((candidate) =>
+    candidate.weeks.includes(week),
+  );
+  if (!definition) return null;
+
+  return (
+    <Card variant="filled">
+      <CardContent>
+        <Stack direction="row" spacing={2} alignItems="flex-start">
+          <EmojiEventsIcon color="primary" sx={{ mt: 0.25 }} />
+
+          <Stack spacing={0.75} sx={{ minWidth: 0, flexGrow: 1 }}>
+            <Stack direction="row" spacing={1} alignItems="baseline" flexWrap="wrap" useFlexGap>
+              <Typography variant="overline" color="text.secondary">
+                Week {week} challenge
+              </Typography>
+              <Typography variant="h6">{definition.name}</Typography>
+            </Stack>
+
+            <Typography variant="body2" color="text.secondary">
+              {definition.description}
+            </Typography>
+
+            <Box>
+              <Button
+                variant="text"
+                size="small"
+                component={RouterLink}
+                to="/challenges"
+                sx={{ px: 0 }}
+              >
+                All thirteen challenges
+              </Button>
+            </Box>
+          </Stack>
+        </Stack>
+      </CardContent>
+    </Card>
   );
 }
 
