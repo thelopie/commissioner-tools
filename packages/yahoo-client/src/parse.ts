@@ -170,6 +170,44 @@ export function optionalBoolean(source: Record<string, Json>, field: string): bo
  * // users;use_login=1/games/leagues
  * descend(content, ['users', 'user', 'games', 'game', 'leagues', 'league'])
  */
+/**
+ * Flattens one entity that Yahoo has split across parts AND wrapper objects.
+ *
+ * `mergeParts` handles the array shape (`team: [{...}, {...}]`) but leaves a
+ * numeric-keyed wrapper alone, because elsewhere a numeric-keyed object means MANY
+ * entities and flattening it would fuse a collection into one record.
+ *
+ * Live Yahoo uses both at once. A roster response is:
+ *
+ *   team:    { 0: [ {team_key}, ... ], 1: { roster } }
+ *   roster:  { 0: { players }, coverage_type, week, is_prescoring, is_editable }
+ *
+ * so the roster hangs off `team[1]` and the players off `roster[0]`. Reading
+ * `team.roster` or `roster.players` finds nothing, which is exactly what happened:
+ * both the roster and the scoreboard parsed to empty against a league that had
+ * fifteen players and six matchups in it.
+ *
+ * This lifts numeric wrapper keys up exactly ONE level and stops. That is the
+ * difference between unwrapping a container and destroying a collection: `players`
+ * arrives intact as a value, rather than having its entries merged together.
+ */
+export function hoistParts(value: unknown): Record<string, Json> {
+  const merged = mergeParts(value);
+  const result: Record<string, Json> = {};
+
+  for (const [key, val] of Object.entries(merged)) {
+    if (/^\d+$/.test(key)) {
+      for (const [innerKey, innerVal] of Object.entries(mergeParts(val))) {
+        result[innerKey] = innerVal;
+      }
+      continue;
+    }
+    result[key] = val;
+  }
+
+  return result;
+}
+
 export function descend(
   root: Record<string, Json>,
   path: readonly string[],

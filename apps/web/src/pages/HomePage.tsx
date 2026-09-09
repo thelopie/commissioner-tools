@@ -178,22 +178,6 @@ export function HomePage(): JSX.Element {
       <PinnedAnnouncements />
 
       {/*
-        The draw belongs here too.
-
-        It is on the signed-out page, and connecting Yahoo used to remove it — so
-        signing in showed a manager less than a stranger sees, which is the second
-        time that has happened on this screen. It stays until the draft is done,
-        after which the countdown retires itself and the board lives on the draft
-        page and in The League.
-      */}
-      <DraftHighlights
-        draftAt={publicHome.data?.draftAt ?? null}
-        meeting={draftMeetingOf(publicHome.data)}
-        order={publicHome.data?.order ?? null}
-        assignments={publicHome.data?.assignments ?? null}
-      />
-
-      {/*
         Three different situations, which used to share one message. A missing
         matchup is the ordinary state of every week before the season starts, and
         saying "Yahoo did not identify a team as yours" for it told the commissioner
@@ -206,6 +190,22 @@ export function HomePage(): JSX.Element {
       ) : (
         <NoTeamNotice />
       )}
+
+      {/*
+        The draw, below the matchup now that the season has started.
+
+        It led this screen all through August because the draft was the only thing
+        happening. Once games are being played the live matchup is what somebody
+        opens the app for, and a settled draft board is history — interesting, but
+        not what you came to check. It stays on the page rather than disappearing,
+        because signing in should never show a manager less than a stranger sees.
+      */}
+      <DraftHighlights
+        draftAt={publicHome.data?.draftAt ?? null}
+        meeting={draftMeetingOf(publicHome.data)}
+        order={publicHome.data?.order ?? null}
+        assignments={publicHome.data?.assignments ?? null}
+      />
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 4 }}>

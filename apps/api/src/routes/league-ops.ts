@@ -229,16 +229,34 @@ leagueOpsRoutes.post('/api/dues/:seasonYear', async (c) => {
   );
 
   const actorId = principal.userId as InternalId;
+
+  /*
+    Fall back to whatever row the member already has when no id is supplied.
+
+    A member owes their buy-in once a season, so one row is the invariant — and it
+    has to hold here rather than in the caller. Before this, a client that could not
+    find the existing row created a second one instead of updating it, which is how
+    nine of twelve managers ended up recorded as unpaid AND paid at the same time,
+    with the page dutifully showing both.
+  */
   const existing = body.duesRecordId
     ? await ctx.repositories.money.findDues(leagueId, seasonYear, body.duesRecordId as InternalId)
-    : null;
+    : await ctx.repositories.money.findDuesForMember(
+        leagueId,
+        seasonYear,
+        body.leagueMemberId as InternalId,
+      );
 
   const amountPaid = body.amountPaid ??
     existing?.amountPaid ?? { amountCents: 0, currency: 'USD' as const };
 
   const record = {
     entity: 'DuesRecord' as const,
-    duesRecordId: (body.duesRecordId as InternalId | undefined) ?? generateId(),
+    // The found row's id, not just the body's, or the fallback above writes a copy.
+    duesRecordId:
+      (body.duesRecordId as InternalId | undefined) ??
+      (existing?.duesRecordId as InternalId | undefined) ??
+      generateId(),
     leagueId,
     seasonYear,
     leagueMemberId: body.leagueMemberId as InternalId,

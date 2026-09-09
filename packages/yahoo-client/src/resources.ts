@@ -3,6 +3,7 @@ import {
   collect,
   descend,
   fantasyContent,
+  hoistParts,
   mergeParts,
   optionalBoolean,
   optionalNumber,
@@ -397,11 +398,19 @@ function parseTeam(team: Record<string, Json>): YahooTeam | null {
  */
 export function parseTeamRoster(body: unknown, fallbackWeek: number): YahooTeamRoster {
   const content = fantasyContent(body);
-  const teams = descend(content, ['team']);
-  const team = teams[0] ?? mergeParts(content['team']);
+
+  /*
+    `hoistParts`, not `descend`, because live Yahoo splits one team across a
+    numeric-keyed wrapper: `team: { 0: [ {team_key}, ... ], 1: { roster } }`.
+    `descend` treats that as two separate entities and returns the metadata half
+    first — so `team.roster` was undefined and every roster read came back empty
+    against a league with fifteen players in it.
+  */
+  const team = hoistParts(content['team']);
 
   const teamKey = requireString(team, 'team_key', 'team.roster') as YahooTeamKey;
-  const roster = mergeParts(team['roster']);
+  // And again inside: the players hang off `roster[0]`.
+  const roster = hoistParts(team['roster']);
   const week = optionalNumber(roster, 'week') ?? fallbackWeek;
 
   const slots: YahooRosterSlot[] = [];
@@ -452,9 +461,10 @@ export function parseTeamRoster(body: unknown, fallbackWeek: number): YahooTeamR
 /** Parses `/league/{league_key}/scoreboard;week={n}`. */
 export function parseScoreboard(body: unknown, fallbackWeek: number): YahooMatchup[] {
   const content = fantasyContent(body);
-  const leagues = descend(content, ['league']);
-  const league = leagues[0] ?? mergeParts(content['league']);
-  const scoreboard = mergeParts(league['scoreboard']);
+
+  // Same wrapper shape as the roster: `league[1].scoreboard[0].matchups`.
+  const league = hoistParts(content['league']);
+  const scoreboard = hoistParts(league['scoreboard']);
 
   const matchups: YahooMatchup[] = [];
 

@@ -2308,6 +2308,62 @@ describe('LLWS draft-order workflow', () => {
   });
 });
 
+it('keeps one dues row per member however it is written', async () => {
+  /*
+      A member owes their buy-in once a season. The write path only updated in place
+      when the caller supplied a record id, so a client that could not find the
+      existing row created a second — and nine of twelve managers ended up recorded
+      as unpaid AND paid at once, with the page showing both.
+
+      Both writes below deliberately omit the id, which is exactly what the broken
+      client did.
+    */
+  const jar = await signInAsCommissioner();
+  const auth = {
+    'Content-Type': 'application/json',
+    Cookie: cookieHeader(jar),
+    [CSRF_HEADER]: jar[CSRF_COOKIE]!,
+  };
+
+  const created = await app.request('/api/league/members', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({ seasonYear: 2026, legacyManagerName: 'Dues Payer' }),
+  });
+  const memberId = (await created.json()).leagueMemberId;
+
+  await app.request('/api/dues/2026', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      leagueMemberId: memberId,
+      amountOwed: { amountCents: 3500, currency: 'USD' },
+    }),
+  });
+
+  await app.request('/api/dues/2026', {
+    method: 'POST',
+    headers: auth,
+    body: JSON.stringify({
+      leagueMemberId: memberId,
+      amountOwed: { amountCents: 3500, currency: 'USD' },
+      amountPaid: { amountCents: 3500, currency: 'USD' },
+    }),
+  });
+
+  const body = await (
+    await app.request('/api/dues/2026', { headers: { Cookie: cookieHeader(jar) } })
+  ).json();
+
+  const mine = body.dues.filter(
+    (record: { leagueMemberId: string }) => record.leagueMemberId === memberId,
+  );
+
+  expect(mine).toHaveLength(1);
+  expect(mine[0].status).toBe('paid');
+  expect(mine[0].amountPaid.amountCents).toBe(3500);
+});
+
 describe('challenge results', () => {
   /**
    * The five capabilities the eight buildable challenges need.

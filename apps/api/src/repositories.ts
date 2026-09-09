@@ -424,6 +424,29 @@ export class MoneyRepository {
     });
   }
 
+  /**
+   * The one dues row a member has for a season.
+   *
+   * A member owes their buy-in once per season, so exactly one row should exist.
+   * Nothing enforced that: the write path only updated in place when the caller
+   * supplied a record id, and a caller that could not find the existing row — which
+   * is what happened while the roster was still being wired up — silently created a
+   * second. Nine of twelve managers ended up with an `unpaid` row and a `paid` row,
+   * and the page showed both.
+   */
+  async findDuesForMember(
+    leagueId: InternalId,
+    seasonYear: SeasonYear,
+    leagueMemberId: InternalId,
+  ): Promise<DuesRecord | null> {
+    const all = await this.listDues(leagueId, seasonYear);
+    const mine = all.filter((record) => record.leagueMemberId === leagueMemberId);
+    if (mine.length === 0) return null;
+
+    // Oldest wins, so repeated writes converge on one row rather than ping-ponging.
+    return mine.sort((a, b) => a.createdAt.localeCompare(b.createdAt))[0] ?? null;
+  }
+
   async findDues(
     leagueId: InternalId,
     seasonYear: SeasonYear,

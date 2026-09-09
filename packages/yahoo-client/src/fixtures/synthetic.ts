@@ -379,12 +379,19 @@ export function mockScoreboardResponse(week: number): unknown {
     });
   }
 
+  // Live shape: the scoreboard hangs off a numeric part of `league`, and the
+  // matchups off a numeric part of `scoreboard`. See mockTeamRosterResponse.
   return {
     fantasy_content: {
-      league: [
-        { league_key: MOCK_LEAGUE_KEY, name: 'Mock Lopie League' },
-        { scoreboard: [{ week: String(week) }, { matchups: countedCollection(matchups) }] },
-      ],
+      league: {
+        0: { league_key: MOCK_LEAGUE_KEY, name: 'Mock Lopie League' },
+        1: {
+          scoreboard: {
+            0: { matchups: countedCollection(matchups) },
+            week: String(week),
+          },
+        },
+      },
     },
   };
 }
@@ -505,17 +512,27 @@ export function mockTeamRosterResponse(teamId: number, week: number): unknown {
     ],
   }));
 
+  /*
+    Shaped the way live Yahoo actually answers, which is not the way this fixture
+    used to be shaped. The roster hangs off a numeric part of `team`, and the
+    players off a numeric part of `roster`. The old fixture flattened both into
+    arrays, so the parser passed here for months while returning nothing at all
+    against the real API.
+  */
   return {
     fantasy_content: {
-      team: [
-        [{ team_key: teamKey(teamId) }, { team_id: String(teamId) }],
-        {
-          roster: [
-            { coverage_type: 'week', week: String(week) },
-            { players: countedCollection(players) },
-          ],
+      team: {
+        0: [{ team_key: teamKey(teamId) }, { team_id: String(teamId) }],
+        1: {
+          roster: {
+            0: { players: countedCollection(players) },
+            coverage_type: 'week',
+            week: String(week),
+            is_prescoring: 0,
+            is_editable: 1,
+          },
         },
-      ],
+      },
     },
   };
 }
