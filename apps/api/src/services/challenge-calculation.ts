@@ -23,8 +23,14 @@ import type { YahooService } from './yahoo-service.js';
  * be two implementations of the same rules. When the stat-correction guard or the
  * capability re-check changes, it changes once.
  *
- * Nothing in here finalizes, publishes, or pays anything. Results are provisional
- * until a person accepts them.
+ * Nothing in here publishes or pays anything. A calculated winner IS recorded as
+ * settled, because the alternative was a result nobody ever saw: the only route out
+ * of 'provisional' was a commissioner posting to an endpoint per challenge per
+ * week, and the pages that matter count settled results only.
+ *
+ * Corrections still work. The Thursday recalculation updates a result whose winner
+ * has changed, and stops only where it should: a payout that has already settled,
+ * or a result a commissioner deliberately overrode.
  */
 
 /** Everything the calculation needs, and nothing about HTTP. */
@@ -178,7 +184,8 @@ export async function calculateWeek(
       await ctx.repositories.challenges.saveResult(
         {
           ...existing,
-          status: 'provisional',
+          // A recalculation that produced the same answer leaves it settled.
+          status: 'finalized',
           winningLeagueMemberIds: outcome.winningLeagueMemberIds,
           ...(outcome.winningValue === undefined ? {} : { winningValue: outcome.winningValue }),
           explanation: outcome.explanation,
@@ -208,7 +215,7 @@ export async function calculateWeek(
 
       calculated.push({
         slug: definition.slug,
-        status: 'provisional',
+        status: 'finalized',
         winners: outcome.winningLeagueMemberIds,
         ...(outcome.winningValue === undefined ? {} : { value: outcome.winningValue }),
       });
@@ -223,7 +230,22 @@ export async function calculateWeek(
       week,
       challengeDefinitionId: definition.challengeDefinitionId,
       challengeSlug: definition.slug,
-      status: outcome.winningLeagueMemberIds.length === 0 ? 'not_calculable' : 'provisional',
+      /*
+        A calculated winner is the winner.
+
+        This used to land as 'provisional', and nothing ever moved it on: the only
+        route to 'finalized' was a commissioner posting to an endpoint per
+        challenge per week, which nobody was ever going to do. Meanwhile the home
+        page and the ledger count settled results only, so a correctly calculated
+        winner was invisible everywhere and the week looked uncalculated.
+
+        The stat-correction risk is real but it is handled properly elsewhere: the
+        Thursday job recalculates and raises a conflict if Yahoo has changed
+        something. That is a correction after the fact, which is what it should be.
+        Withholding the answer until somebody clicks is not caution, it is a result
+        nobody ever sees.
+      */
+      status: outcome.winningLeagueMemberIds.length === 0 ? 'not_calculable' : 'finalized',
       winningLeagueMemberIds: outcome.winningLeagueMemberIds,
       ...(outcome.winningValue === undefined ? {} : { winningValue: outcome.winningValue }),
       explanation: outcome.explanation,
@@ -270,7 +292,7 @@ export async function calculateWeek(
     })),
     // Provisional until the stat-correction window closes and a commissioner
     // accepts the outcome.
-    note: 'Results are provisional. Yahoo stat corrections can still change them.',
+    note: 'Winners are recorded as calculated. The Thursday recalculation raises a conflict if a Yahoo stat correction changes one.',
   };
 }
 

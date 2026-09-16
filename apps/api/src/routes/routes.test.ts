@@ -2639,7 +2639,7 @@ describe('challenge results', () => {
     ).json();
 
     expect(week3.calculated.map((entry: { slug: string }) => entry.slug)).toEqual(['bench-mob']);
-    expect(week3.note).toContain('provisional');
+    expect(week3.note).toContain('recalculation');
 
     /*
       All nine buildable ones, each in its own week. Running the whole calendar is
@@ -2677,7 +2677,8 @@ describe('challenge results', () => {
       // Every result carries the arithmetic that produced it.
       expect(results.results).toHaveLength(1);
       expect(results.results[0].explanation.length).toBeGreaterThan(0);
-      expect(results.results[0].status).toBe('provisional');
+      // Settled on calculation: see the note on `status` in challenge-calculation.
+      expect(results.results[0].status).toBe('finalized');
     }
   });
 
@@ -2741,8 +2742,19 @@ describe('challenge results', () => {
     expect(after.blocked.some((entry: { slug: string }) => entry.slug === 'bench-mob')).toBe(true);
   });
 
-  it('finalizes a provisional result and then refuses to finalize it twice', async () => {
-    const { auth } = await seededLeague();
+  it('records a calculated winner as settled, with nothing left to click', async () => {
+    /*
+      A calculated winner used to land as `provisional`, and the only route onward
+      was a commissioner posting to this endpoint per challenge per week. Nobody was
+      ever going to do that, and the home page and ledger count settled results
+      only, so a correctly calculated winner was invisible everywhere.
+
+      So the calculation settles it, and finalizing afterwards is refused because
+      there is nothing left to finalize. Corrections still land: the Thursday
+      recalculation updates a changed winner and stops only at a settled payout or a
+      commissioner's override.
+    */
+    const { jar, auth } = await seededLeague();
     verifyCapabilities();
 
     await app.request('/api/challenges/2026/bench-mob', {
@@ -2752,18 +2764,22 @@ describe('challenge results', () => {
     });
     await app.request('/api/challenges/2026/calculate/3', { method: 'POST', headers: auth });
 
-    const first = await app.request('/api/challenges/2026/finalize/3/bench-mob', {
-      method: 'POST',
-      headers: auth,
-    });
-    expect(first.status).toBe(200);
+    const body = await (
+      await app.request('/api/challenges/2026/results/3', {
+        headers: { Cookie: cookieHeader(jar) },
+      })
+    ).json();
+    const result = (body.results ?? []).find(
+      (entry: { challengeSlug: string }) => entry.challengeSlug === 'bench-mob',
+    );
+    expect(result.status).toBe('finalized');
 
-    // Finalizing an already-final result is not a no-op to hide; it is a mistake.
-    const second = await app.request('/api/challenges/2026/finalize/3/bench-mob', {
+    // Already settled, so this is a mistake rather than a no-op worth hiding.
+    const again = await app.request('/api/challenges/2026/finalize/3/bench-mob', {
       method: 'POST',
       headers: auth,
     });
-    expect(second.status).toBeGreaterThanOrEqual(400);
+    expect(again.status).toBeGreaterThanOrEqual(400);
   });
 
   it('requires a reason to override, and keeps the computed outcome', async () => {
