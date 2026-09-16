@@ -70,6 +70,47 @@ challengeRoutes.post('/api/challenges/:seasonYear/seed', async (c) => {
   const existingSlugs = new Set(existing.map((definition) => definition.slug));
 
   const seeded: string[] = [];
+  const resynced: string[] = [];
+
+  /*
+    Re-derive the capability-driven status of definitions that already exist.
+
+    Status is computed from the capability matrix at the moment a definition is
+    written, and then it sits in the record. Every challenge was seeded while
+    `verifiedCapabilities` was empty, so all thirteen were stored as blocked — and
+    when verification later confirmed nine capabilities, nothing reached them.
+    They stayed blocked, the Tuesday job dutifully calculated zero, and the gate
+    looked broken when it was simply out of date.
+
+    Only the derived fields move. A commissioner's edits to a rule — its name,
+    weeks, tiebreakers, eligibility — are theirs and are left exactly as they are.
+  */
+  for (const proposal of CHALLENGE_PROPOSALS) {
+    if (!existingSlugs.has(proposal.slug)) continue;
+
+    const current = existing.find((definition) => definition.slug === proposal.slug);
+    if (!current) continue;
+
+    const fresh = proposalToDefinition(proposal, { isCapabilityVerified });
+    if (fresh.status === current.status) continue;
+
+    await ctx.repositories.challenges.saveDefinition(
+      {
+        ...current,
+        status: fresh.status,
+        ...(fresh.blockedReason === undefined
+          ? { blockedReason: undefined }
+          : { blockedReason: fresh.blockedReason }),
+        requiredYahooData: fresh.requiredYahooData,
+        updatedAt: new Date().toISOString().replace(/\.\d{3}Z$/, ''),
+        updatedBy: actorId,
+        version: current.version + 1,
+      } as WeeklyChallengeDefinition,
+      current.version,
+    );
+
+    resynced.push(`${proposal.slug}: ${current.status} -> ${fresh.status}`);
+  }
 
   for (const proposal of CHALLENGE_PROPOSALS) {
     if (existingSlugs.has(proposal.slug)) continue;
@@ -93,13 +134,18 @@ challengeRoutes.post('/api/challenges/:seasonYear/seed', async (c) => {
     action: 'challenge.definition_created',
     actorUserId: actorId,
     actorRole: principal.role,
-    summary: `Seeded ${seeded.length} challenge definitions for ${seasonYear}.`,
+    summary: `Seeded ${seeded.length} and resynced ${resynced.length} challenge definitions for ${seasonYear}.`,
     correlationId: ctx.correlationId,
-    detail: { seededCount: seeded.length, skippedCount: existingSlugs.size },
+    detail: {
+      seededCount: seeded.length,
+      resyncedCount: resynced.length,
+      skippedCount: existingSlugs.size,
+    },
   });
 
   return c.json({
     seeded,
+    resynced,
     skipped: [...existingSlugs],
     note: 'Proposed rules. Every knob is editable — correct them here rather than in code.',
   });
