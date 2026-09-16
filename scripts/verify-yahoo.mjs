@@ -97,6 +97,32 @@ async function probe(name, path, capabilities, check) {
 }
 
 /** Walks Yahoo's numeric-keyed collections without importing the parser. */
+/**
+ * Flatten, then lift numeric wrapper keys up exactly one level.
+ *
+ * Yahoo splits one entity across BOTH an array of parts and a numeric-keyed
+ * wrapper: `team: { 0: [ {team_key}, ... ], 1: { roster } }`, and inside that,
+ * `roster: { 0: { players }, week, ... }`. `flatten` alone copies the numeric key
+ * across untouched, so `team.roster` and `roster.players` both read undefined and
+ * this script reported the capability as unavailable.
+ *
+ * It was wrong, not Yahoo: the same bug in the client made My Team and Matchups
+ * render empty against a league that had fifteen players and six matchups in it.
+ * Stopping at one level is what keeps a collection like `players` intact.
+ */
+function hoist(node) {
+  const flat = flatten(node);
+  const out = {};
+  for (const [key, value] of Object.entries(flat)) {
+    if (/^\d+$/.test(key)) {
+      Object.assign(out, flatten(value));
+      continue;
+    }
+    out[key] = value;
+  }
+  return out;
+}
+
 function items(node) {
   if (!node || typeof node !== 'object') return [];
   if (Array.isArray(node)) return node;
@@ -195,12 +221,13 @@ if (!leagueKey) {
     `league/${encoded}/scoreboard;week=${week}`,
     ['team_week_points', 'matchup_result'],
     (body) => {
-      const league = flatten(body?.fantasy_content?.league);
-      const matchups = items(flatten(league.scoreboard).matchups);
+      const league = hoist(body?.fantasy_content?.league);
+      const matchups = items(hoist(league.scoreboard).matchups);
       if (matchups.length === 0) return { ok: false, detail: 'no matchups for that week' };
 
-      const first = flatten(matchups[0].matchup);
-      const team = flatten(items(first.teams)[0]?.team);
+      // The two teams hang off a numeric part of the matchup, same as everywhere else.
+      const first = hoist(matchups[0].matchup);
+      const team = hoist(items(first.teams)[0]?.team);
       const points = flatten(team.team_points).total;
 
       return points !== undefined
@@ -213,8 +240,8 @@ if (!leagueKey) {
   // are what most challenges depend on, and both are unverified conventions.
   let teamKey;
   if (teamsBody) {
-    const league = flatten(teamsBody.fantasy_content.league);
-    const team = flatten(items(league.teams)[0]?.team);
+    const league = hoist(teamsBody.fantasy_content.league);
+    const team = hoist(items(league.teams)[0]?.team);
     if (team.team_key) teamKey = String(team.team_key);
   }
 
@@ -224,8 +251,8 @@ if (!leagueKey) {
       `team/${encodeURIComponent(teamKey)}/roster;week=${week}/players/stats;type=week;week=${week}`,
       ['roster_selected_position', 'player_week_points', 'player_position'],
       (body) => {
-        const team = flatten(body?.fantasy_content?.team);
-        const roster = flatten(team.roster);
+        const team = hoist(body?.fantasy_content?.team);
+        const roster = hoist(team.roster);
         const players = items(roster.players);
         if (players.length === 0) return { ok: false, detail: 'no players in roster' };
 

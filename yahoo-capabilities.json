@@ -24,8 +24,8 @@
     "`npm run verify:yahoo` after Yahoo grants credentials; it prints the",
     "capability keys it was able to confirm."
   ],
-  "lastReviewedAt": "2026-07-27",
-  "reviewedBy": "initial build",
+  "lastReviewedAt": "2026-09-16",
+  "reviewedBy": "verify:yahoo against nfl.l.17255, week 1",
   "access": {
     "selfService": false,
     "applicationUrl": "https://sports.yahoo.com/developer/access/",
@@ -115,7 +115,7 @@
       "authenticatedUserOnly": true,
       "commissionerBehavior": "none — returns the signed-in user's own leagues",
       "confidence": "documented-legacy",
-      "testStatus": "mock-only",
+      "testStatus": "verified",
       "provides": [],
       "limitations": [
         "Current docs list `/users;use_login=1` as a resource but do not spell out the games/leagues sub-resource chain. The `;game_codes=nfl` filter and the `/leagues` sub-resource come from the archived guide and universal third-party usage.",
@@ -133,7 +133,7 @@
       "authenticatedUserOnly": false,
       "commissionerBehavior": "none observed — settings are readable by any league member",
       "confidence": "documented",
-      "testStatus": "mock-only",
+      "testStatus": "verified",
       "provides": [],
       "limitations": [
         "Field-level shape is unverified; the parser tolerates missing optional fields rather than assuming them.",
@@ -150,7 +150,7 @@
       "authenticatedUserOnly": false,
       "commissionerBehavior": "unverified whether manager email or GUID visibility differs for a commissioner",
       "confidence": "documented",
-      "testStatus": "mock-only",
+      "testStatus": "verified",
       "provides": [],
       "limitations": [
         "Manager display names and team names returned here are Yahoo user data: cached under TTL and never persisted.",
@@ -167,7 +167,7 @@
       "authenticatedUserOnly": false,
       "commissionerBehavior": "none",
       "confidence": "documented-legacy",
-      "testStatus": "mock-only",
+      "testStatus": "verified",
       "provides": ["team_week_points", "matchup_result"],
       "limitations": [
         "Scoreboard is listed as a league sub-resource in current docs without field detail.",
@@ -184,7 +184,7 @@
       "authenticatedUserOnly": false,
       "commissionerBehavior": "unverified whether a commissioner may read other teams' historical rosters that a member cannot",
       "confidence": "documented-legacy",
-      "testStatus": "mock-only",
+      "testStatus": "verified",
       "provides": ["roster_selected_position", "player_position"],
       "limitations": [
         "The bench indicator is conventionally selected_position = 'BN', and IR is 'IR'. Unverified against a real league.",
@@ -203,7 +203,7 @@
       "authenticatedUserOnly": false,
       "commissionerBehavior": "none",
       "confidence": "documented-legacy",
-      "testStatus": "mock-only",
+      "testStatus": "verified",
       "provides": ["player_week_points"],
       "limitations": [
         "League-context scoring is required: game-context stats would not reflect the league's scoring settings.",
@@ -221,7 +221,7 @@
       "authenticatedUserOnly": false,
       "commissionerBehavior": "none",
       "confidence": "inferred",
-      "testStatus": "untested",
+      "testStatus": "verified",
       "provides": ["player_stat_by_id"],
       "limitations": [
         "Stat ids are numeric and league-specific in meaning. There is no current official published mapping of stat id to stat name; the /game/{game_key}/stat_categories resource is the conventional source and is itself only in the archived guide.",
@@ -317,7 +317,17 @@
       ]
     }
   ],
-  "verifiedCapabilities": [],
+  "verifiedCapabilities": [
+    "league_metadata",
+    "league_teams",
+    "matchup_result",
+    "player_position",
+    "player_stat_by_id",
+    "player_week_points",
+    "roster_selected_position",
+    "team_week_points",
+    "user_leagues"
+  ],
   "$verifiedCapabilitiesComment": [
     "The list above is the authoritative gate. It is EMPTY until a real Yahoo",
     "league confirms each capability, which is why every challenge currently",
